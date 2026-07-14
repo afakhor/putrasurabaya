@@ -208,13 +208,13 @@ class _POSPageState extends ConsumerState<POSPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _addDummyProduct(ref),
-        tooltip: 'Tambah Produk Dummy',
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
+      floatingActionButton: kIsWeb ? null : FloatingActionButton(
+  onPressed: () {
+    _addDummyProduct(ref);
+  },
+  tooltip: 'Tambah Produk Dummy',
+  child: const Icon(Icons.add),
+),
 
   void _connectPrinter() async {
     if (kIsWeb) return;
