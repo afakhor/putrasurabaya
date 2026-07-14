@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // untuk kIsWeb
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,7 +8,6 @@ import '../../core/database/app_database.dart';
 import '../../core/utils/format_rupiah.dart';
 import '../../main.dart';
 
-// State untuk keranjang
 class CartItem {
   final Product product;
   double qty;
@@ -71,7 +70,7 @@ class _POSPageState extends ConsumerState<POSPage> {
   }
 
   void _initBluetooth() async {
-    if (kIsWeb) return; // Skip bluetooth di web
+    if (kIsWeb) return;
     bool? isConnected = await bluetooth.isConnected;
     setState(() => _isConnected = isConnected?? false);
   }
@@ -86,7 +85,6 @@ class _POSPageState extends ConsumerState<POSPage> {
       appBar: AppBar(
         title: const Text('Kasir UD. Putra Surabaya'),
         actions: [
-          // Status Printer - Hidden di Web
           if (!kIsWeb)
             IconButton(
               icon: Icon(_isConnected? Icons.print : Icons.print_disabled, color: _isConnected? Colors.green : Colors.red),
@@ -102,7 +100,6 @@ class _POSPageState extends ConsumerState<POSPage> {
       ),
       body: Row(
         children: [
-          // Kiri: List Produk
           Expanded(
             flex: 3,
             child: FutureBuilder<List<Product>>(
@@ -115,7 +112,7 @@ class _POSPageState extends ConsumerState<POSPage> {
                 final data = snapshot.data!;
                 return GridView.builder(
                   padding: const EdgeInsets.all(8),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: MediaQuery.of(context).size.width > 600? 4 : 2,
                     childAspectRatio: 1.2,
                     crossAxisSpacing: 8,
@@ -143,7 +140,6 @@ class _POSPageState extends ConsumerState<POSPage> {
               },
             ),
           ),
-          // Kanan: Keranjang
           Expanded(
             flex: 2,
             child: Container(
@@ -208,13 +204,13 @@ class _POSPageState extends ConsumerState<POSPage> {
           ),
         ],
       ),
-      floatingActionButton: kIsWeb ? null : FloatingActionButton(
-  onPressed: () {
-    _addDummyProduct(ref);
-  },
-  tooltip: 'Tambah Produk Dummy',
-  child: const Icon(Icons.add),
-),
+      floatingActionButton: kIsWeb? null : FloatingActionButton(
+        onPressed: () => _addDummyProduct(ref),
+        tooltip: 'Tambah Produk Dummy',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
 
   void _connectPrinter() async {
     if (kIsWeb) return;
@@ -223,7 +219,6 @@ class _POSPageState extends ConsumerState<POSPage> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pair printer dulu di Bluetooth HP')));
       return;
     }
-    // Pilih device pertama aja buat simple
     await bluetooth.connect(devices.first);
     bool? isConnected = await bluetooth.isConnected;
     setState(() => _isConnected = isConnected?? false);
@@ -313,24 +308,36 @@ class _POSPageState extends ConsumerState<POSPage> {
     final cart = ref.read(cartProvider);
     final debt = total - bayar;
 
-    // Simpan transaksi
     final invoiceNo = 'INV${DateTime.now().millisecondsSinceEpoch}';
     await db.into(db.transactions).insert(TransactionsCompanion.insert(
       invoiceNo: invoiceNo,
+      subtotal: total,
       total: total,
       paid: bayar,
       debt: debt > 0? debt : 0,
       paymentMethod: Value(method),
+      change: bayar > total? bayar - total : 0,
     ));
 
-    // Print struk kalau bukan web & ada koneksi
+    for (var item in cart) {
+      await db.into(db.transactionItems).insert(TransactionItemsCompanion.insert(
+        transactionId: 1, // Nanti ambil ID dari transaksi barusan
+        productId: item.product.id,
+        productName: item.product.name,
+        unit: item.unit,
+        qty: item.qty,
+        price: item.price,
+        subtotal: item.subtotal,
+      ));
+    }
+
     if (!kIsWeb && _isConnected) {
       bluetooth.printNewLine();
       bluetooth.printCustom('UD. PUTRA SURABAYA', 3, 1);
       bluetooth.printCustom(invoiceNo, 1, 1);
       bluetooth.printNewLine();
       for (var item in cart) {
-        bluetooth.printLeftRight('${item.product.name}', formatRupiah(item.subtotal), 0);
+        bluetooth.printLeftRight(item.product.name, formatRupiah(item.subtotal), 0);
         bluetooth.printCustom('${item.qty} ${item.unit} x ${formatAngka(item.price)}', 0, 0);
       }
       bluetooth.printNewLine();
