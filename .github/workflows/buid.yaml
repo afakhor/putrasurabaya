@@ -1,20 +1,35 @@
-name: Build Flutter Web
+name: Build Flutter Web to gh-pages
+
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  build-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-      - run: flutter pub get
-      - run: flutter build web --release --base-href /putrasurabaya/
-      - name: Deploy
+
+      - name: Install deps
+        run: flutter pub get
+
+      - name: Build web
+        run: flutter build web --release --base-href /putrasurabaya/
+        # Ganti /putrasurabaya/ sesuai nama repo
+
+      - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./build/web
+          # cname: yourdomain.com  # hapus # ini kalo pake custom domain
