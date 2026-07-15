@@ -88,7 +88,7 @@ class AppDatabase extends _$AppDatabase {
   Future<List<Product>> getAllProducts() => select(products).get();
 }
 
-LazyDatabase _openConnection() {
+QueryExecutor _openConnection() {
   return driftDatabase(
     name: 'ud_putra_db',
     // Ini kunci biar Web gak putih
