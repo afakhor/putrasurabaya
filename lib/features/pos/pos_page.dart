@@ -146,7 +146,7 @@ class _POSPageState extends ConsumerState<POSPage> {
     final db = ref.read(databaseProvider);
     await db.into(db.products).insert(ProductsCompanion.insert(
       name: 'Semen Gresik ${DateTime.now().second}',
-      barcode: 'PSB${DateTime.now().millisecondsSinceEpoch}',
+      barcode: Value('PSB${DateTime.now().millisecondsSinceEpoch}'),
       sellPrice: const Value(75000),
       buyPrice: const Value(70000),
       unitBase: const Value('sak'),
