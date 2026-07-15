@@ -1,34 +1,28 @@
 import 'package:drift/drift.dart';
 import 'connection/connection.dart' as impl;
-import 'tables.dart';
 
 part 'app_database.g.dart';
 
 class Products extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get sku => text().withLength(min: 1, max: 50).nullable()();
-  TextColumn get barcode => text().unique()();
-  TextColumn get name => text().withLength(min: 1, max: 100)();
-  IntColumn get categoryId => integer().nullable()();
-  TextColumn get unitBase => text().withDefault(const Constant('pcs'))();
-  RealColumn get buyPrice => real().withDefault(const Constant(0))();
+  TextColumn get name => text()();
+  TextColumn get barcode => text().nullable()();
   RealColumn get sellPrice => real().withDefault(const Constant(0))();
+  RealColumn get buyPrice => real().withDefault(const Constant(0))();
   RealColumn get stock => real().withDefault(const Constant(0))();
-  RealColumn get minStock => real().withDefault(const Constant(0))();
-  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get unitBase => text().withDefault(const Constant('pcs'))();
 }
 
 class Categories extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get name => text().unique()();
+  TextColumn get name => text()();
 }
 
 class ProductUnits extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get productId => integer().references(Products, #id)();
-  TextColumn get unitName => text()();
-  RealColumn get conversionRate => real()();
+  IntColumn get productId => integer().customConstraint('REFERENCES products(id)')();
+  TextColumn get unit => text()();
+  RealColumn get conversion => real()();
   RealColumn get sellPrice => real()();
 }
 
@@ -37,56 +31,45 @@ class Customers extends Table {
   TextColumn get name => text()();
   TextColumn get phone => text().nullable()();
   TextColumn get address => text().nullable()();
-  RealColumn get debtTotal => real().withDefault(const Constant(0))();
 }
 
 class Transactions extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get invoiceNo => text().unique()();
-  IntColumn get customerId => integer().nullable().references(Customers, #id)();
-  TextColumn get customerName => text().nullable()();
-  DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get invoiceNo => text()();
   RealColumn get subtotal => real()();
-  RealColumn get discount => real().withDefault(const Constant(0))();
-  RealColumn get tax => real().withDefault(const Constant(0))();
   RealColumn get total => real()();
   RealColumn get paid => real()();
-  RealColumn get change => real().withDefault(const Constant(0))();
   RealColumn get debt => real().withDefault(const Constant(0))();
+  RealColumn get change => real().withDefault(const Constant(0))();
   TextColumn get paymentMethod => text().withDefault(const Constant('Cash'))();
-  TextColumn get cashierName => text().nullable()();
-  TextColumn get note => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 class TransactionItems extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get transactionId => integer().references(Transactions, #id)();
-  IntColumn get productId => integer().references(Products, #id)();
+  IntColumn get transactionId => integer().customConstraint('REFERENCES transactions(id)')();
+  IntColumn get productId => integer()();
   TextColumn get productName => text()();
   TextColumn get unit => text()();
   RealColumn get qty => real()();
   RealColumn get price => real()();
-  RealColumn get discount => real().withDefault(const Constant(0))();
   RealColumn get subtotal => real()();
 }
 
 class Debts extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get transactionId => integer().references(Transactions, #id)();
-  IntColumn get customerId => integer().references(Customers, #id)();
-  RealColumn get totalDebt => real()();
-  RealColumn get remainingDebt => real()();
+  IntColumn get transactionId => integer().customConstraint('REFERENCES transactions(id)')();
+  IntColumn get customerId => integer().customConstraint('REFERENCES customers(id)')();
+  RealColumn get amount => real()();
+  RealColumn get paid => real().withDefault(const Constant(0))();
   DateTimeColumn get dueDate => dateTime().nullable()();
-  TextColumn get ktpImagePath => text().nullable()();
-  TextColumn get status => text().withDefault(const Constant('Belum Lunas'))();
 }
 
 class DebtPayments extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get debtId => integer().references(Debts, #id)();
+  IntColumn get debtId => integer().customConstraint('REFERENCES debts(id)')();
   RealColumn get amount => real()();
-  DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
-  TextColumn get note => text().nullable()();
+  DateTimeColumn get paidAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 @DriftDatabase(tables: [Products, Categories, ProductUnits, Customers, Transactions, TransactionItems, Debts, DebtPayments])
