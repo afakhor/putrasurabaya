@@ -3,6 +3,6 @@ import 'package:drift/web.dart';
 
 DatabaseConnection connect() {
   return DatabaseConnection.delayed(Future(() async {
-    return WebDatabase('ud_putra_web_db');
+    return DatabaseConnection(WebDatabase('ud_putra_web_db'));
   }));
 }
