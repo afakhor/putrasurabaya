@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
-import 'connection/connection.dart' as impl; // INI KUNCINYA
+import 'connection/connection.dart' as impl;
+import 'tables.dart';
 
 part 'app_database.g.dart';
 
@@ -90,7 +91,7 @@ class DebtPayments extends Table {
 
 @DriftDatabase(tables: [Products, Categories, ProductUnits, Customers, Transactions, TransactionItems, Debts, DebtPayments])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(impl.connect()); // PAKE impl.connect()
+  AppDatabase() : super(impl.connect());
 
   @override
   int get schemaVersion => 1;
@@ -99,5 +100,3 @@ class AppDatabase extends _$AppDatabase {
   Future<Product> getProductByBarcode(String code) => (select(products)..where((t) => t.barcode.equals(code))).getSingle();
   Future<List<Customer>> getAllCustomers() => select(customers).get();
 }
-
-// HAPUS LazyDatabase _openConnection() DARI SINI
