@@ -1,7 +1,8 @@
-import 'package:drift/drift.dart'; // PAKE drift AJA, BUKAN drift/web
+import 'package:drift/drift.dart';
+import 'package:drift/web.dart';
 
 DatabaseConnection connect() {
-  return DatabaseConnection.delayed(Future.value(
-    WebDatabase('ud_putra_web_db'), // WebDatabase udah ada di package drift
-  ));
+  return DatabaseConnection.delayed(Future(() async {
+    return WebDatabase('ud_putra_web_db');
+  }));
 }
