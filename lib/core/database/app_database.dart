@@ -1,16 +1,20 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:path_provider/path_provider.dart'; // <--- jangan lupa ini
 
 part 'app_database.g.dart';
 
 class Products extends Table {
   IntColumn get id => integer().autoIncrement()();
+  TextColumn get sku => text().nullable()();
   TextColumn get name => text()();
-  TextColumn get barcode => text().nullable()();
-  RealColumn get sellPrice => real().withDefault(const Constant(0))();
-  RealColumn get buyPrice => real().withDefault(const Constant(0))();
-  RealColumn get stock => real().withDefault(const Constant(0))();
-  TextColumn get unitBase => text().withDefault(const Constant('pcs'))();
+  IntColumn get categoryId => integer().nullable()();
+  IntColumn get purchasePrice => integer()();
+  IntColumn get sellingPrice => integer()();
+  IntColumn get stock => integer().withDefault(const Constant(0))();
+  TextColumn get unit => text().withDefault(const Constant('pcs'))();
+  TextColumn get imagePath => text().nullable()();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
 }
 
 class Categories extends Table {
@@ -20,10 +24,11 @@ class Categories extends Table {
 
 class ProductUnits extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get productId => integer().customConstraint('REFERENCES products(id)')();
-  TextColumn get unit => text()();
-  RealColumn get conversion => real()();
-  RealColumn get sellPrice => real()();
+  IntColumn get productId => integer()();
+  TextColumn get unitName => text()();
+  IntColumn get conversion => integer()();
+  IntColumn get sellingPrice => integer()();
+  TextColumn get barcode => text().nullable()();
 }
 
 class Customers extends Table {
@@ -35,58 +40,66 @@ class Customers extends Table {
 
 class Transactions extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get invoiceNo => text()();
-  RealColumn get subtotal => real()();
-  RealColumn get total => real()();
-  RealColumn get paid => real()();
-  RealColumn get debt => real().withDefault(const Constant(0))();
-  RealColumn get change => real().withDefault(const Constant(0))();
-  TextColumn get paymentMethod => text().withDefault(const Constant('Cash'))();
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get date => dateTime()();
+  IntColumn get total => integer()();
+  IntColumn get customerId => integer().nullable()();
+  TextColumn get paymentMethod => text().withDefault(const Constant('cash'))();
+  IntColumn get paidAmount => integer().withDefault(const Constant(0))();
 }
 
 class TransactionItems extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get transactionId => integer().customConstraint('REFERENCES transactions(id)')();
+  IntColumn get transactionId => integer()();
   IntColumn get productId => integer()();
-  TextColumn get productName => text()();
+  IntColumn get quantity => integer()();
+  IntColumn get price => integer()();
   TextColumn get unit => text()();
-  RealColumn get qty => real()();
-  RealColumn get price => real()();
-  RealColumn get subtotal => real()();
 }
 
 class Debts extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get transactionId => integer().customConstraint('REFERENCES transactions(id)')();
-  IntColumn get customerId => integer().customConstraint('REFERENCES customers(id)')();
-  RealColumn get amount => real()();
-  RealColumn get paid => real().withDefault(const Constant(0))();
-  DateTimeColumn get dueDate => dateTime().nullable()();
+  IntColumn get customerId => integer()();
+  IntColumn get transactionId => integer().nullable()();
+  IntColumn get totalDebt => integer()();
+  IntColumn get remainingDebt => integer()();
+  DateTimeColumn get date => dateTime()();
+  BoolColumn get isPaid => boolean().withDefault(const Constant(false))();
 }
 
 class DebtPayments extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get debtId => integer().customConstraint('REFERENCES debts(id)')();
-  RealColumn get amount => real()();
-  DateTimeColumn get paidAt => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get debtId => integer()();
+  IntColumn get amount => integer()();
+  DateTimeColumn get date => dateTime()();
 }
 
-@DriftDatabase(tables: [Products, Categories, ProductUnits, Customers, Transactions, TransactionItems, Debts, DebtPayments])
+@DriftDatabase(tables: [
+  Products, Categories, ProductUnits, 
+  Customers, Transactions, TransactionItems, 
+  Debts, DebtPayments
+])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(driftDatabase(name: 'ud_putra_db'));
+  AppDatabase() : super(_openConnection());
 
   @override
   int get schemaVersion => 1;
 
-  @override
-  MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (Migrator m) async {
-      await m.createAll();
-    },
-  );
-
+  // --- Query helper mu taruh bawah sini ---
   Future<List<Product>> getAllProducts() => select(products).get();
-  Future<Product> getProductByBarcode(String code) => (select(products)..where((t) => t.barcode.equals(code))).getSingle();
-  Future<List<Customer>> getAllCustomers() => select(customers).get();
+}
+
+LazyDatabase _openConnection() {
+  return driftDatabase(
+    name: 'ud_putra_db',
+    // Ini kunci biar Web gak putih
+    web: DriftWebOptions(
+      sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+      driftWorker: Uri.parse('drift_worker.js'),
+      onResult: (result) {
+        if (result.missingFeatures.isNotEmpty) {
+          print('Missing features: ${result.missingFeatures}');
+        }
+      },
+    ),
+  );
 }
