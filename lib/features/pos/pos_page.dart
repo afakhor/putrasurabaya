@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:blue_thermal_printer/blue_thermal_printer.dart';
+//import 'package:blue_thermal_printer/blue_thermal_printer.dart';
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../core/database/app_database.dart';
