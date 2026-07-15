@@ -5,9 +5,9 @@ plugins {
 }
 
 android {
-    namespace = "com.udputra.kasir" // GANTI SESUAI PACKAGE
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    namespace = "com.udputra.kasir"
+    compileSdk = 35
+    ndkVersion = "25.1.8937393"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -20,20 +20,12 @@ android {
 
     defaultConfig {
         applicationId = "com.udputra.kasir"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 21
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
-
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = false
-            isShrinkResources = false
-        }
-    }
-}
+   
 
 flutter {
     source = "../.."
