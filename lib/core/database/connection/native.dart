@@ -8,6 +8,7 @@ DatabaseConnection connect() {
   return DatabaseConnection.delayed(Future(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'ud_putra.db'));
-    return NativeDatabase.createInBackground(file);
+    final db = NativeDatabase.createInBackground(file);
+    return DatabaseConnection(db);
   }));
 }
