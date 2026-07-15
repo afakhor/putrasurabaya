@@ -2,14 +2,43 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide Column;
 import '../../core/database/app_database.dart';
 import '../../core/utils/format_rupiah.dart';
 import '../../main.dart';
 
-//... class CartItem & CartNotifier sama kayak sebelumnya, biarin...
+class CartItem {
+  final Product product;
+  double qty;
+  String unit;
+  double price;
+  CartItem({required this.product, this.qty = 1, required this.unit, required this.price});
+  double get subtotal => qty * price;
+}
+
+class CartNotifier extends StateNotifier<List<CartItem>> {
+  CartNotifier() : super([]);
+  void addProduct(Product p) {
+    final index = state.indexWhere((e) => e.product.id == p.id);
+    if (index >= 0) {
+      state[index].qty++;
+      state = [...state];
+    } else {
+      state = [...state, CartItem(product: p, unit: p.unitBase, price: p.sellPrice)];
+    }
+  }
+  void removeProduct(int productId) => state = state.where((e) => e.product.id!= productId).toList();
+  void clear() => state = [];
+  double get total => state.fold(0, (sum, item) => sum + item.subtotal);
+}
+
+final cartProvider = StateNotifierProvider<CartNotifier, List<CartItem>>((ref) => CartNotifier());
+
+class POSPage extends ConsumerStatefulWidget {
+  const POSPage({super.key});
+  @override
+  ConsumerState<POSPage> createState() => _POSPageState();
+}
 
 class _POSPageState extends ConsumerState<POSPage> {
   bool _isConnected = false;
@@ -152,7 +181,6 @@ class _POSPageState extends ConsumerState<POSPage> {
     final db = ref.read(databaseProvider);
     final cart = ref.read(cartProvider);
     final invoiceNo = 'INV${DateTime.now().millisecondsSinceEpoch}';
-
     await db.into(db.transactions).insert(TransactionsCompanion.insert(
       invoiceNo: invoiceNo,
       subtotal: total,
@@ -162,7 +190,6 @@ class _POSPageState extends ConsumerState<POSPage> {
       paymentMethod: Value(method),
       change: Value(bayar > total? bayar - total : 0),
     ));
-
     if (!kIsWeb && _isConnected) {
       String struk = 'UD. PUTRA SURABAYA\n$invoiceNo\n----------------\n';
       for (var item in cart) {
@@ -171,7 +198,6 @@ class _POSPageState extends ConsumerState<POSPage> {
       struk += '----------------\nTOTAL: ${formatRupiah(total)}\nBAYAR: ${formatRupiah(bayar)}\nTerima Kasih\n\n\n';
       await PrintBluetoothThermal.writeBytes(struk.codeUnits);
     }
-
     ref.read(cartProvider.notifier).clear();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transaksi sukses')));
   }
