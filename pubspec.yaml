@@ -14,7 +14,7 @@ dependencies:
   drift: ^2.23.1
   drift_flutter: ^0.2.1
   path_provider: ^2.1.2
-  sqlite3_flutter_libs: ^0.1.4
+  sqlite3_flutter_libs: ^0.5.42
   path: ^1.9.0
   print_bluetooth_thermal: ^1.0.3
   image_picker: ^1.0.7
