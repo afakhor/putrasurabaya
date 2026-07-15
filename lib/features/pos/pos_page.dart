@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-//import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'dart:io';
 import '../../core/database/app_database.dart';
 import '../../core/utils/format_rupiah.dart';
@@ -61,8 +61,8 @@ class POSPage extends ConsumerStatefulWidget {
 }
 
 class _POSPageState extends ConsumerState<POSPage> {
-  BlueThermalPrinter bluetooth = BlueThermalPrinter.instance;
   bool _isConnected = false;
+  String? _printerMac;
 
   @override
   void initState() {
@@ -72,8 +72,10 @@ class _POSPageState extends ConsumerState<POSPage> {
 
   void _initBluetooth() async {
     if (kIsWeb) return;
-    bool? isConnected = await bluetooth.isConnected;
-    setState(() => _isConnected = isConnected?? false);
+    bool isConnected = await PrintBluetoothThermal.connectionStatus;
+    if (mounted) {
+      setState(() => _isConnected = isConnected);
+    }
   }
 
   @override
@@ -215,14 +217,18 @@ class _POSPageState extends ConsumerState<POSPage> {
 
   void _connectPrinter() async {
     if (kIsWeb) return;
-    List<BluetoothDevice> devices = await bluetooth.getBondedDevices();
+    List<BluetoothInfo> devices = await PrintBluetoothThermal.pairedBluetooths;
     if (devices.isEmpty) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pair printer dulu di Bluetooth HP')));
       return;
     }
-    await bluetooth.connect(devices.first);
-    bool? isConnected = await bluetooth.isConnected;
-    setState(() => _isConnected = isConnected?? false);
+    // Ambil printer pertama
+    _printerMac = devices.first.macAdress;
+    bool result = await PrintBluetoothThermal.connect(macPrinterAddress: _printerMac!);
+    setState(() => _isConnected = result);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result? 'Printer ${devices.first.name} connected' : 'Gagal connect')));
+    }
   }
 
   void _addDummyProduct(WidgetRef ref) async {
@@ -233,7 +239,7 @@ class _POSPageState extends ConsumerState<POSPage> {
       sellPrice: 75000,
       buyPrice: 70000,
       unitBase: 'sak',
-      stock: 100,
+      stock: const Value(100),
     ));
     ref.invalidate(databaseProvider);
   }
@@ -310,19 +316,19 @@ class _POSPageState extends ConsumerState<POSPage> {
     final debt = total - bayar;
 
     final invoiceNo = 'INV${DateTime.now().millisecondsSinceEpoch}';
-    await db.into(db.transactions).insert(TransactionsCompanion.insert(
+    final transId = await db.into(db.transactions).insert(TransactionsCompanion.insert(
       invoiceNo: invoiceNo,
       subtotal: total,
       total: total,
       paid: bayar,
-      debt: debt > 0? debt : 0,
+      debt: Value(debt > 0? debt : 0),
       paymentMethod: Value(method),
-      change: bayar > total? bayar - total : 0,
+      change: Value(bayar > total? bayar - total : 0),
     ));
 
     for (var item in cart) {
       await db.into(db.transactionItems).insert(TransactionItemsCompanion.insert(
-        transactionId: 1, // Nanti ambil ID dari transaksi barusan
+        transactionId: transId,
         productId: item.product.id,
         productName: item.product.name,
         unit: item.unit,
@@ -333,23 +339,44 @@ class _POSPageState extends ConsumerState<POSPage> {
     }
 
     if (!kIsWeb && _isConnected) {
-      bluetooth.printNewLine();
-      bluetooth.printCustom('UD. PUTRA SURABAYA', 3, 1);
-      bluetooth.printCustom(invoiceNo, 1, 1);
-      bluetooth.printNewLine();
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(PaperSize.mm58, profile);
+      List<int> bytes = [];
+
+      bytes += generator.text('UD. PUTRA SURABAYA', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+      bytes += generator.text(invoiceNo, styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.hr();
       for (var item in cart) {
-        bluetooth.printLeftRight(item.product.name, formatRupiah(item.subtotal), 0);
-        bluetooth.printCustom('${item.qty} ${item.unit} x ${formatAngka(item.price)}', 0, 0);
+        bytes += generator.row([
+          PosColumn(text: item.product.name, width: 8),
+          PosColumn(text: formatRupiah(item.subtotal), width: 4, styles: const PosStyles(align: PosAlign.right)),
+        ]);
+        bytes += generator.text('${item.qty} ${item.unit} x ${formatAngka(item.price)}', styles: const PosStyles(align: PosAlign.left));
       }
-      bluetooth.printNewLine();
-      bluetooth.printLeftRight('TOTAL', formatRupiah(total), 1);
-      bluetooth.printLeftRight('BAYAR', formatRupiah(bayar), 1);
-      bluetooth.printLeftRight('KEMBALI', formatRupiah(bayar - total), 1);
-      if (debt > 0) bluetooth.printLeftRight('PIUTANG', formatRupiah(debt), 1);
-      bluetooth.printNewLine();
-      bluetooth.printCustom('Terima Kasih', 1, 1);
-      bluetooth.printNewLine();
-      bluetooth.paperCut();
+      bytes += generator.hr();
+      bytes += generator.row([
+        PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles(bold: true)),
+        PosColumn(text: formatRupiah(total), width: 6, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      ]);
+      bytes += generator.row([
+        PosColumn(text: 'BAYAR', width: 6),
+        PosColumn(text: formatRupiah(bayar), width: 6, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      bytes += generator.row([
+        PosColumn(text: 'KEMBALI', width: 6),
+        PosColumn(text: formatRupiah(bayar > total? bayar - total : 0), width: 6, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      if (debt > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'PIUTANG', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: formatRupiah(debt), width: 6, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+      }
+      bytes += generator.hr();
+      bytes += generator.text('Terima Kasih', styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.cut();
+
+      await PrintBluetoothThermal.writeBytes(bytes);
     }
 
     ref.read(cartProvider.notifier).clear();
