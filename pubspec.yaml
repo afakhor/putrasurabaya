@@ -35,8 +35,8 @@ flutter:
   
   # Asset foto/gambar
   assets:
-    - assets/images/
-    - assets/icons/
+  #  - assets/images/
+  #  - assets/icons/
   
   # Font custom kalau ada
   # fonts:
