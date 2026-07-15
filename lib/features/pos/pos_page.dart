@@ -181,11 +181,11 @@ class _POSPageState extends ConsumerState<POSPage> {
     final db = ref.read(databaseProvider);
     final cart = ref.read(cartProvider);
     final invoiceNo = 'INV${DateTime.now().millisecondsSinceEpoch}';
-    await db.into(db.transactions).insert(TransactionsCompanion.insert(
+      await db.into(db.transactions).insert(TransactionsCompanion.insert(
       invoiceNo: invoiceNo,
       subtotal: total,
       total: total,
-      paid: bayar,
+      paid: Value(bayar),
       debt: Value(total - bayar > 0? total - bayar : 0),
       paymentMethod: Value(method),
       change: Value(bayar > total? bayar - total : 0),
