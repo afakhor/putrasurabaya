@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart';
-import 'connection/connection.dart' as impl;
+import 'package:drift_flutter/drift_flutter.dart';
 
 part 'app_database.g.dart';
 
@@ -74,10 +74,17 @@ class DebtPayments extends Table {
 
 @DriftDatabase(tables: [Products, Categories, ProductUnits, Customers, Transactions, TransactionItems, Debts, DebtPayments])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(impl.connect());
+  AppDatabase() : super(driftDatabase(name: 'ud_putra_db'));
 
   @override
   int get schemaVersion => 1;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (Migrator m) async {
+      await m.createAll();
+    },
+  );
 
   Future<List<Product>> getAllProducts() => select(products).get();
   Future<Product> getProductByBarcode(String code) => (select(products)..where((t) => t.barcode.equals(code))).getSingle();
