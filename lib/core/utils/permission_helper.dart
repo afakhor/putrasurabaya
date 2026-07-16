@@ -4,14 +4,12 @@ import 'package:flutter/foundation.dart';
 Future<void> requestBluetoothPermissions() async {
   if (kIsWeb) return;
 
-  // Android 12+ pakai bluetoothConnect & bluetoothScan
-  // Android di bawah 12 pakai bluetooth + location
+  // Minta izin secara bertahap atau kolektif yang aman untuk Android baru & lama
   Map<Permission, PermissionStatus> statuses = await [
-    Permission.bluetooth,
     Permission.bluetoothConnect,
     Permission.bluetoothScan,
     Permission.location,
   ].request();
 
-  print('Bluetooth permission: $statuses');
+  print('Bluetooth permission status: $statuses');
 }
