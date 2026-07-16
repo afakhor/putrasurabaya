@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/pos/pos_page.dart';
 import 'core/database/app_database.dart';
+import 'core/utils/permission_helper.dart';
 
 // Provider database global
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -14,7 +15,7 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 void main() {
   // Wajib buat plugin kayak path_provider & sqflite sebelum runApp
   WidgetsFlutterBinding.ensureInitialized();
-
+  await requestBluetoothPermissions();
   runApp(
     const ProviderScope(
       child: MyApp(),
