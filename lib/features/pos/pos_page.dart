@@ -49,9 +49,19 @@ class _POSPageState extends ConsumerState<POSPage> {
     _initBluetooth();
   }
 
-    void _initBluetooth() async {
+      @override
+  void initState() {
+    super.initState();
+    _initBluetooth();
+  }
+
+  void _initBluetooth() async {
     if (kIsWeb) return;
     try {
+      // 1. Minta izin Bluetooth terlebih dahulu setelah halaman dirender
+      await requestBluetoothPermissions();
+
+      // 2. Baru cek status koneksi printer setelah izin diberikan/ditolak
       bool isConnected = await PrintBluetoothThermal.connectionStatus;
       if (mounted) setState(() => _isConnected = isConnected);
     } catch (e) {
@@ -59,6 +69,7 @@ class _POSPageState extends ConsumerState<POSPage> {
       debugPrint('Bluetooth init error: $e');
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
