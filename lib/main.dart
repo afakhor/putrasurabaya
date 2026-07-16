@@ -7,13 +7,11 @@ import 'core/utils/permission_helper.dart';
 // Provider database global
 final databaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
-  // Auto close DB pas provider di-dispose
   ref.onDispose(() => db.close());
   return db;
 });
 
-void main() {
-  // Wajib buat plugin kayak path_provider & sqflite sebelum runApp
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await requestBluetoothPermissions();
   runApp(
@@ -39,7 +37,7 @@ class MyApp extends StatelessWidget {
           brightness: Brightness.light,
         ),
         appBarTheme: AppBarTheme(
-          backgroundColor: Colors.blue[800],
+          backgroundColor: Colors.blue[800]!,
           foregroundColor: Colors.white,
           elevation: 2,
         ),
