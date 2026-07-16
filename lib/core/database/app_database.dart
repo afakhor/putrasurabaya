@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart'; // <--- Tambahan import ini untuk mengenali kIsWeb
 
 part 'app_database.g.dart';
 
@@ -92,7 +93,7 @@ QueryExecutor _openConnection() {
       ),
     );
   }
-  
+
   // Jalankan ini jika diinstal sebagai APK Standalone di HP Android
   return driftDatabase(name: 'ud_putra_db');
 }
