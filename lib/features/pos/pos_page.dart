@@ -5,6 +5,7 @@ import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:drift/drift.dart' hide Column;
 import '../../core/database/app_database.dart';
 import '../../core/utils/format_rupiah.dart';
+import '../../core/utils/permission_helper.dart';
 import '../../main.dart';
 
 class CartItem {
@@ -42,12 +43,6 @@ class POSPage extends ConsumerStatefulWidget {
 
 class _POSPageState extends ConsumerState<POSPage> {
   bool _isConnected = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _initBluetooth();
-  }
 
       @override
   void initState() {
