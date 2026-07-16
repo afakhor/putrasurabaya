@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.udputra.kasir"
-    compileSdk = 35
+    compileSdk = 34 // Diturunkan dari 35 ke 34 agar stabil dengan Gradle Anda
     ndkVersion = "25.1.8937393"
 
     compileOptions {
@@ -21,7 +21,7 @@ android {
     defaultConfig {
         applicationId = "com.udputra.kasir"
         minSdk = 21
-        targetSdk = 35
+        targetSdk = 33 // Diturunkan ke 33 (Android 13) agar aman dari aturan ketat Android 14/15
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
