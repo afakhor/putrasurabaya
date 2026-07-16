@@ -8,7 +8,7 @@ Future<void> requestBluetoothPermissions() async {
   Map<Permission, PermissionStatus> statuses = await [
     Permission.bluetoothConnect,
     Permission.bluetoothScan,
-    Permission.location,
+    //Permission.location,
   ].request();
 
   print('Bluetooth permission status: $statuses');
