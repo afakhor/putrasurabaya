@@ -81,11 +81,18 @@ class AppDatabase extends _$AppDatabase {
 }
 
 QueryExecutor _openConnection() {
-  return driftDatabase(
-    name: 'ud_putra_db',
-    web: DriftWebOptions(
-      sqlite3Wasm: Uri.parse('sqlite3.wasm'),
-      driftWorker: Uri.parse('drift_worker.js'),
-    ),
-  );
+  // PENGKONDISIAN UTAMA:
+  if (kIsWeb) {
+    // Jalankan ini HANYA jika dibuka lewat Browser/Web
+    return driftDatabase(
+      name: 'ud_putra_db',
+      web: DriftWebOptions(
+        sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+        driftWorker: Uri.parse('drift_worker.js'),
+      ),
+    );
+  }
+  
+  // Jalankan ini jika diinstal sebagai APK Standalone di HP Android
+  return driftDatabase(name: 'ud_putra_db');
 }
