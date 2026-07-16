@@ -20,7 +20,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.iposapk"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 33 // Diturunkan ke 33 (Android 13) agar aman dari aturan ketat Android 14/15
         versionCode = flutter.versionCode
         versionName = flutter.versionName
