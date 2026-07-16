@@ -49,10 +49,15 @@ class _POSPageState extends ConsumerState<POSPage> {
     _initBluetooth();
   }
 
-  void _initBluetooth() async {
+    void _initBluetooth() async {
     if (kIsWeb) return;
-    bool isConnected = await PrintBluetoothThermal.connectionStatus;
-    if (mounted) setState(() => _isConnected = isConnected);
+    try {
+      bool isConnected = await PrintBluetoothThermal.connectionStatus;
+      if (mounted) setState(() => _isConnected = isConnected);
+    } catch (e) {
+      // biarin aja kalau gagal, jangan crash
+      debugPrint('Bluetooth init error: $e');
+    }
   }
 
   @override
@@ -131,15 +136,24 @@ class _POSPageState extends ConsumerState<POSPage> {
     );
   }
 
-  void _connectPrinter() async {
+    void _connectPrinter() async {
     if (kIsWeb) return;
-    List<BluetoothInfo> devices = await PrintBluetoothThermal.pairedBluetooths;
-    if (devices.isEmpty) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pair printer dulu')));
-      return;
+    try {
+      List<BluetoothInfo> devices = await PrintBluetoothThermal.pairedBluetooths;
+      if (devices.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pair printer dulu di setting Bluetooth HP')));
+        }
+        return;
+      }
+      bool result = await PrintBluetoothThermal.connect(macPrinterAddress: devices.first.macAdress);
+      if (mounted) setState(() => _isConnected = result);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error Bluetooth: $e')));
+      }
+      debugPrint('BT Error: $e');
     }
-    bool result = await PrintBluetoothThermal.connect(macPrinterAddress: devices.first.macAdress);
-    setState(() => _isConnected = result);
   }
 
   void _addDummyProduct(WidgetRef ref) async {
