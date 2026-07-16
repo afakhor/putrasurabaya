@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.udputra.kasir"
+    namespace = "com.example.iposapk"
     compileSdk = 34 // Diturunkan dari 35 ke 34 agar stabil dengan Gradle Anda
     ndkVersion = "25.1.8937393"
 
@@ -19,7 +19,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.udputra.kasir"
+        applicationId = "com.example.iposapk"
         minSdk = 21
         targetSdk = 33 // Diturunkan ke 33 (Android 13) agar aman dari aturan ketat Android 14/15
         versionCode = flutter.versionCode
