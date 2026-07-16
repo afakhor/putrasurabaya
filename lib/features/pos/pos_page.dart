@@ -10,30 +10,64 @@ import '../../main.dart';
 
 class CartItem {
   final Product product;
-  double qty;
-  String unit;
-  double price;
-  CartItem({required this.product, this.qty = 1, required this.unit, required this.price});
+  final double qty; // Ubah ke final untuk mendukung Immutability
+  final String unit;
+  final double price;
+  
+  CartItem({
+    required this.product, 
+    this.qty = 1, 
+    required this.unit, 
+    required this.price
+  });
+
   double get subtotal => qty * price;
+
+  // Helper untuk mengubah data secara aman (Immutable Copy)
+  CartItem copyWith({double? qty, String? unit, double? price}) {
+    return CartItem(
+      product: product,
+      qty: qty ?? this.qty,
+      unit: unit ?? this.unit,
+      price: price ?? this.price,
+    );
+  }
 }
 
 class CartNotifier extends StateNotifier<List<CartItem>> {
   CartNotifier() : super([]);
+
   void addProduct(Product p) {
     final index = state.indexWhere((e) => e.product.id == p.id);
     if (index >= 0) {
-      state[index].qty++;
-      state = [...state];
+      // Mengubah state secara aman dengan membuat instansi objek baru
+      state = [
+        for (int i = 0; i < state.length; i++)
+          if (i == index)
+            state[i].copyWith(qty: state[i].qty + 1)
+          else
+            state[i]
+      ];
     } else {
       state = [...state, CartItem(product: p, unit: p.unitBase, price: p.sellPrice)];
     }
   }
-  void removeProduct(int productId) => state = state.where((e) => e.product.id!= productId).toList();
+
+  void removeProduct(int productId) => 
+      state = state.where((e) => e.product.id != productId).toList();
+      
   void clear() => state = [];
+  
   double get total => state.fold(0, (sum, item) => sum + item.subtotal);
 }
 
 final cartProvider = StateNotifierProvider<CartNotifier, List<CartItem>>((ref) => CartNotifier());
+
+// 💡 SOLUSI BUG 1: Gunakan StreamProvider agar database dibaca secara Real-Time & Efisien
+final productsStreamProvider = StreamProvider<List<Product>>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.select(db.products).watch(); // Otomatis update UI jika ada penambahan produk baru
+});
 
 class POSPage extends ConsumerStatefulWidget {
   const POSPage({super.key});
@@ -44,7 +78,7 @@ class POSPage extends ConsumerStatefulWidget {
 class _POSPageState extends ConsumerState<POSPage> {
   bool _isConnected = false;
 
-      @override
+  @override
   void initState() {
     super.initState();
     _initBluetooth();
@@ -53,24 +87,22 @@ class _POSPageState extends ConsumerState<POSPage> {
   void _initBluetooth() async {
     if (kIsWeb) return;
     try {
-      // 1. Minta izin Bluetooth terlebih dahulu setelah halaman dirender
+      await Future.delayed(const Duration(milliseconds: 1500));
       await requestBluetoothPermissions();
-
-      // 2. Baru cek status koneksi printer setelah izin diberikan/ditolak
+      await Future.delayed(const Duration(milliseconds: 500));
+      
       bool isConnected = await PrintBluetoothThermal.connectionStatus;
       if (mounted) setState(() => _isConnected = isConnected);
     } catch (e) {
-      // biarin aja kalau gagal, jangan crash
       debugPrint('Bluetooth init error: $e');
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
     final cart = ref.watch(cartProvider);
     final total = ref.watch(cartProvider.notifier).total;
-    final db = ref.watch(databaseProvider);
+    final productsAsync = ref.watch(productsStreamProvider); // Menggantikan FutureBuilder
 
     return Scaffold(
       appBar: AppBar(
@@ -78,7 +110,8 @@ class _POSPageState extends ConsumerState<POSPage> {
         actions: [
           if (!kIsWeb)
             IconButton(
-              icon: Icon(_isConnected? Icons.print : Icons.print_disabled, color: _isConnected? Colors.green : Colors.red),
+              icon: Icon(_isConnected ? Icons.print : Icons.print_disabled, 
+                  color: _isConnected ? Colors.green : Colors.red),
               onPressed: _connectPrinter,
             ),
         ],
@@ -87,30 +120,39 @@ class _POSPageState extends ConsumerState<POSPage> {
         children: [
           Expanded(
             flex: 3,
-            child: FutureBuilder<List<Product>>(
-              future: db.getAllProducts(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                if (snapshot.data!.isEmpty) return const Center(child: Text('Belum ada produk. Klik +'));
-                final data = snapshot.data!;
+            // 💡 SOLUSI BUG 1: Menggunakan data reaktif dari StreamProvider
+            child: productsAsync.when(
+              data: (data) {
+                if (data.isEmpty) return const Center(child: Text('Belum ada produk. Klik +'));
                 return GridView.builder(
                   padding: const EdgeInsets.all(8),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, childAspectRatio: 1.2, crossAxisSpacing: 8, mainAxisSpacing: 8),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3, 
+                    childAspectRatio: 1.2, 
+                    crossAxisSpacing: 8, 
+                    mainAxisSpacing: 8
+                  ),
                   itemCount: data.length,
                   itemBuilder: (ctx, i) => Card(
                     child: InkWell(
                       onTap: () => ref.read(cartProvider.notifier).addProduct(data[i]),
                       child: Padding(
                         padding: const EdgeInsets.all(8.0),
-                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Text(data[i].name, textAlign: TextAlign.center, maxLines: 2),
-                          Text(formatRupiah(data[i].sellPrice), style: const TextStyle(fontWeight: FontWeight.bold)),
-                        ]),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center, 
+                          children: [
+                            Text(data[i].name, textAlign: TextAlign.center, maxLines: 2),
+                            Text(formatRupiah(data[i].sellPrice), 
+                                style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ]
+                        ),
                       ),
                     ),
                   ),
                 );
               },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Center(child: Text('Error: $error')),
             ),
           ),
           Expanded(
@@ -122,33 +164,53 @@ class _POSPageState extends ConsumerState<POSPage> {
                   itemBuilder: (ctx, i) => ListTile(
                     title: Text(cart[i].product.name),
                     subtitle: Text('${cart[i].qty} x ${formatAngka(cart[i].price)}'),
-                    trailing: Text(formatRupiah(cart[i].subtotal)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(formatRupiah(cart[i].subtotal)),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => ref.read(cartProvider.notifier).removeProduct(cart[i].product.id),
+                        )
+                      ],
+                    ),
                   ),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(children: [
-                  Text('TOTAL: ${formatRupiah(total)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text('TOTAL: ${formatRupiah(total)}', 
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  SizedBox(width: double.infinity, child: ElevatedButton(onPressed: cart.isEmpty? null : () => _showBayarDialog(context, ref, total), child: const Text('BAYAR'))),
+                  SizedBox(
+                    width: double.infinity, 
+                    child: ElevatedButton(
+                      onPressed: cart.isEmpty ? null : () => _showBayarDialog(context, ref, total), 
+                      child: const Text('BAYAR')
+                    )
+                  ),
                 ]),
               ),
             ]),
           ),
         ],
       ),
-      floatingActionButton: kIsWeb? null : FloatingActionButton(onPressed: () => _addDummyProduct(ref), child: const Icon(Icons.add)),
+      floatingActionButton: kIsWeb ? null : FloatingActionButton(
+        onPressed: () => _addDummyProduct(ref), 
+        child: const Icon(Icons.add)
+      ),
     );
   }
 
-    void _connectPrinter() async {
+  void _connectPrinter() async {
     if (kIsWeb) return;
     try {
       List<BluetoothInfo> devices = await PrintBluetoothThermal.pairedBluetooths;
       if (devices.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pair printer dulu di setting Bluetooth HP')));
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Pair printer dulu di setting Bluetooth HP')));
         }
         return;
       }
@@ -158,7 +220,6 @@ class _POSPageState extends ConsumerState<POSPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error Bluetooth: $e')));
       }
-      debugPrint('BT Error: $e');
     }
   }
 
@@ -172,7 +233,7 @@ class _POSPageState extends ConsumerState<POSPage> {
       unitBase: const Value('sak'),
       stock: const Value(100),
     ));
-    setState(() {});
+    // setState(() {}) DIHAPUS karena StreamProvider otomatis mendeteksi database terupdate!
   }
 
   void _showBayarDialog(BuildContext context, WidgetRef ref, double total) {
@@ -181,12 +242,15 @@ class _POSPageState extends ConsumerState<POSPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Bayar: ${formatRupiah(total)}'),
-        content: TextField(controller: bayarController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Jumlah Bayar')),
+        content: TextField(
+            controller: bayarController, 
+            keyboardType: TextInputType.number, 
+            decoration: const InputDecoration(labelText: 'Jumlah Bayar')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
           ElevatedButton(
             onPressed: () {
-              final bayar = double.tryParse(bayarController.text)?? 0;
+              final bayar = double.tryParse(bayarController.text) ?? 0;
               _prosesTransaksi(ref, total, bayar, 'Cash');
               Navigator.pop(ctx);
             },
@@ -201,15 +265,29 @@ class _POSPageState extends ConsumerState<POSPage> {
     final db = ref.read(databaseProvider);
     final cart = ref.read(cartProvider);
     final invoiceNo = 'INV${DateTime.now().millisecondsSinceEpoch}';
-      await db.into(db.transactions).insert(TransactionsCompanion.insert(
+    
+    // 💡 SOLUSI BUG 2: Dapatkan ID Transaksi yang baru dimasukkan
+    final transactionId = await db.into(db.transactions).insert(TransactionsCompanion.insert(
       invoiceNo: invoiceNo,
       subtotal: total,
       total: total,
       paid: Value(bayar),
-      debt: Value(total - bayar > 0? total - bayar : 0),
+      debt: Value(total - bayar > 0 ? total - bayar : 0),
       paymentMethod: Value(method),
-      change: Value(bayar > total? bayar - total : 0),
+      change: Value(bayar > total ? bayar - total : 0),
     ));
+
+    // 💡 SOLUSI BUG 2: Masukkan semua item transaksi dari keranjang ke database
+    for (var item in cart) {
+      await db.into(db.transactionItems).insert(TransactionItemsCompanion.insert(
+        transactionId: transactionId,
+        productId: item.product.id,
+        quantity: item.qty,
+        price: item.price,
+        unit: item.unit,
+      ));
+    }
+
     if (!kIsWeb && _isConnected) {
       String struk = 'UD. PUTRA SURABAYA\n$invoiceNo\n----------------\n';
       for (var item in cart) {
@@ -218,6 +296,7 @@ class _POSPageState extends ConsumerState<POSPage> {
       struk += '----------------\nTOTAL: ${formatRupiah(total)}\nBAYAR: ${formatRupiah(bayar)}\nTerima Kasih\n\n\n';
       await PrintBluetoothThermal.writeBytes(struk.codeUnits);
     }
+    
     ref.read(cartProvider.notifier).clear();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transaksi sukses')));
   }
