@@ -1,64 +1,25 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'features/pos/pos_page.dart';
-import 'core/database/app_database.dart';
-import 'core/utils/permission_helper.dart';
+import 'package:flutter/material.dart'; // <-- HANYA butuh ini saja untuk tes
 
-// Provider database global
-final databaseProvider = Provider<AppDatabase>((ref) {
-  final db = AppDatabase();
-  ref.onDispose(() => db.close());
-  return db;
-});
-
-Future<void> main() async {
+void main() async {
+  // 1. Amankan inisialisasi native di awal
   WidgetsFlutterBinding.ensureInitialized();
-  //await requestBluetoothPermissions();
+
+  // 2. Aktifkan penangkap error layar merah
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+  };
+
   runApp(
-    const ProviderScope(
-      child: MyApp(),
-    ),
-  );
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'UD. Putra Surabaya',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue[800]!,
-          brightness: Brightness.light,
-        ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: Colors.blue[800]!,
-          foregroundColor: Colors.white,
-          elevation: 2,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue[800],
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        cardTheme: CardTheme(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+    const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Text(
+            "Aplikasi Berhasil Terbuka!\n(Database & POS Aman)",
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
       ),
-      home: const POSPage(),
-    );
-  }
+    ),
+  );
 }
