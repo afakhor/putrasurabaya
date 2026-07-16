@@ -13,7 +13,7 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await requestBluetoothPermissions();
+  //await requestBluetoothPermissions();
   runApp(
     const ProviderScope(
       child: MyApp(),
