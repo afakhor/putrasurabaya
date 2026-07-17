@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:drift/drift.dart' hide Column;
@@ -10,20 +9,12 @@ import '../../main.dart';
 
 class CartItem {
   final Product product;
-  final double qty; // Ubah ke final untuk mendukung Immutability
+  final double qty;
   final String unit;
   final double price;
-  
-  CartItem({
-    required this.product, 
-    this.qty = 1, 
-    required this.unit, 
-    required this.price
-  });
 
+  CartItem({required this.product, this.qty = 1, required this.unit, required this.price});
   double get subtotal => qty * price;
-
-  // Helper untuk mengubah data secara aman (Immutable Copy)
   CartItem copyWith({double? qty, String? unit, double? price}) {
     return CartItem(
       product: product,
@@ -40,33 +31,25 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
   void addProduct(Product p) {
     final index = state.indexWhere((e) => e.product.id == p.id);
     if (index >= 0) {
-      // Mengubah state secara aman dengan membuat instansi objek baru
       state = [
         for (int i = 0; i < state.length; i++)
-          if (i == index)
-            state[i].copyWith(qty: state[i].qty + 1)
-          else
-            state[i]
+          if (i == index) state[i].copyWith(qty: state[i].qty + 1) else state[i]
       ];
     } else {
       state = [...state, CartItem(product: p, unit: p.unitBase, price: p.sellPrice)];
     }
   }
 
-  void removeProduct(int productId) => 
-      state = state.where((e) => e.product.id != productId).toList();
-      
+  void removeProduct(int productId) => state = state.where((e) => e.product.id != productId).toList();
   void clear() => state = [];
-  
   double get total => state.fold(0, (sum, item) => sum + item.subtotal);
 }
 
 final cartProvider = StateNotifierProvider<CartNotifier, List<CartItem>>((ref) => CartNotifier());
 
-// 💡 SOLUSI BUG 1: Gunakan StreamProvider agar database dibaca secara Real-Time & Efisien
 final productsStreamProvider = StreamProvider<List<Product>>((ref) {
   final db = ref.watch(databaseProvider);
-  return db.select(db.products).watch(); // Otomatis update UI jika ada penambahan produk baru
+  return db.select(db.products).watch();
 });
 
 class POSPage extends ConsumerStatefulWidget {
@@ -85,12 +68,9 @@ class _POSPageState extends ConsumerState<POSPage> {
   }
 
   void _initBluetooth() async {
-    if (kIsWeb) return;
     try {
       await Future.delayed(const Duration(milliseconds: 1500));
       await requestBluetoothPermissions();
-      await Future.delayed(const Duration(milliseconds: 500));
-      
       bool isConnected = await PrintBluetoothThermal.connectionStatus;
       if (mounted) setState(() => _isConnected = isConnected);
     } catch (e) {
@@ -102,101 +82,101 @@ class _POSPageState extends ConsumerState<POSPage> {
   Widget build(BuildContext context) {
     final cart = ref.watch(cartProvider);
     final total = ref.watch(cartProvider.notifier).total;
-    final productsAsync = ref.watch(productsStreamProvider); // Menggantikan FutureBuilder
+    final productsAsync = ref.watch(productsStreamProvider);
+    final user = ref.watch(currentUserProvider); // Memantau batasan akses user saat ini
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kasir UD. Putra Surabaya'),
+        title: const Text('Kasir UD. Putra'),
         actions: [
-          if (!kIsWeb)
-            IconButton(
-              icon: Icon(_isConnected ? Icons.print : Icons.print_disabled, 
-                  color: _isConnected ? Colors.green : Colors.red),
-              onPressed: _connectPrinter,
-            ),
+          IconButton(
+            icon: Icon(_isConnected ? Icons.print : Icons.print_disabled, 
+                color: _isConnected ? Colors.green : Colors.red),
+            onPressed: _connectPrinter,
+          ),
         ],
       ),
-      body: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            // 💡 SOLUSI BUG 1: Menggunakan data reaktif dari StreamProvider
-            child: productsAsync.when(
-              data: (data) {
-                if (data.isEmpty) return const Center(child: Text('Belum ada produk. Klik +'));
-                return GridView.builder(
-                  padding: const EdgeInsets.all(8),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3, 
-                    childAspectRatio: 1.2, 
-                    crossAxisSpacing: 8, 
-                    mainAxisSpacing: 8
-                  ),
-                  itemCount: data.length,
-                  itemBuilder: (ctx, i) => Card(
-                    child: InkWell(
-                      onTap: () => ref.read(cartProvider.notifier).addProduct(data[i]),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center, 
-                          children: [
-                            Text(data[i].name, textAlign: TextAlign.center, maxLines: 2),
-                            Text(formatRupiah(data[i].sellPrice), 
-                                style: const TextStyle(fontWeight: FontWeight.bold)),
-                          ]
-                        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Layout responsif untuk HP Android vertikal maupun horizontal
+          bool isLandscape = constraints.maxWidth > 600;
+          
+          Widget productGrid = productsAsync.when(
+            data: (data) {
+              if (data.isEmpty) return const Center(child: Text('Belum ada produk. Klik +'));
+              return GridView.builder(
+                padding: const EdgeInsets.all(8),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: isLandscape ? 3 : 2, 
+                  childAspectRatio: 1.3, 
+                  crossAxisSpacing: 8, 
+                  mainAxisSpacing: 8
+                ),
+                itemCount: data.length,
+                itemBuilder: (ctx, i) => Card(
+                  child: InkWell(
+                    onTap: () => ref.read(cartProvider.notifier).addProduct(data[i]),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center, 
+                        children: [
+                          Text(data[i].name, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 4),
+                          Text(formatRupiah(data[i].sellPrice), style: const TextStyle(fontWeight: FontWeight.bold)),
+                        ]
                       ),
                     ),
                   ),
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(child: Text('Error: $error')),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Column(children: [
-              Expanded(
-                child: ListView.builder(
-                  itemCount: cart.length,
-                  itemBuilder: (ctx, i) => ListTile(
-                    title: Text(cart[i].product.name),
-                    subtitle: Text('${cart[i].qty} x ${formatAngka(cart[i].price)}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(formatRupiah(cart[i].subtotal)),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => ref.read(cartProvider.notifier).removeProduct(cart[i].product.id),
-                        )
-                      ],
-                    ),
+                ),
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, stack) => Center(child: Text('Error: $error')),
+          );
+
+          Widget cartSection = Column(children: [
+            Expanded(
+              child: ListView.builder(
+                itemCount: cart.length,
+                itemBuilder: (ctx, i) => ListTile(
+                  title: Text(cart[i].product.name),
+                  subtitle: Text('${cart[i].qty} ${cart[i].unit} x ${formatAngka(cart[i].price)}'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(formatRupiah(cart[i].subtotal)),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => ref.read(cartProvider.notifier).removeProduct(cart[i].product.id),
+                      )
+                    ],
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(children: [
-                  Text('TOTAL: ${formatRupiah(total)}', 
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity, 
-                    child: ElevatedButton(
-                      onPressed: cart.isEmpty ? null : () => _showBayarDialog(context, ref, total), 
-                      child: const Text('BAYAR')
-                    )
-                  ),
-                ]),
-              ),
-            ]),
-          ),
-        ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(children: [
+                Text('TOTAL: ${formatRupiah(total)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity, 
+                  child: ElevatedButton(
+                    onPressed: cart.isEmpty ? null : () => _showBayarDialog(context, ref, total, user), 
+                    child: const Text('BAYAR')
+                  )
+                ),
+              ]),
+            ),
+          ]);
+
+          return isLandscape 
+              ? Row(children: [Expanded(flex: 3, child: productGrid), Expanded(flex: 2, child: cartSection)])
+              : Column(children: [Expanded(flex: 4, child: productGrid), const Divider(height: 1), Expanded(flex: 3, child: cartSection)]);
+        }
       ),
-      floatingActionButton: kIsWeb ? null : FloatingActionButton(
+      floatingActionButton: FloatingActionButton(
         onPressed: () => _addDummyProduct(ref), 
         child: const Icon(Icons.add)
       ),
@@ -204,22 +184,16 @@ class _POSPageState extends ConsumerState<POSPage> {
   }
 
   void _connectPrinter() async {
-    if (kIsWeb) return;
     try {
       List<BluetoothInfo> devices = await PrintBluetoothThermal.pairedBluetooths;
       if (devices.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Pair printer dulu di setting Bluetooth HP')));
-        }
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pair printer dulu di setting HP')));
         return;
       }
       bool result = await PrintBluetoothThermal.connect(macPrinterAddress: devices.first.macAdress);
       if (mounted) setState(() => _isConnected = result);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error Bluetooth: $e')));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error Bluetooth: $e')));
     }
   }
 
@@ -233,19 +207,31 @@ class _POSPageState extends ConsumerState<POSPage> {
       unitBase: const Value('sak'),
       stock: const Value(100),
     ));
-    // setState(() {}) DIHAPUS karena StreamProvider otomatis mendeteksi database terupdate!
   }
 
-  void _showBayarDialog(BuildContext context, WidgetRef ref, double total) {
+  void _showBayarDialog(BuildContext context, WidgetRef ref, double total, Map<String, dynamic> user) {
     final bayarController = TextEditingController(text: total.toStringAsFixed(0));
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Bayar: ${formatRupiah(total)}'),
-        content: TextField(
-            controller: bayarController, 
-            keyboardType: TextInputType.number, 
-            decoration: const InputDecoration(labelText: 'Jumlah Bayar')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: bayarController, 
+              keyboardType: TextInputType.number, 
+              decoration: const InputDecoration(labelText: 'Jumlah Bayar'),
+              // KONTROL Akses 3: Jika dia Salesman DAN tidak diizinkan canEditPrice, kunci textfield input harga/bayar kustom
+              enabled: user['role'] == 'owner' || user['canEditPrice'] == true,
+            ),
+            if (user['role'] == 'salesman' && user['canEditPrice'] == false)
+              const Padding(
+                padding: EdgeInsets.top(8.0),
+                child: Text('*Nominal terkunci otomatis sesuai hak akses sales.', style: TextStyle(fontSize: 11, color: Colors.orange)),
+              )
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
           ElevatedButton(
@@ -265,8 +251,7 @@ class _POSPageState extends ConsumerState<POSPage> {
     final db = ref.read(databaseProvider);
     final cart = ref.read(cartProvider);
     final invoiceNo = 'INV${DateTime.now().millisecondsSinceEpoch}';
-    
-    // 💡 SOLUSI BUG 2: Dapatkan ID Transaksi yang baru dimasukkan
+
     final transactionId = await db.into(db.transactions).insert(TransactionsCompanion.insert(
       invoiceNo: invoiceNo,
       subtotal: total,
@@ -277,7 +262,6 @@ class _POSPageState extends ConsumerState<POSPage> {
       change: Value(bayar > total ? bayar - total : 0),
     ));
 
-    // 💡 SOLUSI BUG 2: Masukkan semua item transaksi dari keranjang ke database
     for (var item in cart) {
       await db.into(db.transactionItems).insert(TransactionItemsCompanion.insert(
         transactionId: transactionId,
@@ -288,15 +272,15 @@ class _POSPageState extends ConsumerState<POSPage> {
       ));
     }
 
-    if (!kIsWeb && _isConnected) {
-      String struk = 'UD. PUTRA SURABAYA\n$invoiceNo\n----------------\n';
+    if (_isConnected) {
+      String struk = '   UD. PUTRA SURABAYA\n$invoiceNo\n------------------------\n';
       for (var item in cart) {
         struk += '${item.product.name}\n${item.qty} x ${formatAngka(item.price)} = ${formatRupiah(item.subtotal)}\n';
       }
-      struk += '----------------\nTOTAL: ${formatRupiah(total)}\nBAYAR: ${formatRupiah(bayar)}\nTerima Kasih\n\n\n';
+      struk += '------------------------\nTOTAL: ${formatRupiah(total)}\nBAYAR: ${formatRupiah(bayar)}\n   Terima Kasih\n\n\n';
       await PrintBluetoothThermal.writeBytes(struk.codeUnits);
     }
-    
+
     ref.read(cartProvider.notifier).clear();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transaksi sukses')));
   }
