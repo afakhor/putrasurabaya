@@ -1,8 +1,18 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
-import 'package:flutter/foundation.dart'; // <--- Tambahan import ini untuk mengenali kIsWeb
 
 part 'app_database.g.dart';
+
+// TABEL USER BANTUAN UNTUK KONTROL KELOLA SALESMAN LOKAL
+class Users extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get uid => text()(); // Firebase UID
+  TextColumn get name => text()();
+  TextColumn get role => text()(); // 'owner' atau 'salesman'
+  TextColumn get status => text()(); // 'active' atau 'suspended'
+  BoolColumn get canEditPrice => boolean().withDefault(const Constant(false))();
+  BoolColumn get canDeleteTransaction => boolean().withDefault(const Constant(false))();
+}
 
 class Products extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -73,27 +83,17 @@ class DebtPayments extends Table {
   DateTimeColumn get date => dateTime()();
 }
 
-@DriftDatabase(tables: [Products, Categories, ProductUnits, Customers, Transactions, TransactionItems, Debts, DebtPayments])
+@DriftDatabase(tables: [Users, Products, Categories, ProductUnits, Customers, Transactions, TransactionItems, Debts, DebtPayments])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
+  
   @override
   int get schemaVersion => 1;
+
   Future<List<Product>> getAllProducts() => select(products).get();
 }
 
+// KHUSUS ANDROID - BERSIH TANPA LOGIKA WEB
 QueryExecutor _openConnection() {
-  // PENGKONDISIAN UTAMA:
-  if (kIsWeb) {
-    // Jalankan ini HANYA jika dibuka lewat Browser/Web
-    return driftDatabase(
-      name: 'ud_putra_db',
-      web: DriftWebOptions(
-        sqlite3Wasm: Uri.parse('sqlite3.wasm'),
-        driftWorker: Uri.parse('drift_worker.js'),
-      ),
-    );
-  }
-
-  // Jalankan ini jika diinstal sebagai APK Standalone di HP Android
-  return driftDatabase(name: 'ud_putra_db');
+  return driftDatabase(name: 'putra_sby_db');
 }
