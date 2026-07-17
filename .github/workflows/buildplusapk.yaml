@@ -1,4 +1,4 @@
-name: Build APK Release & Web
+name: Build APK Release Standalone
 
 on:
   push:
@@ -12,42 +12,43 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '17' # Sangat cocok dengan jvmTarget = "17" di build.gradle Anda
           cache: 'gradle'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.3'
+          flutter-version: '3.24.3' # Menyesuaikan dengan SDK Flutter Anda
           channel: 'stable'
           cache: true
 
-      - name: Install dependencies
+      # PENTING: Menginstal Android NDK agar compile binary C++ SQLite3 berjalan mulus tanpa error
+      - name: Install Android NDK
+        run: |
+          echo "Installing Android NDK version 25.1.8937393..."
+          sdkmanager --install "ndk;25.1.8937393"
+
+      - name: Install Dependencies
         run: flutter pub get
 
-      - name: Generate Drift files
+      # Menjalankan generator Drift_dev dan Riverpod_generator untuk merakit file .g.dart
+      - name: Generate Drift & Riverpod Files
         run: dart run build_runner build --delete-conflicting-outputs
 
-      - name: Build APK
+      # Mem-build APK Release dengan konfigurasi optimal tanpa kompresi yang merusak file C++ .so
+      - name: Build APK Release
         run: flutter build apk --release --no-shrink
 
-      - name: Build Web Preview
-        run: flutter build web --release --base-href /putrasurabaya/
-
-      - name: Upload APK
+      # Menyimpan hasil APK ke halaman Artifacts GitHub agar bisa langsung Anda unduh di HP
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ud-putra-apk
+          name: UD-Putra-Kasir-Release
           path: build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build/web
