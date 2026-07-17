@@ -30,10 +30,13 @@ jobs:
           cache: true
 
       # PENTING: Menginstal Android NDK agar compile binary C++ SQLite3 berjalan mulus tanpa error
+            # Ganti bagian ini di file workflow Anda:
       - name: Install Android NDK
         run: |
           echo "Installing Android NDK version 25.1.8937393..."
-          sdkmanager --install "ndk;25.1.8937393"
+          # Memanggil sdkmanager langsung dari folder instalasi default GitHub
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.1.8937393"
+
 
       - name: Install Dependencies
         run: flutter pub get
