@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.iposapk"
-    compileSdk = 34 // Diturunkan dari 35 ke 34 agar stabil dengan Gradle Anda
+    compileSdk = 35
     ndkVersion = "25.1.8937393"
 
     compileOptions {
