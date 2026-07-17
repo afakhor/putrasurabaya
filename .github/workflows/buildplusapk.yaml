@@ -1,8 +1,8 @@
-name: Build APK Release Standalone
+name: Build APK STANDALONE
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 permissions:
@@ -11,47 +11,82 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout Code
+      - name: Checkout kode
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17' # Sangat cocok dengan jvmTarget = "17" di build.gradle Anda
-          cache: 'gradle'
+          java-version: '17'  
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.24.3' # Menyesuaikan dengan SDK Flutter Anda
-          channel: 'stable'
-          cache: true
-
-      # PENTING: Menginstal Android NDK agar compile binary C++ SQLite3 berjalan mulus tanpa error
-            # Ganti bagian ini di file workflow Anda:
+      # ==========================================
+      # 1. LANGKAH KRUSIAL: INSTALL ANDROID NDK C++
+      # ==========================================
       - name: Install Android NDK
         run: |
           echo "Installing Android NDK version 25.1.8937393..."
-          # Memanggil sdkmanager langsung dari folder instalasi default GitHub
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.1.8937393"
 
+      # ==========================================
+      # 2. SETUP FLUTTER (Menggunakan 3.24.3 demi SDK 35)
+      # ==========================================
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.3'  
+          channel: 'stable'
+          cache: true
 
-      - name: Install Dependencies
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Install dependencies
         run: flutter pub get
 
-      # Menjalankan generator Drift_dev dan Riverpod_generator untuk merakit file .g.dart
-      - name: Generate Drift & Riverpod Files
+      # ==========================================
+      # 3. RUN GENERATOR DATABASE (DRIFT)
+      # ==========================================
+      - name: Generate Database Code
         run: dart run build_runner build --delete-conflicting-outputs
 
-      # Mem-build APK Release dengan konfigurasi optimal tanpa kompresi yang merusak file C++ .so
-      - name: Build APK Release
-        run: flutter build apk --release --no-shrink
+      # ==========================================
+      # 4. GENERATE ICON (Pastikan config sudah ada di pubspec.yaml)
+      # ==========================================
+      - name: Generate Launcher Icons
+        run: dart run flutter_launcher_icons
 
-      # Menyimpan hasil APK ke halaman Artifacts GitHub agar bisa langsung Anda unduh di HP
-      - name: Upload APK Artifact
+      # ==========================================
+      # 5. BUILD APK RELEASE
+      # ==========================================
+      - name: Build APK Release
+        run: flutter build apk --release --no-shrink --split-per-abi
+
+      # ==========================================
+      # 6. UPLOAD KE ARTIFACTS GITHUB
+      # ==========================================
+      - name: Upload APK ke Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: UD-Putra-Kasir-Release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: apk-release-tbmekar
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 30
+
+      # ==========================================
+      # 7. BIKIN RELEASE OTOMATIS DI GITHUB
+      # ==========================================
+      - name: Bikin Release Otomatis
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "build/app/outputs/flutter-apk/*.apk"
+          tag: v1.0.${{ github.run_number }}
+          name: TB MEKAR v1.0.${{ github.run_number }}
+          body: |
+            Build otomatis dari commit ${{ github.sha }}
+            
+            Silakan unduh file APK di bawah sesuai dengan arsitektur prosesor HP Anda:
+            - **arm64-v8a** (Untuk mayoritas HP Android modern zaman sekarang)
+            - **armeabi-v7a** (Untuk HP Android tipe lama)
+          token: ${{ secrets.GITHUB_TOKEN }}
