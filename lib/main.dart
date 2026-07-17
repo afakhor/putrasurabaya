@@ -56,37 +56,38 @@ class MainNavigationScreen extends ConsumerWidget {
   const MainNavigationScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider);
-    final currentIndex = ref.watch(navbarIndexProvider);
+Widget build(BuildContext context, WidgetRef ref) {
+  final user = ref.watch(currentUserProvider);
+  final currentIndex = ref.watch(navbarIndexProvider);
 
-    // KONTROL 1: JIKA USER DI-SUSPEND, KUNCI TOTAL APLIKASI SAAT ITU JUGA
-    if (user['status'] == 'suspended') {
-      return const Scaffold(
-        body: Center(
-          child: Padding(
-            padding: EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.block, color: Colors.red, size: 80),
-                SizedBox(height: 16),
-                Text(
-                  'AKSES DITOLAK',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.red),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'Akun Anda telah dinonaktifkan oleh Owner.\nSilakan hubungi Owner UD. Putra untuk mengaktifkan kembali.',
-                  textAlign: Center,
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-              ],
-            ),
+  // KONTROL 1: JIKA USER DI-SUSPEND, KUNCI TOTAL APLIKASI SAAT ITU JUGA
+  if (user['status'] == 'suspended') {
+    return const Scaffold(
+      body: Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.block, color: Colors.red, size: 80),
+              SizedBox(height: 16),
+              Text(
+                'AKSES DITOLAK',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.red),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Akun Anda telah dinonaktifkan oleh Owner.\nSilakan hubungi Owner UD. Putra untuk mengaktifkan kembali.',
+                textAlign: TextAlign.center, // <--- SUDAH DIPERBAIKI DI SINI (Pakai TextAlign.center)
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+            ],
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
+ 
 
     // DAFTAR HALAMAN FITUR APLIKASI
     final List<Widget> pages = [
