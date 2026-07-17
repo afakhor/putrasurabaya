@@ -227,7 +227,7 @@ class _POSPageState extends ConsumerState<POSPage> {
             ),
             if (user['role'] == 'salesman' && user['canEditPrice'] == false)
               const Padding(
-                padding: EdgeInsets.top(8.0),
+                padding: EdgeInsets.only(top: 8.0),
                 child: Text('*Nominal terkunci otomatis sesuai hak akses sales.', style: TextStyle(fontSize: 11, color: Colors.orange)),
               )
           ],
