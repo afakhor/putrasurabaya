@@ -55,8 +55,8 @@ jobs:
       # ==========================================
       # 4. GENERATE ICON (Pastikan config sudah ada di pubspec.yaml)
       # ==========================================
-      - name: Generate Launcher Icons
-        run: dart run flutter_launcher_icons
+    #  - name: Generate Launcher Icons
+    #    run: dart run flutter_launcher_icons
 
       # ==========================================
       # 5. BUILD APK RELEASE
