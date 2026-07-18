@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/database/app_database.dart';
 import '../../core/utils/format_rupiah.dart';
 import 'product_form_provider.dart';
+import 'package:drift/drift.dart' show Value;
+import '../../core/services/sync_service.dart';
+config.dart; 
 
 // Palet Warna Sesuai Aturan Komposisi Anda (65-25-10)
 const Color dominantGold = Color(0xFFDFB76C);    // 65% Dominan Background
