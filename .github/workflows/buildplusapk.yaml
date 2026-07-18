@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout kode
         uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.1.8937393"
 
       # ==========================================
-      # 2. SETUP FLUTTER (Menggunakan 3.24.3 demi SDK 35)
+      # 2. SETUP FLUTTER
       # ==========================================
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -44,19 +44,17 @@ jobs:
         run: flutter doctor -v
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          flutter pub get
+          flutter pub upgrade drift drift_flutter
 
       # ==========================================
       # 3. RUN GENERATOR DATABASE (DRIFT)
       # ==========================================
       - name: Generate Database Code
-        run: dart run build_runner build --delete-conflicting-outputs
-
-      # ==========================================
-      # 4. GENERATE ICON (Pastikan config sudah ada di pubspec.yaml)
-      # ==========================================
-    #  - name: Generate Launcher Icons
-    #    run: dart run flutter_launcher_icons
+        run: |
+          dart run build_runner clean
+          dart run build_runner build --delete-conflicting-outputs
 
       # ==========================================
       # 5. BUILD APK RELEASE
@@ -75,6 +73,14 @@ jobs:
           retention-days: 30
 
       # ==========================================
+      # KOREKSI: AMBIL TANGGAL & WAKTU WIB SEKARANG
+      # ==========================================
+      - name: Dapatkan Waktu Rilis WIB
+        id: info_waktu
+        run: |
+          echo "TANGGAL_RELEASE=$(TZ='Asia/Jakarta' date +'%d-%m-%Y %H:%M WIB')" >> $GITHUB_OUTPUT
+
+      # ==========================================
       # 7. BIKIN RELEASE OTOMATIS DI GITHUB
       # ==========================================
       - name: Bikin Release Otomatis
@@ -84,9 +90,12 @@ jobs:
           tag: v1.0.${{ github.run_number }}
           name: UD.PUTRA SURABAYA v1.0.${{ github.run_number }}
           body: |
-           UD. PUTRA SURABAYA/BP.DEDDY CLIENT BABE.INFO KE-5 ${{ github.sha }}
+           UD. PUTRA SURABAYA/BP.DEDDY CLIENT BABE.INFO <details><summary><b>KLIK🔬 DETAIL</b></summary> CLIENT BABE.INFO KE-5 ${{ github.sha }}
             
-            Silakan unduh file APK di bawah sesuai dengan arsitektur prosesor HP Anda:
-            - **arm64-v8a** (Untuk mayoritas HP Android modern zaman sekarang)
-            - **armeabi-v7a** (Untuk HP Android tipe lama)
+            <h2>Silakan unduh file APK di bawah sesuai dengan arsitektur prosesor HP Anda:</h2>
+            <ul>
+               <li>Aplikasi IPOS diupdate otomatis pada: <b>${{ steps.info_waktu.outputs.TANGGAL_RELEASE }}</b></li>
+               <li> - **arm64-v8a** (Untuk mayoritas HP Android modern zaman sekarang)</li>
+               <li> - **armeabi-v7a** (Untuk HP Android tipe lama)</li>
+            </ul>
           token: ${{ secrets.GITHUB_TOKEN }}
