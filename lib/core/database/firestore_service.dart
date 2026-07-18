@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../features/product/product_pos.dart'; 
+// KOREKSI: Impor langsung dari pos_page untuk menyamakan model Product & CartItem
 import '../../features/pos/pos_page.dart'; 
 
 class FirestoreService {
@@ -59,27 +59,6 @@ class FirestoreService {
     required List<CartItem> cartItems,
   }) async {
     final batch = _firestore.batch();
-    final txDocRef = _firestore.collection('transactions').doc();
-
-    batch.set(txDocRef, {
-      'invoiceNo': invoiceNo,
-      'subtotal': total,
-      'total': total,
-      'paid': bayar,
-      'debt': sisaHutang,
-      'paymentMethod': method,
-      'change': uangKembali,
-      'createdAt': FieldValue.serverTimestamp(),
-      'createdBy': kasirNama,
-      'items': cartItems.map((item) => {
-        'productId': item.product.id,
-        'name': item.product.name,
-        'quantity': item.qty,
-        'price': item.price,
-        'unit': item.unit,
-        'subtotal': item.subtotal,
-      }).toList(),
-    });
 
     for (var item in cartItems) {
       final productDocRef = _firestore.collection('products').doc(item.product.id);
