@@ -341,6 +341,7 @@ class _POSPageState extends ConsumerState<POSPage> {
   }
 
   // PROSES TRANSAKSI SINKRON, PRINT BLUETOOTH & COPY STRUK WA
+    // PROSES TRANSAKSI SINKRON, PRINT BLUETOOTH & COPY STRUK WA
   void _prosesTransaksi(WidgetRef ref, double total, double bayar, String method, Map<String, dynamic>? user) async {
     final cart = ref.read(cartProvider);
     final invoiceNo = 'PSB-${DateTime.now().millisecondsSinceEpoch}';
@@ -356,10 +357,8 @@ class _POSPageState extends ConsumerState<POSPage> {
       double sisaHutang = total - bayar > 0 ? total - bayar : 0;
       double uangKembali = bayar > total ? bayar - total : 0;
 
-      // =========================================================
-      // KODE BARU: Memanggil Centralized Database Service 
-      // =========================================================
-      await ref.read(appDatabaseProvider).prosesTransaksiPenyimpanan(
+      // PANGGIL PROVIDER YANG BENAR: localDatabaseProvider (sesuai local_database.dart)
+      await ref.read(localDatabaseProvider).prosesTransaksiPenyimpanan(
         invoiceNo: invoiceNo,
         total: total,
         bayar: bayar,
@@ -370,7 +369,7 @@ class _POSPageState extends ConsumerState<POSPage> {
         cartItems: cart,
       );
 
-      if (mounted) Navigator.pop(context); // Tutup dialog loading setelah Firebase selesai
+      if (mounted) Navigator.pop(context); // Tutup dialog loading
 
       // =========================================================
       // 1. GENERATE LOGIKA STRUK FISIK (THERMAL BLUETOOTH 58MM)
@@ -450,4 +449,3 @@ class _POSPageState extends ConsumerState<POSPage> {
       }
     }
   }
-}
