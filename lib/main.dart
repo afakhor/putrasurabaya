@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/database/app_database.dart';
-import 'core/firebase/firebase_options.dart'; 
-import 'core/sync/sync_service.dart';
+import 'core/firebase/firebase_option.dart'; 
+import 'core/services/sync_service.dart';
 import 'features/pos/pos_page.dart';
 import 'features/product/product_page.dart';
 
