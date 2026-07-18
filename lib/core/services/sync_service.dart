@@ -121,3 +121,10 @@ class SyncService {
     debugPrint('🛑 SyncService: Pemantauan koneksi resmi dihentikan.');
   }
 }
+
+
+final syncServiceProvider = Provider<SyncService>((ref) {
+  // Pastikan 'localDatabaseProvider' sesuai dengan nama provider database lokal Anda
+  final db = ref.watch(localDatabaseProvider); 
+  return SyncService(db);
+});
