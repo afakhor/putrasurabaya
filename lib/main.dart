@@ -1,9 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'features/pos/pos_page.dart';
 import 'core/database/app_database.dart';
+import 'core/firebase/firebase_options.dart'; 
+import 'core/sync/sync_service.dart';
+import 'features/pos/pos_page.dart';
+import 'features/product/product_page.dart';
 
-void main() {
+// Provider RBAC Pengguna Aktif (Simulasi login / Realtime Role dari Firestore)
+final currentUserProvider = Provider<Map<String, dynamic>?>((ref) {
+  return {
+    'uid': 'kasir_01',
+    'name': 'Ahmad Fauzi',
+    'role': 'owner',        // Opsi: 'owner', 'salesman', 'kasir'
+    'canEditPrice': true,
+    'canDeleteTransaction': false
+  };
+});
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Menginisialisasi Firebase Server sebelum aplikasi dirender
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(
     const ProviderScope(
       child: MyApp(),
@@ -11,11 +33,14 @@ void main() {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Jalankan auto-listener konektivitas internet untuk background sync
+    ref.read(syncServiceProvider).startListening();
+
     return MaterialApp(
       title: 'UD. Putra Kasir',
       debugShowCheckedModeBanner: false,
@@ -28,7 +53,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// State Provider untuk mengontrol index halaman aktif
 final navbarIndexProvider = StateProvider<int>((ref) => 0);
 
 class MainNavigationScreen extends ConsumerWidget {
@@ -38,42 +62,48 @@ class MainNavigationScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = ref.watch(navbarIndexProvider);
 
-    // List Halaman Aplikasi (Tanpa Side Drawer)
+    // List Halaman Terintegrasi (Index 4 dikhususkan untuk POS Kasir Utama)
     final List<Widget> pages = [
-      const Center(child: Text('Dashboard Toko (Home)', style: TextStyle(fontSize: 20))),
-      const Center(child: Text('Transaksi Penjualan', style: TextStyle(fontSize: 20))),
-      const ProductPage(), // Halaman Produk Utama Terintegrasi di sini
-      const Center(child: Text('Laporan Keuangan', style: TextStyle(fontSize: 20))),
+      const Center(child: Text('Dashboard Toko (Home)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+      const Center(child: Text('Riwayat Transaksi Penjualan', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+      const ProductPage(), 
+      const Center(child: Text('Laporan Keuangan (Owner Only)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+      const POSPage(), 
     ];
 
     return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          selectedIndex == 4 ? 'Kasir Kasir Utama' : 'UD. Putra Surabaya',
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        backgroundColor: const Color(0xFF007F00),
+        centerTitle: true,
+      ),
       body: pages[selectedIndex],
 
-      // 1. DOCKED FAB DI TENGAH BOTTOM BAR (Untuk Aksi Cepat / Menu Kasir POS)
+      // DOCKED NOTCHED FAB: Akses langsung ke POS Utama dengan ikon QR/Scanner
       floatingActionButton: FloatingActionButton(
         shape: const CircleBorder(),
         backgroundColor: const Color(0xFF00A65A),
         foregroundColor: Colors.white,
         onPressed: () {
-          // Aksi cepat: misal langsung buka Kamera scanner kasir / POS Baru
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Membuka Kamera POS Scanner Kasir...')),
-          );
+          // Mengalihkan view aktif langsung ke halaman Kasir Utama POS (Index 4)
+          ref.read(navbarIndexProvider.notifier).state = 4;
         },
         child: const Icon(Icons.qr_code_scanner, size: 28),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
-      // 2. NOTCHED BOTTOM APP BAR (Desain melengkung di tempat FAB bersandar)
+      // NOTCHED BOTTOM BAR: Lengkungan presisi mengapit tombol kasir utama
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
         notchMargin: 8.0,
-        color: const Color(0xFF007F00), // Warna hijau gelap khas UD. Putra
+        color: const Color(0xFF007F00), 
         clipBehavior: Clip.antiAlias,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Bagian Kiri FAB (Tab 0 dan 1)
             Row(
               children: [
                 IconButton(
@@ -81,7 +111,7 @@ class MainNavigationScreen extends ConsumerWidget {
                   icon: Icon(Icons.home, color: selectedIndex == 0 ? Colors.amber : Colors.white, size: 28),
                   onPressed: () => ref.read(navbarIndexProvider.notifier).state = 0,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 24),
                 IconButton(
                   tooltip: 'Transaksi',
                   icon: Icon(Icons.receipt_long, color: selectedIndex == 1 ? Colors.amber : Colors.white, size: 28),
@@ -89,11 +119,7 @@ class MainNavigationScreen extends ConsumerWidget {
                 ),
               ],
             ),
-            
-            // Spacer untuk memberi ruang lekukan FAB di tengah
-            const SizedBox(width: 48),
-
-            // Bagian Kanan FAB (Tab 2 dan 3)
+            const SizedBox(width: 48), // Ruang kosong untuk Notch FAB
             Row(
               children: [
                 IconButton(
@@ -101,7 +127,7 @@ class MainNavigationScreen extends ConsumerWidget {
                   icon: Icon(Icons.storefront, color: selectedIndex == 2 ? Colors.amber : Colors.white, size: 28),
                   onPressed: () => ref.read(navbarIndexProvider.notifier).state = 2,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 24),
                 IconButton(
                   tooltip: 'Laporan',
                   icon: Icon(Icons.analytics, color: selectedIndex == 3 ? Colors.amber : Colors.white, size: 28),
