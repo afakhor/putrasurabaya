@@ -26,6 +26,27 @@ class AppDatabase {
       }).toList();
     });
   }
+// Tambahkan ini di dalam class AppDatabase di file app_database.dart Bapak:
+Future<void> tambahProduk({
+  required String name,
+  required double buyPrice,
+  required double sellPrice,
+  String? barcode,
+  String unitBase = 'pcs',
+  int stock = 0,
+  String category = 'Umum',
+}) async {
+  await _firestore.collection('products').add({
+    'name': name,
+    'barcode': barcode ?? 'PSB-${DateTime.now().millisecondsSinceEpoch}',
+    'buyPrice': buyPrice,
+    'sellPrice': sellPrice,
+    'unitBase': unitBase,
+    'stock': stock,
+    'category': category,
+    'createdAt': FieldValue.serverTimestamp(),
+  });
+}
 
   // =========================================================
   // 2. PROSES TRANSAKSI (BATCH WRITE: SIMPAN & POTONG STOK)
