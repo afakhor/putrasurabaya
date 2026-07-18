@@ -2,7 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-part 'local_database.g.dart'; // <-- Diubah sesuai nama filenya
+part 'local_database.g.dart';
 
 @DataClassName('UserData')
 class Users extends Table {
@@ -75,6 +75,8 @@ class Transactions extends Table {
   RealColumn get change => real().withDefault(const Constant(0))();
   TextColumn get paymentMethod => text().withDefault(const Constant('cash'))();
   DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
+  // KOREKSI: Tambahkan kolom ini agar SyncService tidak error!
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))(); 
 
   @override
   Set<Column> get primaryKey => {id};
@@ -119,18 +121,57 @@ class DebtPayments extends Table {
 }
 
 @DriftDatabase(tables: [Users, Products, Categories, ProductUnits, Customers, Transactions, TransactionItems, Debts, DebtPayments])
-class LocalDatabase extends _$LocalDatabase { // <-- Ganti nama class agar tidak bentrok
+class LocalDatabase extends _$LocalDatabase { 
   LocalDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2; 
+  int get schemaVersion => 3; // Naikkan versi schema karena ada penambahan kolom
 
   Future<List<ProductData>> getAllProducts() => select(products).get();
+
+  // Menambahkan fungsi penyimpanan transaksi offline ke database lokal
+  Future<void> prosesTransaksiPenyimpanan({
+    required String invoiceNo,
+    required double total,
+    required double bayar,
+    required double sisaHutang,
+    required double uangKembali,
+    required String method,
+    required String kasirNama,
+    required List<dynamic> cartItems,
+  }) async {
+    final txId = 'TX-${DateTime.now().millisecondsSinceEpoch}';
+    
+    await transaction(() async {
+      await into(transactions).insert(TransactionsCompanion.insert(
+        id: txId,
+        invoiceNo: invoiceNo,
+        subtotal: total,
+        total: total,
+        paid: Value(bayar),
+        debt: Value(sisaHutang),
+        change: Value(uangKembali),
+        paymentMethod: Value(method),
+        date: Value(DateTime.now()),
+        isSynced: const Value(false), // Tandai false agar nanti di-upload oleh SyncService
+      ));
+
+      for (var item in cartItems) {
+        await into(transactionItems).insert(TransactionItemsCompanion.insert(
+          id: 'ITM-${DateTime.now().microsecondsSinceEpoch}',
+          transactionId: txId,
+          productId: item.product.id,
+          quantity: item.qty,
+          price: item.price,
+          unit: item.unit,
+        ));
+      }
+    });
+  }
 }
 
 QueryExecutor _openConnection() {
   return driftDatabase(name: 'putra_sby_db');
 }
 
-// Provider untuk akses Database Lokal di UI
 final localDatabaseProvider = Provider<LocalDatabase>((ref) => LocalDatabase());
