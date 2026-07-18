@@ -1,15 +1,11 @@
 import 'dart:async';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:drift/drift.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../database/app_database.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
+import 'package:drift/drift.dart'; // Wajib untuk membaca class 'Value' milik Drift
 
-final syncServiceProvider = Provider<SyncService>((ref) {
-  final db = ref.watch(localDatabaseProvider); 
-  return SyncService(db);
-});
+// Sesuaikan path ini dengan lokasi file local_database Anda
+import '../database/local_database.dart'; 
 
 class SyncService {
   final LocalDatabase _db;
@@ -19,8 +15,13 @@ class SyncService {
 
   SyncService(this._db);
 
+  /// Memulai pemantauan koneksi internet secara berkala
   void startListening() {
     debugPrint('🔄 SyncService: Memulai pemantauan koneksi internet...');
+
+    // PERBAIKAN 1: Bersihkan subscription lama jika fungsi ini tidak sengaja terpanggil dua kali
+    // Ini mencegah penumpukan alokasi memori (memory leak) di latar belakang
+    _connectivitySubscription?.cancel();
 
     _connectivitySubscription = Connectivity()
         .onConnectivityChanged
@@ -40,8 +41,13 @@ class SyncService {
     });
   }
 
+  /// Menjembatani proses sinkronisasi dengan status pengaman
   Future<void> syncLocalToCloud() async {
-    if (_isSyncing) return;
+    if (_isSyncing) {
+      debugPrint('⏳ Sinkronisasi sedang berjalan, mengabaikan request baru.');
+      return;
+    }
+    
     _isSyncing = true;
 
     try {
@@ -49,10 +55,13 @@ class SyncService {
     } catch (e) {
       debugPrint('❌ Gagal sinkronisasi data: $e');
     } finally {
+      // PERBAIKAN 2: Pastikan status dikembalikan ke false di dalam blok 'finally'
+      // agar engine tidak terkunci selamanya jika terjadi error fatal di tengah jalan
       _isSyncing = false;
     }
   }
 
+  /// Proses internal upload transaksi ke Cloud Firestore
   Future<void> _syncTransactions() async {
     final unsyncedTx = await (_db.select(_db.transactions)
           ..where((t) => t.isSynced.equals(false)))
@@ -67,10 +76,12 @@ class SyncService {
 
     for (var tx in unsyncedTx) {
       try {
+        // Mengambil detail item dari transaksi terkait
         final items = await (_db.select(_db.transactionItems)
               ..where((item) => item.transactionId.equals(tx.id)))
             .get();
 
+        // Kirim data ke Firestore
         await _firestore.collection('transactions').doc(tx.id).set({
           'invoiceNo': tx.invoiceNo,
           'subtotal': tx.subtotal,
@@ -87,8 +98,10 @@ class SyncService {
             'price': item.price,
             'unit': item.unit,
           }).toList(),
-        });
+        }, SetOptions(merge: true)); // Gunakan merge agar tidak menimpa data utuh jika dokumen sudah ada
 
+        // PERBAIKAN 3: Perbarui flag status sinkronisasi lokal ke SQLite
+        // Pastikan 'package:drift/drift.dart' sudah diimpor di atas agar kata kunci 'Value' terbaca
         await (_db.update(_db.transactions)..where((t) => t.id.equals(tx.id)))
             .write(TransactionsCompanion(
               isSynced: const Value(true),
@@ -96,12 +109,15 @@ class SyncService {
 
         debugPrint('🚀 Nota ${tx.invoiceNo} berhasil disinkronkan ke Cloud!');
       } catch (e) {
+        // Jika ada satu nota yang rusak/gagal, loop akan tetap berlanjut ke nota berikutnya
         debugPrint('⚠️ Gagal mengunggah nota ${tx.invoiceNo}: $e');
       }
     }
   }
 
+  /// Wajib dipanggil saat modul atau aplikasi ditutup
   void dispose() {
     _connectivitySubscription?.cancel();
+    debugPrint('🛑 SyncService: Pemantauan koneksi resmi dihentikan.');
   }
 }
