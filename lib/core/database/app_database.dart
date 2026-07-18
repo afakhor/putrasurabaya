@@ -1,99 +1,87 @@
-import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../features/product/product_pos.dart'; // Sesuaikan dengan path model Product Bapak
+import '../../features/pos/pos_page.dart'; // Untuk membaca model CartItem
 
-part 'app_database.g.dart';
+class AppDatabase {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-// TABEL USER BANTUAN UNTUK KONTROL KELOLA SALESMAN LOKAL
-class Users extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get uid => text()(); // Firebase UID
-  TextColumn get name => text()();
-  TextColumn get role => text()(); // 'owner' atau 'salesman'
-  TextColumn get status => text()(); // 'active' atau 'suspended'
-  BoolColumn get canEditPrice => boolean().withDefault(const Constant(false))();
-  BoolColumn get canDeleteTransaction => boolean().withDefault(const Constant(false))();
+  // =========================================================
+  // 1. DATA PRODUK (STREAM REALTIME)
+  // =========================================================
+  Stream<List<Product>> streamProducts() {
+    return _firestore.collection('products').snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return Product(
+          id: doc.id,
+          name: data['name'] ?? '',
+          barcode: data['barcode'],
+          sellPrice: (data['sellPrice'] ?? 0).toDouble(),
+          buyPrice: (data['buyPrice'] ?? 0).toDouble(),
+          unitBase: data['unitBase'] ?? 'pcs',
+          stock: (data['stock'] ?? 0).toInt(),
+          category: data['category'] ?? 'Umum',
+        );
+      }).toList();
+    });
+  }
+
+  // =========================================================
+  // 2. PROSES TRANSAKSI (BATCH WRITE: SIMPAN & POTONG STOK)
+  // =========================================================
+  Future<void> prosesTransaksiPenyimpanan({
+    required String invoiceNo,
+    required double total,
+    required double bayar,
+    required double sisaHutang,
+    required double uangKembali,
+    required String method,
+    required String kasirNama,
+    required List<CartItem> cartItems,
+  }) async {
+    // Menggunakan WriteBatch agar jika salah satu proses gagal, seluruh transaksi dibatalkan (aman dari error data)
+    final batch = _firestore.batch();
+    final txDocRef = _firestore.collection('transactions').doc();
+
+    // Dokumen 1: Simpan Nota Transaksi Baru
+    batch.set(txDocRef, {
+      'invoiceNo': invoiceNo,
+      'subtotal': total,
+      'total': total,
+      'paid': bayar,
+      'debt': sisaHutang,
+      'paymentMethod': method,
+      'change': uangKembali,
+      'createdAt': FieldValue.serverTimestamp(),
+      'createdBy': kasirNama,
+      'items': cartItems.map((item) => {
+        'productId': item.product.id,
+        'name': item.product.name,
+        'quantity': item.qty,
+        'price': item.price,
+        'unit': item.unit,
+        'subtotal': item.subtotal,
+      }).toList(),
+    });
+
+    // Dokumen 2: Kurangi Stok Produk secara Otomatis di Cloud
+    for (var item in cartItems) {
+      final productDocRef = _firestore.collection('products').doc(item.product.id);
+      batch.update(productDocRef, {
+        'stock': FieldValue.increment(-item.qty), // Mengurangi stok sejumlah qty yang dibeli
+      });
+    }
+
+    // Eksekusi semua perintah batch sekaligus ke Firebase
+    await batch.commit();
+  }
 }
 
-class Products extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get name => text()();
-  TextColumn get barcode => text().nullable()();
-  RealColumn get buyPrice => real().withDefault(const Constant(0))();
-  RealColumn get sellPrice => real().withDefault(const Constant(0))();
-  TextColumn get unitBase => text().withDefault(const Constant('pcs'))();
-  RealColumn get stock => real().withDefault(const Constant(0))();
-}
+// Global Provider agar bisa dipanggil dengan mudah oleh ref.read() di file UI manapun
+final appDatabaseProvider = Provider<AppDatabase>((ref) => AppDatabase());
 
-class Categories extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get name => text()();
-}
-
-class ProductUnits extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get productId => integer()();
-  TextColumn get unitName => text()();
-  IntColumn get conversion => integer()();
-  RealColumn get sellingPrice => real()();
-  TextColumn get barcode => text().nullable()();
-}
-
-class Customers extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get name => text()();
-  TextColumn get phone => text().nullable()();
-  TextColumn get address => text().nullable()();
-}
-
-class Transactions extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get invoiceNo => text()();
-  RealColumn get subtotal => real()();
-  RealColumn get total => real()();
-  RealColumn get paid => real().withDefault(const Constant(0))();
-  RealColumn get debt => real().withDefault(const Constant(0))();
-  RealColumn get change => real().withDefault(const Constant(0))();
-  TextColumn get paymentMethod => text().withDefault(const Constant('cash'))();
-  DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
-}
-
-class TransactionItems extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get transactionId => integer()();
-  IntColumn get productId => integer()();
-  RealColumn get quantity => real()();
-  RealColumn get price => real()();
-  TextColumn get unit => text()();
-}
-
-class Debts extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get customerId => integer()();
-  IntColumn get transactionId => integer().nullable()();
-  RealColumn get totalDebt => real()();
-  RealColumn get remainingDebt => real()();
-  DateTimeColumn get date => dateTime()();
-  BoolColumn get isPaid => boolean().withDefault(const Constant(false))();
-}
-
-class DebtPayments extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get debtId => integer()();
-  RealColumn get amount => real()();
-  DateTimeColumn get date => dateTime()();
-}
-
-@DriftDatabase(tables: [Users, Products, Categories, ProductUnits, Customers, Transactions, TransactionItems, Debts, DebtPayments])
-class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
-  
-  @override
-  int get schemaVersion => 1;
-
-  Future<List<Product>> getAllProducts() => select(products).get();
-}
-
-// KHUSUS ANDROID - BERSIH TANPA LOGIKA WEB
-QueryExecutor _openConnection() {
-  return driftDatabase(name: 'putra_sby_db');
-}
+// Stream Provider khusus untuk dipakai di UI GridView Produk
+final productsStreamProvider = StreamProvider<List<Product>>((ref) {
+  return ref.watch(appDatabaseProvider).streamProducts();
+});
