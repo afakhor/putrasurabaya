@@ -3,19 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' show Value;
+
+// Impor file lokal Anda
 import '../../core/database/app_database.dart';
 import '../../core/utils/format_rupiah.dart';
-import 'product_form_provider.dart';
-import 'package:drift/drift.dart' show Value;
 import '../../core/services/sync_service.dart';
-config.dart; 
+import 'product_form_provider.dart';
+import 'config.dart'; // Menghubungkan ke file konfigurasi tema Anda
 
-// Palet Warna Sesuai Aturan Komposisi Anda (65-25-10)
-const Color dominantGold = Color(0xFFDFB76C);    // 65% Dominan Background
-const Color greenGold = Color(0xFF9FA872);       // 25% Komponen & Aksen Kontainer
-const Color brightHighlight = Color(0xFFFFF9E6); // 10% Penanda Kontras Tinggi (FAB/Glow)
-const Color textEspresso = Color(0xFF2A1E17);     // Warna Teks Utama Kontras Tinggi
-const Color textSubdued = Color(0xFF5C5045);      // Warna Keterangan
+// Menghubungkan konsterna warna lokal langsung ke static variable GoldenGreenTheme di config.dart
+const Color dominantGold = GoldenGreenTheme.dominantGold;
+const Color greenGold = GoldenGreenTheme.greenGold;
+const Color brightHighlight = GoldenGreenTheme.brightHighlight;
+const Color textEspresso = GoldenGreenTheme.textEspresso;
+const Color textSubdued = GoldenGreenTheme.textSubdued;
 
 class ProductPage extends ConsumerStatefulWidget {
   const ProductPage({super.key});
@@ -54,8 +56,9 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     final formNotifier = ref.read(productFormProvider.notifier);
 
     return Scaffold(
-      backgroundColor: dominantGold, // 65% Dominan Latar Belakang Aplikasi
-      body: SafeArea(
+      // PERUBAHAN UTAMA: Membungkus area form dengan background mesh cair organik dari config.dart
+      // Karena buildFluidBackground sudah memiliki SafeArea di dalamnya, kita tidak perlu membungkusnya lagi di sini.
+      body: GoldenGreenTheme.buildFluidBackground(
         child: Form(
           key: _formKey,
           child: ListView(
@@ -64,8 +67,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             children: [
               _buildHeaderTitle(),
               const SizedBox(height: 20),
-              
-              // 1. KELOMPOK DATA UTAMA (CARD DENGAN DUKUNGAN WARNA HIJAU EMAS TIPIS)
+
+              // 1. KELOMPOK DATA UTAMA
               _buildFormSection(
                 title: 'Informasi Dasar Produk',
                 icon: Icons.inventory,
@@ -98,7 +101,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   Center(
                     child: GestureDetector(
                       onTap: () {
-                        // Jalankan Picker Gambar Anda, contoh set path statis/mock untuk simulasi:
                         formNotifier.updateMainImage('/storage/emulated/0/Download/produk_utama.jpg');
                       },
                       child: Container(
@@ -167,7 +169,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
 
               // 4. KELOMPOK DINAMIS VARIANT INPUT
               _buildVariantSection(formState, formNotifier),
-              const SizedBox(height: 80), // Jarak ekstra agar tidak tertutup FAB
+              const SizedBox(height: 80), 
             ],
           ),
         ),
@@ -176,7 +178,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       // INTERAKTIF EXTENDED FAB DENGAN AKSEN WARNA BRIGHT 10% KONTRAST TINGGI
       floatingActionButton: FloatingActionButton.extended(
         isExtended: _isFabExtended,
-        backgroundColor: brightHighlight, // 10% Aksen Terang agar menonjol dari emas dominan
+        backgroundColor: brightHighlight, 
         icon: const Icon(Icons.save_as, color: textEspresso, size: 26),
         label: const Text(
           'Simpan & Sinkron',
@@ -195,7 +197,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       children: [
         Text(
           'MANAJEMEN PRODUK BARU',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.black, color: textEspresso, letterSpacing: 1.1),
+          // FIX: Mengubah FontWeight.black yang salah ketik menjadi FontWeight.w900 bawaan SDK Flutter
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: textEspresso, letterSpacing: 1.1),
         ),
         Text(
           'UD. Putra Surabaya POS Engine System',
@@ -209,7 +212,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.85), // semi transparan premium melapis background liquid
+        color: Colors.white.withOpacity(0.85), // Semi transparan premium melapis background liquid agar teks tetap terbaca tajam
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: textEspresso.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4))],
       ),
@@ -241,13 +244,13 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     );
   }
 
-  // MENGELOLA LIST VARIAN DENGAN LOGIKA FALLBACK GAMBAR SECARA VISUAL
   Widget _buildVariantSection(ProductFormState state, ProductFormNotifier notifier) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.between,
+          // FIX: Mengubah MainAxisAlignment.between yang typo menjadi MainAxisAlignment.spaceBetween
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text('Varian & Konversi Satuan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textEspresso)),
             ElevatedButton.icon(
@@ -267,7 +270,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             child: const Center(child: Text('Tidak ada varian tambahan (Hanya Satuan Base / Tunggal)', style: TextStyle(color: textEspresso))),
           ),
         ...state.variants.map((variant) {
-          // IMPLEMENTASI LOGIKA FALLBACK GAMBAR SECARA VISUAL
           final bool isUsingFallbackImage = variant.imagePath == null;
           final String? displayedImagePath = variant.imagePath ?? state.mainImagePath;
 
@@ -281,7 +283,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                 children: [
                   Row(
                     children: [
-                      // Kolom Gambar Varian + Indikator Induk Otomatis
                       GestureDetector(
                         onTap: () {
                           notifier.updateVariantItem(variant.id, (v) => v.copyWith(imagePath: '/storage/v_spesifik.jpg'));
@@ -342,7 +343,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   ),
                   if (isUsingFallbackImage && state.mainImagePath != null)
                     const Padding(
-                      padding: EdgeInsets.top(6.0),
+                      // FIX: Mengubah objek fiktif EdgeInsets.top(6.0) menjadi EdgeInsets.only(top: 6.0) sesuai standar Flutter
+                      padding: EdgeInsets.only(top: 6.0),
                       child: Row(
                         children: [
                           Icon(Icons.info_outline, size: 12, color: greenGold),
@@ -365,12 +367,10 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   Future<void> _prosesSimpanKeDuaDatabase(ProductFormState dataForm) async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Ambil akses database lokal (Drift) dan cloud (Firestore) via Riverpod Ref
     final dbLokal = ref.read(localDatabaseProvider);
     final dbCloud = ref.read(firestoreServiceProvider);
 
     try {
-      // 1. SIMPAN DATA PRODUK INDUK KE SQLITE LOKAL (OFFLINE FIRST)
       await dbLokal.into(dbLokal.products).insert(
         ProductsCompanion.insert(
           id: dataForm.id,
@@ -382,7 +382,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         ),
       );
 
-      // 2. ITERASI & SIMPAN NESTED DATA VARIAN KE TABEL PRODUCT UNITS LOKAL
       for (var variant in dataForm.variants) {
         await dbLokal.into(dbLokal.productUnits).insert(
           ProductUnitsCompanion.insert(
@@ -395,7 +394,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         );
       }
 
-      // 3. SECARA PARALEL SEGERA TEMBAK KE CLOUD FIRESTORE
       await dbCloud.tambahProdukCloud(
         name: dataForm.name,
         buyPrice: dataForm.buyPrice,
@@ -404,7 +402,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         category: dataForm.categoryId,
       );
 
-      // Pemicu panggil sistem sinkronisasi otomatis background sync untuk memastikan integritas
       ref.read(syncServiceProvider).syncLocalToCloud();
 
       if (mounted) {
