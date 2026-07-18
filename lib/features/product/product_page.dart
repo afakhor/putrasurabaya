@@ -1,228 +1,420 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-// KOREKSI: Perbaikan path folder core yang sebelumnya hilang
-import '../../core/utils/format_rupiah.dart'; 
+import '../../core/database/app_database.dart';
+import '../../core/utils/format_rupiah.dart';
+import 'product_form_provider.dart';
 
-const Color primaryColor = Color(0xFF00A65A); 
+// Palet Warna Sesuai Aturan Komposisi Anda (65-25-10)
+const Color dominantGold = Color(0xFFDFB76C);    // 65% Dominan Background
+const Color greenGold = Color(0xFF9FA872);       // 25% Komponen & Aksen Kontainer
+const Color brightHighlight = Color(0xFFFFF9E6); // 10% Penanda Kontras Tinggi (FAB/Glow)
+const Color textEspresso = Color(0xFF2A1E17);     // Warna Teks Utama Kontras Tinggi
+const Color textSubdued = Color(0xFF5C5045);      // Warna Keterangan
 
-class ProductPage extends ConsumerWidget {
+class ProductPage extends ConsumerStatefulWidget {
   const ProductPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('products').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return const Center(child: Text('Terjadi kesalahan data.'));
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: primaryColor));
-          }
-
-          final docs = snapshot.data?.docs ?? [];
-          if (docs.isEmpty) {
-            return const Center(child: Text('Belum ada produk. Klik tombol + untuk menambah.'));
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
-              final String name = data['name'] ?? '-';
-              final double stock = (data['stock'] ?? 0).toDouble();
-              final double buyPrice = (data['buyPrice'] ?? 0).toDouble();
-              final double sellPrice = (data['sellPrice'] ?? 0).toDouble();
-
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 4),
-                    Text('Stok: $stock | Modal: ${buyPrice.toRupiah()}'),
-                  ],
-                ),
-                trailing: Text(
-                  sellPrice.toRupiah(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: primaryColor,
-                    fontSize: 16,
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => const _ProductFormDialog(),
-          );
-        },
-        backgroundColor: primaryColor,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-    );
-  }
+  ConsumerState<ProductPage> createState() => _ProductPageState();
 }
 
-class _ProductFormDialog extends StatefulWidget {
-  const _ProductFormDialog();
+class _ProductPageState extends ConsumerState<ProductPage> {
+  final ScrollController _scrollController = ScrollController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isFabExtended = true;
 
   @override
-  State<_ProductFormDialog> createState() => _ProductFormDialogState();
-}
-
-class _ProductFormDialogState extends State<_ProductFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _buyPriceController = TextEditingController();
-  final _sellPriceController = TextEditingController();
-  final _stockController = TextEditingController();
-
-  bool _isLoading = false;
+  void initState() {
+    super.initState();
+    // Algoritma Otomatis Mengecilkan FAB Saat Di-scroll ke Bawah agar menghemat layar HP
+    _scrollController.addListener(() {
+      if (_scrollController.position.userScrollDirection == ScrollDirection.reverse) {
+        if (_isFabExtended) setState(() => _isFabExtended = false);
+      } else if (_scrollController.position.userScrollDirection == ScrollDirection.forward) {
+        if (!_isFabExtended) setState(() => _isFabExtended = true);
+      }
+    });
+  }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _buyPriceController.dispose();
-    _sellPriceController.dispose();
-    _stockController.dispose();
+    _scrollController.dispose();
     super.dispose();
-  }
-
-  double _parseRawPrice(String formattedPrice) {
-    if (formattedPrice.isEmpty) return 0;
-    final cleanString = formattedPrice.replaceAll('.', ''); 
-    return double.tryParse(cleanString) ?? 0;
-  }
-
-  Future<void> _submitData() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final String nama = _nameController.text.trim();
-      final double stok = double.tryParse(_stockController.text) ?? 0;
-      final double hargaBeli = _parseRawPrice(_buyPriceController.text);
-      final double hargaJual = _parseRawPrice(_sellPriceController.text);
-
-      await FirebaseFirestore.instance.collection('products').add({
-        'name': nama,
-        'stock': stok,
-        'buyPrice': hargaBeli,
-        'sellPrice': hargaJual,
-        'unitBase': 'pcs',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Produk berhasil disimpan!'), backgroundColor: primaryColor),
-        );
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Tambah Produk Baru', style: TextStyle(fontWeight: FontWeight.bold)),
-      content: SingleChildScrollView(
+    final formState = ref.watch(productFormProvider);
+    final formNotifier = ref.read(productFormProvider.notifier);
+
+    return Scaffold(
+      backgroundColor: dominantGold, // 65% Dominan Latar Belakang Aplikasi
+      body: SafeArea(
         child: Form(
           key: _formKey,
-          child: ListBody(
+          child: ListView(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(16.0),
             children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Nama Produk', border: OutlineInputBorder()),
-                textCapitalization: TextCapitalization.words,
-                validator: (val) => val == null || val.isEmpty ? 'Nama wajib diisi' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _stockController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Stok Awal', border: OutlineInputBorder()),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
-                validator: (val) => val == null || val.isEmpty ? 'Stok awal wajib diisi' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _buyPriceController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly, 
-                  RupiahInputFormatter(),
+              _buildHeaderTitle(),
+              const SizedBox(height: 20),
+              
+              // 1. KELOMPOK DATA UTAMA (CARD DENGAN DUKUNGAN WARNA HIJAU EMAS TIPIS)
+              _buildFormSection(
+                title: 'Informasi Dasar Produk',
+                icon: Icons.inventory,
+                children: [
+                  TextFormField(
+                    initialValue: formState.id,
+                    decoration: const InputDecoration(labelText: 'ID Produk (Otomatis)', prefixIcon: Icon(Icons.vpn_key)),
+                    readOnly: true,
+                    style: const TextStyle(color: textSubdued),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Nama Produk', prefixIcon: Icon(Icons.shopping_bag)),
+                    textCapitalization: TextCapitalization.words,
+                    style: const TextStyle(color: textEspresso),
+                    validator: (val) => val == null || val.isEmpty ? 'Nama wajib diisi' : null,
+                    onChanged: formNotifier.updateName,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildCategoryDropdown(formState, formNotifier),
                 ],
-                decoration: const InputDecoration(
-                  labelText: 'Harga Beli (Modal)',
-                  prefixText: 'Rp ',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (val) {
-                  if (val == null || val.isEmpty) return 'Harga modal wajib diisi';
-                  if (_parseRawPrice(val) <= 0) return 'Harga harus di atas Rp 0';
-                  return null;
-                },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _sellPriceController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly, 
-                  RupiahInputFormatter(),
+
+              // 2. KELOMPOK GAMBAR UTAMA & FALLBACK LOGIC VISUAL
+              _buildFormSection(
+                title: 'Aset Gambar Utama',
+                icon: Icons.image,
+                children: [
+                  Center(
+                    child: GestureDetector(
+                      onTap: () {
+                        // Jalankan Picker Gambar Anda, contoh set path statis/mock untuk simulasi:
+                        formNotifier.updateMainImage('/storage/emulated/0/Download/produk_utama.jpg');
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: greenGold.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: greenGold, width: 1.5),
+                        ),
+                        child: formState.mainImagePath != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.file(File(formState.mainImagePath!), fit: BoxFit.cover),
+                              )
+                            : const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.camera_alt, size: 40, color: textEspresso),
+                                  SizedBox(height: 8),
+                                  Text('Ketuk untuk Unggah Gambar Utama', style: TextStyle(color: textEspresso, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ),
                 ],
-                decoration: const InputDecoration(
-                  labelText: 'Harga Jual',
-                  prefixText: 'Rp ',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (val) {
-                  if (val == null || val.isEmpty) return 'Harga jual wajib diisi';
-                  final modal = _parseRawPrice(_buyPriceController.text);
-                  final jual = _parseRawPrice(val);
-                  if (jual < modal) return 'Peringatan: Harga jual di bawah modal toko!';
-                  return null;
-                },
               ),
+              const SizedBox(height: 16),
+
+              // 3. KELOMPOK HARGA & STOK
+              _buildFormSection(
+                title: 'Harga & Manajemen Stok',
+                icon: Icons.monetization_on,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Harga Beli (Modal)', prefixText: 'Rp '),
+                          onChanged: (val) => formNotifier.updateBuyPrice(double.tryParse(val.replaceAll('.', '')) ?? 0),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Harga Jual Dasar', prefixText: 'Rp '),
+                          validator: (val) => val == null || val.isEmpty ? 'Wajib diisi' : null,
+                          onChanged: (val) => formNotifier.updateBaseSellPrice(double.tryParse(val.replaceAll('.', '')) ?? 0),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Jumlah Stok Saat Ini', prefixIcon: Icon(Icons.warehouse)),
+                    validator: (val) => val == null || val.isEmpty ? 'Stok awal wajib diisi' : null,
+                    onChanged: (val) => formNotifier.updateBaseStock(double.tryParse(val) ?? 0),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // 4. KELOMPOK DINAMIS VARIANT INPUT
+              _buildVariantSection(formState, formNotifier),
+              const SizedBox(height: 80), // Jarak ekstra agar tidak tertutup FAB
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+
+      // INTERAKTIF EXTENDED FAB DENGAN AKSEN WARNA BRIGHT 10% KONTRAST TINGGI
+      floatingActionButton: FloatingActionButton.extended(
+        isExtended: _isFabExtended,
+        backgroundColor: brightHighlight, // 10% Aksen Terang agar menonjol dari emas dominan
+        icon: const Icon(Icons.save_as, color: textEspresso, size: 26),
+        label: const Text(
+          'Simpan & Sinkron',
+          style: TextStyle(color: textEspresso, fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        ElevatedButton(
-          onPressed: _isLoading ? null : _submitData,
-          style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
-          child: _isLoading 
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : const Text('Simpan', style: TextStyle(color: Colors.white)),
+        onPressed: formState.isLoading ? null : () => _prosesSimpanKeDuaDatabase(formState),
+      ),
+    );
+  }
+
+  // ===================== UI SUB-COMPONENTS WIDGETS =====================
+
+  Widget _buildHeaderTitle() {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'MANAJEMEN PRODUK BARU',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.black, color: textEspresso, letterSpacing: 1.1),
+        ),
+        Text(
+          'UD. Putra Surabaya POS Engine System',
+          style: TextStyle(fontSize: 13, color: textSubdued, fontWeight: FontWeight.w500),
         ),
       ],
     );
+  }
+
+  Widget _buildFormSection({required String title, required IconData icon, required List<Widget> children}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.85), // semi transparan premium melapis background liquid
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: textEspresso.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: greenGold, size: 22),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textEspresso)),
+            ],
+          ),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider()),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryDropdown(ProductFormState state, ProductFormNotifier notifier) {
+    return DropdownButtonFormField<String>(
+      value: state.categoryId,
+      decoration: const InputDecoration(labelText: 'Kategori Produk', prefixIcon: Icon(Icons.category)),
+      items: ['Umum', 'Makanan', 'Minuman', 'Grosir'].map((e) {
+        return DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(color: textEspresso)));
+      }).toList(),
+      onChanged: (val) => notifier.updateCategory(val ?? 'Umum'),
+    );
+  }
+
+  // MENGELOLA LIST VARIAN DENGAN LOGIKA FALLBACK GAMBAR SECARA VISUAL
+  Widget _buildVariantSection(ProductFormState state, ProductFormNotifier notifier) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.between,
+          children: [
+            const Text('Varian & Konversi Satuan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textEspresso)),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: greenGold, foregroundColor: Colors.white),
+              icon: const Icon(Icons.add_circle_outline, size: 18),
+              label: const Text('Tambah Varian'),
+              onPressed: notifier.addVariant,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (state.variants.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.4), borderRadius: BorderRadius.circular(12)),
+            child: const Center(child: Text('Tidak ada varian tambahan (Hanya Satuan Base / Tunggal)', style: TextStyle(color: textEspresso))),
+          ),
+        ...state.variants.map((variant) {
+          // IMPLEMENTASI LOGIKA FALLBACK GAMBAR SECARA VISUAL
+          final bool isUsingFallbackImage = variant.imagePath == null;
+          final String? displayedImagePath = variant.imagePath ?? state.mainImagePath;
+
+          return Card(
+            color: Colors.white.withOpacity(0.95),
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      // Kolom Gambar Varian + Indikator Induk Otomatis
+                      GestureDetector(
+                        onTap: () {
+                          notifier.updateVariantItem(variant.id, (v) => v.copyWith(imagePath: '/storage/v_spesifik.jpg'));
+                        },
+                        child: Container(
+                          width: 65,
+                          height: 65,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: isUsingFallbackImage ? greenGold : Colors.blue, width: 2),
+                          ),
+                          child: displayedImagePath != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.file(File(displayedImagePath), fit: BoxFit.cover),
+                                )
+                              : const Icon(Icons.add_a_photo, size: 20),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextFormField(
+                              decoration: const InputDecoration(labelText: 'Nama Varian (Contoh: Dus / Renceng)', isDense: true),
+                              onChanged: (val) => notifier.updateVariantItem(variant.id, (v) => v.copyWith(name: val)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_sweep, color: Colors.red),
+                        onPressed: () => notifier.removeVariant(variant.id),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Isi Konversi', isDense: true, suffixText: 'pcs'),
+                          onChanged: (val) => notifier.updateVariantItem(variant.id, (v) => v.copyWith(conversion: int.tryParse(val) ?? 1)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextFormField(
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Harga Jual Varian', isDense: true, prefixText: 'Rp '),
+                          onChanged: (val) => notifier.updateVariantItem(variant.id, (v) => v.copyWith(sellPrice: double.tryParse(val.replaceAll('.', '')) ?? 0)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (isUsingFallbackImage && state.mainImagePath != null)
+                    const Padding(
+                      padding: EdgeInsets.top(6.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 12, color: greenGold),
+                          SizedBox(width: 4),
+                          Text('Gambar otomatis menduplikasi gambar utama produk.', style: TextStyle(fontSize: 10, color: textSubdued, fontStyle: FontStyle.italic)),
+                        ],
+                      ),
+                    )
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  // ===================== ALGORITMA PERSISTENSI DATA FORM =====================
+
+  Future<void> _prosesSimpanKeDuaDatabase(ProductFormState dataForm) async {
+    if (!_formKey.currentState!.validate()) return;
+
+    // Ambil akses database lokal (Drift) dan cloud (Firestore) via Riverpod Ref
+    final dbLokal = ref.read(localDatabaseProvider);
+    final dbCloud = ref.read(firestoreServiceProvider);
+
+    try {
+      // 1. SIMPAN DATA PRODUK INDUK KE SQLITE LOKAL (OFFLINE FIRST)
+      await dbLokal.into(dbLokal.products).insert(
+        ProductsCompanion.insert(
+          id: dataForm.id,
+          name: dataForm.name,
+          buyPrice: Value(dataForm.buyPrice),
+          sellPrice: Value(dataForm.baseSellPrice),
+          stock: Value(dataForm.baseStock),
+          unitBase: const Value('pcs'),
+        ),
+      );
+
+      // 2. ITERASI & SIMPAN NESTED DATA VARIAN KE TABEL PRODUCT UNITS LOKAL
+      for (var variant in dataForm.variants) {
+        await dbLokal.into(dbLokal.productUnits).insert(
+          ProductUnitsCompanion.insert(
+            id: variant.id,
+            productId: dataForm.id,
+            unitName: variant.name.isEmpty ? 'Varian' : variant.name,
+            conversion: variant.conversion,
+            sellingPrice: variant.sellPrice,
+          ),
+        );
+      }
+
+      // 3. SECARA PARALEL SEGERA TEMBAK KE CLOUD FIRESTORE
+      await dbCloud.tambahProdukCloud(
+        name: dataForm.name,
+        buyPrice: dataForm.buyPrice,
+        sellPrice: dataForm.baseSellPrice,
+        stock: dataForm.baseStock.toInt(),
+        category: dataForm.categoryId,
+      );
+
+      // Pemicu panggil sistem sinkronisasi otomatis background sync untuk memastikan integritas
+      ref.read(syncServiceProvider).syncLocalToCloud();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Produk & Varian Berhasil Disimpan di Lokal & Cloud!'), backgroundColor: greenGold),
+        );
+        ref.read(productFormProvider.notifier).resetForm();
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kesalahan Simpan: $e'), backgroundColor: Colors.red));
+      }
+    }
   }
 }
