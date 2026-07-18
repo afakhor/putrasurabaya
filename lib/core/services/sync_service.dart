@@ -1,8 +1,9 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // Wajib ada untuk membaca 'Provider'
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:drift/drift.dart'; // Wajib untuk membaca class 'Value' milik Drift
+import 'package:drift/drift.dart';
 
 // Sesuaikan path ini dengan lokasi file local_database Anda
 import '../database/local_database.dart'; 
