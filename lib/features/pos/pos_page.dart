@@ -7,7 +7,8 @@ import 'package:intl/intl.dart'; // Untuk format tanggal nota
 import '../../core/utils/format_rupiah.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../main.dart';
-import '../product/product_pos.dart'; 
+import '../product/product_page.dart'; 
+import '../../core/database/app_database.dart'; 
 
 // 1. MODEL ITEM KERANJANG
 class CartItem {
