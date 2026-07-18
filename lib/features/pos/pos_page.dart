@@ -8,7 +8,7 @@ import '../../core/utils/format_rupiah.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../main.dart';
 import '../product/product_page.dart'; 
-import '../../core/database/app_database.dart'; 
+import '../../core/database/app_database.dart'; // File database baru kita
 
 // 1. MODEL ITEM KERANJANG
 class CartItem {
@@ -62,24 +62,8 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
 
 final cartProvider = StateNotifierProvider<CartNotifier, List<CartItem>>((ref) => CartNotifier());
 
-// 3. STREAM DATA PRODUK DARI CLOUD FIRESTORE
-final productsStreamProvider = StreamProvider<List<Product>>((ref) {
-  return FirebaseFirestore.instance.collection('products').snapshots().map((snapshot) {
-    return snapshot.docs.map((doc) {
-      final data = doc.data();
-      return Product(
-        id: doc.id,
-        name: data['name'] ?? '',
-        barcode: data['barcode'],
-        sellPrice: (data['sellPrice'] ?? 0).toDouble(),
-        buyPrice: (data['buyPrice'] ?? 0).toDouble(),
-        unitBase: data['unitBase'] ?? 'pcs',
-        stock: (data['stock'] ?? 0).toInt(),
-        category: data['category'] ?? 'Umum',
-      );
-    }).toList();
-  });
-});
+// Catatan: 'productsStreamProvider' yang lama di sini sudah DIHAPUS 
+// karena sekarang otomatis membaca dari lib/core/database/app_database.dart
 
 // 4. HALAMAN UTAMA POS KASIR
 class POSPage extends ConsumerStatefulWidget {
@@ -119,6 +103,7 @@ class _POSPageState extends ConsumerState<POSPage> {
   Widget build(BuildContext context) {
     final cart = ref.watch(cartProvider);
     final total = ref.watch(cartProvider.notifier).total;
+    // productsAsync di bawah ini sekarang otomatis membaca provider dari app_database.dart
     final productsAsync = ref.watch(productsStreamProvider);
     final user = ref.watch(currentUserProvider);
 
@@ -271,10 +256,9 @@ class _POSPageState extends ConsumerState<POSPage> {
 
   // DIALOG PEMBAYARAN INTERAKTIF DENGAN AUTOMATIC TITIK RIBUAN
   void _showBayarDialog(BuildContext context, WidgetRef ref, double total, Map<String, dynamic>? user) {
-    // Memformat nilai total default ke dalam ribuan bertitik agar dibaca formatter
     final String initialText = NumberFormat.decimalPattern('id_ID').format(total.toInt());
     final bayarController = TextEditingController(text: initialText);
-    
+
     final bool canEditPrice = user != null && (user['role'] == 'owner' || user['canEditPrice'] == true);
     double kembalian = 0;
 
@@ -283,7 +267,7 @@ class _POSPageState extends ConsumerState<POSPage> {
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
-          
+
           void hitungKembalianLokal(String teks) {
             final cleanStr = teks.replaceAll('.', '');
             final nominalBayar = double.tryParse(cleanStr) ?? 0;
@@ -304,7 +288,7 @@ class _POSPageState extends ConsumerState<POSPage> {
                   onChanged: hitungKembalianLokal,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    RupiahInputFormatter(), // <-- Integrasi Formatter Gabungan Kita
+                    RupiahInputFormatter(), 
                   ],
                   decoration: const InputDecoration(
                     labelText: 'Jumlah Uang Bayar',
@@ -341,7 +325,6 @@ class _POSPageState extends ConsumerState<POSPage> {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A)),
                 onPressed: () {
-                  // Ambil nominal bersih tanpa titik pembagi ribuan
                   final cleanText = bayarController.text.replaceAll('.', '');
                   final double uangBayar = double.tryParse(cleanText) ?? total;
 
@@ -359,7 +342,6 @@ class _POSPageState extends ConsumerState<POSPage> {
 
   // PROSES TRANSAKSI SINKRON, PRINT BLUETOOTH & COPY STRUK WA
   void _prosesTransaksi(WidgetRef ref, double total, double bayar, String method, Map<String, dynamic>? user) async {
-    final firestore = FirebaseFirestore.instance;
     final cart = ref.read(cartProvider);
     final invoiceNo = 'PSB-${DateTime.now().millisecondsSinceEpoch}';
     final String tanggalNota = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
@@ -371,42 +353,24 @@ class _POSPageState extends ConsumerState<POSPage> {
     );
 
     try {
-      final batch = firestore.batch();
-      final txDocRef = firestore.collection('transactions').doc();
-      
       double sisaHutang = total - bayar > 0 ? total - bayar : 0;
       double uangKembali = bayar > total ? bayar - total : 0;
 
-      batch.set(txDocRef, {
-        'invoiceNo': invoiceNo,
-        'subtotal': total,
-        'total': total,
-        'paid': bayar,
-        'debt': sisaHutang,
-        'paymentMethod': method,
-        'change': uangKembali,
-        'createdAt': FieldValue.serverTimestamp(),
-        'createdBy': user?['name'] ?? 'Kasir',
-        'items': cart.map((item) => {
-          'productId': item.product.id,
-          'name': item.product.name,
-          'quantity': item.qty,
-          'price': item.price,
-          'unit': item.unit,
-          'subtotal': item.subtotal,
-        }).toList(),
-      });
+      // =========================================================
+      // KODE BARU: Memanggil Centralized Database Service 
+      // =========================================================
+      await ref.read(appDatabaseProvider).prosesTransaksiPenyimpanan(
+        invoiceNo: invoiceNo,
+        total: total,
+        bayar: bayar,
+        sisaHutang: sisaHutang,
+        uangKembali: uangKembali,
+        method: method,
+        kasirNama: user?['name'] ?? 'Kasir',
+        cartItems: cart,
+      );
 
-      for (var item in cart) {
-        final productDocRef = firestore.collection('products').doc(item.product.id);
-        batch.update(productDocRef, {
-          'stock': FieldValue.increment(-item.qty),
-        });
-      }
-
-      await batch.commit();
-
-      if (mounted) Navigator.pop(context); // Tutup loading awal
+      if (mounted) Navigator.pop(context); // Tutup dialog loading setelah Firebase selesai
 
       // =========================================================
       // 1. GENERATE LOGIKA STRUK FISIK (THERMAL BLUETOOTH 58MM)
@@ -437,7 +401,7 @@ class _POSPageState extends ConsumerState<POSPage> {
         struk += '--------------------------------\n';
         struk += '     Terima Kasih Atas\n';
         struk += '     Kepercayaan Anda :)\n\n\n';
-        
+
         await PrintBluetoothThermal.writeBytes(struk.codeUnits);
       }
 
@@ -464,11 +428,10 @@ class _POSPageState extends ConsumerState<POSPage> {
       strukWa += 'Semen & Bahan Bangunan Berkualitas.\n';
       strukWa += '_Maturnuwun atas kunjungan Anda!_ 😊';
 
-      // Salin langsung teks struk WA ke Clipboard Android HP Bapak
       await Clipboard.setData(ClipboardData(text: strukWa));
 
       ref.read(cartProvider.notifier).clear();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
