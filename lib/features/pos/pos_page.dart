@@ -8,6 +8,7 @@ import '../../core/utils/format_rupiah.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../main.dart';
 import '../../core/database/app_database.dart';
+import '../../core/services/sync_service.dart';
 
 // Model internal untuk transaksi UI POS
 class Product {
