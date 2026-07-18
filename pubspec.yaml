@@ -11,36 +11,33 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.5.1
-  drift: 2.23.1
-  drift_flutter: 0.2.1
+  
+  # Firebase Core & Database (Wajib Ada)
+  firebase_core: ^2.32.0
+  cloud_firestore: ^4.17.5
+  
+  # Local Database
+  drift: ^2.23.1
+  drift_flutter: ^0.2.1
   path_provider: ^2.1.2
   sqlite3_flutter_libs: ^0.5.32
   path: ^1.9.0
+  
+  # Utilities & Hardware
+  connectivity_plus: ^6.0.3
   print_bluetooth_thermal: ^1.0.3
   image_picker: ^1.0.7
   mobile_scanner: ^5.2.0
   permission_handler: ^11.3.1
   intl: ^0.19.0
-  
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.2
-  drift_dev: 2.23.1
+  drift_dev: ^2.23.1
   build_runner: ^2.4.9
   riverpod_generator: ^2.4.0
 
 flutter:
   uses-material-design: true
-  
-  # Asset foto/gambar
-  assets:
-  #  - assets/images/
-  #  - assets/icons/
-  
-  # Font custom kalau ada
-  # fonts:
-  #   - family: Poppins
-  #     fonts:
-  #       - asset: assets/fonts/Poppins-Regular.ttf
