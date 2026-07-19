@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 // 💡 Menggunakan database lokal Drift secara penuh
+import 'product_form_provider.dart';
 import '../../core/database/local_database.dart'; 
 import '../../core/utils/format_rupiah.dart';
 import '../../main.dart';
