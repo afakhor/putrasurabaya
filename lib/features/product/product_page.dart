@@ -94,7 +94,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
 
                     final matchCategory = _selectedCategory == 'Semua' || item.categoryId == _selectedCategory;
                     final matchBrand = _selectedBrand == 'Semua' || item.brand == _selectedBrand;
-                    
+
                     // 💡 KOREKSI: Tipe data primitif Drift non-nullable (menghilangkan operator ??)
                     final matchStok = !_filterStokMenipis || (item.stock) <= (item.minStock);
 
@@ -204,7 +204,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               const Row(
                 children: [
                   Icon(Icons.report_problem, color: Colors.orange, size: 18),
-                  SizedBox(width: 6),
+                  SScaling: SizedBox(width: 6),
                   Text('Tampilkan Stok Kritis (Menipis) Di Bawah Minimum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 ],
               ),
@@ -315,7 +315,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          // 💡 Diubah ke .toInt() agar tampilan pecahan double di SQLite rapi (.0 hilang)
                           Text('Stok: ${item.stock.toInt()} Pcs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isLowStock ? Colors.red : Colors.black87)),
                           if (isLowStock) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.warning, color: Colors.red, size: 16)),
                         ],
@@ -389,7 +388,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     );
   }
 
-  // 💡 KOREKSI: Mengubah tipe parameter pertama menjadi ProductData
   Widget _buildTierPricingTable(ProductData item, bool isOwner) {
     final double buy = item.buyPrice;
 
@@ -432,7 +430,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     );
   }
 
-  // 💡 KOREKSI: Mengubah tipe parameter pertama menjadi ProductData
   Widget _buildVariantMatrixMockList(ProductData item) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -449,7 +446,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               _buildVariantRowItem('${item.id}-V2', 'Ukuran Besi Baja 12mm Full', (item.sellPriceGeneral) * 1.2),
             ],
           ),
-        )
+          ),
       ],
     );
   }
@@ -465,28 +462,24 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     );
   }
 
+  // 💡 PERBAIKAN UTAMA: FAB Bersih & Stabil Berbasis Native Animasi Flutter
   Widget _buildContextualMultiFab(BuildContext context, bool isOwner) {
-  if (!isOwner) return const SizedBox.shrink(); 
+    if (!isOwner) return const SizedBox.shrink(); 
 
-  return FloatingActionButton.extended(
-    isExtended: _isFabExtended,
-    backgroundColor: const Color(0xFF00A65A),
-    elevation: 4,
-    // Ikon utama yang akan tetap muncul baik saat mode mengecil maupun memanjang
-    icon: const Icon(Icons.add, color: Colors.white, size: 24),
-    // 💡 RESPONSIF: Label teks otomatis menghilang dengan animasi jika _isFabExtended bernilai false
-    label: AnimatedOpacity(
-      duration: const Duration(milliseconds: 200),
-      opacity: _isFabExtended ? 1.0 : 0.0,
-      child: Text(
-        _isFabExtended ? 'Tambah Master' : '', 
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+    return FloatingActionButton.extended(
+      isExtended: _isFabExtended,
+      backgroundColor: const Color(0xFF00A65A),
+      elevation: 4,
+      icon: const Icon(Icons.add, color: Colors.white, size: 24),
+      // Cukup gunakan teks statis, Flutter akan menangani transisi menyusut/melebar secara internal
+      label: const Text(
+        'Tambah Master', 
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
       ),
-    ),
-    onPressed: () {
-      debugPrint('Membuka form tambah dokumen master barang...');
-      // Aksi navigasi ke halaman input barang baru Anda di sini
-    },
-  );
-}
+      onPressed: () {
+        debugPrint('Membuka form tambah dokumen master barang...');
+        // Aksi navigasi Anda ke Form Input Barang Baru (AddProductPage) diletakkan di sini
+      },
+    );
+  }
 }
