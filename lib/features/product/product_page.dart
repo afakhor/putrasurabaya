@@ -465,14 +465,26 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   }
 
   Widget _buildContextualMultiFab(BuildContext context, bool isOwner) {
-    if (!isOwner) return const SizedBox.shrink(); 
+  if (!isOwner) return const SizedBox.shrink(); 
 
-    return FloatingActionButton.extended(
-      isExtended: _isFabExtended,
-      backgroundColor: const Color(0xFF00A65A),
-      icon: const Icon(Icons.add_box, color: Colors.white),
-      label: const Text('Tambah Dokumen Master', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      onPressed: () {},
-    );
-  }
+  return FloatingActionButton.extended(
+    isExtended: _isFabExtended,
+    backgroundColor: const Color(0xFF00A65A),
+    elevation: 4,
+    // Ikon utama yang akan tetap muncul baik saat mode mengecil maupun memanjang
+    icon: const Icon(Icons.add, color: Colors.white, size: 24),
+    // 💡 RESPONSIF: Label teks otomatis menghilang dengan animasi jika _isFabExtended bernilai false
+    label: AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: _isFabExtended ? 1.0 : 0.0,
+      child: Text(
+        _isFabExtended ? 'Tambah Master' : '', 
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      ),
+    ),
+    onPressed: () {
+      debugPrint('Membuka form tambah dokumen master barang...');
+      // Aksi navigasi ke halaman input barang baru Anda di sini
+    },
+  );
 }
