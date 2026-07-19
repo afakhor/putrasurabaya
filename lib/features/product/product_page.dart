@@ -126,6 +126,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         ),
       ),
       floatingActionButton: _buildContextualMultiFab(context, isOwner),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
