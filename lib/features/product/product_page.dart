@@ -204,7 +204,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               const Row(
                 children: [
                   Icon(Icons.report_problem, color: Colors.orange, size: 18),
-                  SScaling: SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Text('Tampilkan Stok Kritis (Menipis) Di Bawah Minimum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 ],
               ),
