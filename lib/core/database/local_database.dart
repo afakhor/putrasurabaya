@@ -8,7 +8,7 @@ part 'local_database.g.dart';
 class Users extends Table {
   TextColumn get id => text()(); 
   TextColumn get name => text()();
-  TextColumn get role => text()(); 
+  TextColumn get role => text()(); // 'owner' atau 'salesman'
   TextColumn get status => text()(); 
   BoolColumn get canEditPrice => boolean().withDefault(const Constant(false))();
   BoolColumn get canDeleteTransaction => boolean().withDefault(const Constant(false))();
@@ -19,22 +19,53 @@ class Users extends Table {
 
 @DataClassName('ProductData')
 class Products extends Table {
-  TextColumn get id => text()(); 
+  TextColumn get id => text()(); // SKU Utama / Auto Generated
   TextColumn get name => text()();
+  TextColumn get shortName => text().withLength(max: 25).nullable()(); // Untuk struk thermal 58mm
   TextColumn get barcode => text().nullable()();
-  RealColumn get buyPrice => real().withDefault(const Constant(0))();
-  RealColumn get sellPrice => real().withDefault(const Constant(0))();
-  TextColumn get unitBase => text().withDefault(const Constant('pcs'))();
+  TextColumn get description => text().nullable()();
+  
+  // Klasifikasi & Lokasi
+  TextColumn get categoryId => text().withDefault(const Constant('Umum'))();
+  TextColumn get subCategory => text().nullable()();
+  TextColumn get brand => text().nullable()();
+  TextColumn get warehouseLocation => text().nullable()(); // Gudang/Rak (Owner Only)
+  TextColumn get tags => text().nullable()();
+
+  // Pricing Engine (Base Unit)
+  RealColumn get buyPrice => real().withDefault(const Constant(0))(); // Modal / HPP
+  RealColumn get sellPriceGeneral => real().withDefault(const Constant(0))(); // Umum
+  RealColumn get sellPriceTier1 => real().withDefault(const Constant(0))(); // Grosir Tier 1
+  RealColumn get sellPriceTier2 => real().withDefault(const Constant(0))(); // Grosir Tier 2
+  RealColumn get sellPriceTier3 => real().withDefault(const Constant(0))(); // Grosir Tier 3
+  RealColumn get maxDiscountSales => real().withDefault(const Constant(0))(); // Limit Diskon Sales
+  BoolColumn get isPriceLocked => boolean().withDefault(const Constant(true))(); // Kunci harga untuk Sales
+
+  // Stock Control
   RealColumn get stock => real().withDefault(const Constant(0))();
+  RealColumn get minStock => real().withDefault(const Constant(5))();
+  RealColumn get maxStock => real().withDefault(const Constant(100))();
+  BoolColumn get allowMinusStock => boolean().withDefault(const Constant(false))();
+
+  // Compliance & Metadata
+  RealColumn get weight => real().withDefault(const Constant(0))(); // Gram untuk ongkir
+  TextColumn get dimensions => text().nullable()(); // P x L x T
+  RealColumn get ppnPercent => real().withDefault(const Constant(0))();
+  IntColumn get rewardPoints => integer().withDefault(const Constant(0))();
+  DateTimeColumn get expiryDate => dateTime().nullable()();
+  TextColumn get statusActive => text().withDefault(const Constant('aktif'))(); // aktif / non-aktif
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
-@DataClassName('CategoryData')
-class Categories extends Table {
-  TextColumn get id => text()(); 
-  TextColumn get name => text()();
+@DataClassName('ProductAssetData')
+class ProductAssets extends Table {
+  TextColumn get id => text()();
+  TextColumn get productId => text().references(Products, #id)();
+  TextColumn get imagePath => text()();
+  BoolColumn get isPrimary => boolean().withDefault(const Constant(false))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -43,27 +74,74 @@ class Categories extends Table {
 @DataClassName('ProductUnitData')
 class ProductUnits extends Table {
   TextColumn get id => text()();
-  TextColumn get productId => text()(); 
-  TextColumn get unitName => text()();
-  IntColumn get conversion => integer()();
-  RealColumn get sellingPrice => real()();
+  TextColumn get productId => text().references(Products, #id)(); 
+  TextColumn get unitName => text()(); // Pcs, Dus, Renceng, Karton
+  IntColumn get conversion => integer()(); // Isi konversi misal 12 pcs
+  RealColumn get buyPriceUnit => real()(); 
+  RealColumn get sellPriceUnit => real()();
   TextColumn get barcode => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
-@DataClassName('CustomerData')
-class Customers extends Table {
-  TextColumn get id => text()(); 
-  TextColumn get name => text()();
-  TextColumn get phone => text().nullable()();
-  TextColumn get address => text().nullable()();
+@DataClassName('ProductVariantData')
+class ProductVariants extends Table {
+  TextColumn get id => text()();
+  TextColumn get productId => text().references(Products, #id)();
+  TextColumn get skuVariant => text()();
+  TextColumn get variantName => text()(); // Warna, Ukuran (Contoh: Kunci Pas 10mm Kuning)
+  TextColumn get barcode => text().nullable()();
+  RealColumn get stock => real().withDefault(const Constant(0))();
+  RealColumn get sellPrice => real().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
+@DataClassName('ProductPromoData')
+class ProductPromos extends Table {
+  TextColumn get id => text()();
+  TextColumn get productId => text().references(Products, #id)();
+  RealColumn get discountPercent => real().withDefault(const Constant(0))();
+  RealColumn get discountNominal => real().withDefault(const Constant(0))();
+  TextColumn get promoType => text().withDefault(const Constant('regular'))(); // bundling, buy_x_get_y
+  DateTimeColumn get startDate => dateTime()();
+  DateTimeColumn get endDate => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('SupplierData')
+class Suppliers extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get phone => text().nullable()();
+  IntColumn get leadTimeDays => integer().withDefault(const Constant(3))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('StockMutationData')
+class StockMutations extends Table {
+  TextColumn get id => text()();
+  TextColumn get productId => text().references(Products, #id)();
+  TextColumn get variantId => text().nullable()();
+  TextColumn get type => text()(); // 'masuk', 'keluar', 'retur', 'opname'
+  RealColumn get quantity => real()();
+  RealColumn get hppSnapshot => real()(); // Nilai HPP saat mutasi terjadi
+  RealColumn get currentStockSnapshot => real()(); // Sisa stok setelah mutasi
+  TextColumn get referenceNo => text()(); // No Invoice / Dokumen Opname
+  DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get notes => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+// Model data transaksi lama dipertahankan
 @DataClassName('TransactionData')
 class Transactions extends Table {
   TextColumn get id => text()(); 
@@ -75,7 +153,6 @@ class Transactions extends Table {
   RealColumn get change => real().withDefault(const Constant(0))();
   TextColumn get paymentMethod => text().withDefault(const Constant('cash'))();
   DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
-  // KOREKSI: Tambahkan kolom ini agar SyncService tidak error!
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))(); 
 
   @override
@@ -95,77 +172,63 @@ class TransactionItems extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-@DataClassName('DebtData')
-class Debts extends Table {
-  TextColumn get id => text()();
-  TextColumn get customerId => text()(); 
-  TextColumn get transactionId => text().nullable()(); 
-  RealColumn get totalDebt => real()();
-  RealColumn get remainingDebt => real()();
-  DateTimeColumn get date => dateTime()();
-  BoolColumn get isPaid => boolean().withDefault(const Constant(false))();
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
-@DataClassName('DebtPaymentData')
-class DebtPayments extends Table {
-  TextColumn get id => text()();
-  TextColumn get debtId => text()(); 
-  RealColumn get amount => real()();
-  DateTimeColumn get date => dateTime()();
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
-@DriftDatabase(tables: [Users, Products, Categories, ProductUnits, Customers, Transactions, TransactionItems, Debts, DebtPayments])
+@DriftDatabase(tables: [
+  Users, Products, ProductAssets, ProductUnits, ProductVariants, 
+  ProductPromos, Suppliers, StockMutations, Transactions, TransactionItems
+])
 class LocalDatabase extends _$LocalDatabase { 
   LocalDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3; // Naikkan versi schema karena ada penambahan kolom
+  int get schemaVersion => 4; 
 
   Future<List<ProductData>> getAllProducts() => select(products).get();
 
-  // Menambahkan fungsi penyimpanan transaksi offline ke database lokal
-  Future<void> prosesTransaksiPenyimpanan({
-    required String invoiceNo,
-    required double total,
-    required double bayar,
-    required double sisaHutang,
-    required double uangKembali,
-    required String method,
-    required String kasirNama,
-    required List<dynamic> cartItems,
+  // Algoritma hitung HPP menggunakan metode Moving Average (Nilai rata-rata tertimbang modal)
+  Future<void> catatMutasiStok({
+    required String productId,
+    required String type,
+    required double qty,
+    required double hargaBeliMasuk,
+    required String refNo,
+    String? variantId,
+    String? catatan,
   }) async {
-    final txId = 'TX-${DateTime.now().millisecondsSinceEpoch}';
-    
     await transaction(() async {
-      await into(transactions).insert(TransactionsCompanion.insert(
-        id: txId,
-        invoiceNo: invoiceNo,
-        subtotal: total,
-        total: total,
-        paid: Value(bayar),
-        debt: Value(sisaHutang),
-        change: Value(uangKembali),
-        paymentMethod: Value(method),
-        date: Value(DateTime.now()),
-        isSynced: const Value(false), // Tandai false agar nanti di-upload oleh SyncService
-      ));
+      final queryProd = select(products)..where((t) => t.id.equals(productId));
+      final prod = await queryProd.getSingle();
 
-      for (var item in cartItems) {
-        await into(transactionItems).insert(TransactionItemsCompanion.insert(
-          id: 'ITM-${DateTime.now().microsecondsSinceEpoch}',
-          transactionId: txId,
-          productId: item.product.id,
-          quantity: item.qty,
-          price: item.price,
-          unit: item.unit,
-        ));
+      double stokLama = prod.stock;
+      double hppLama = prod.buyPrice;
+      double stokBaru = type == 'masuk' || type == 'retur' ? stokLama + qty : stokLama - qty;
+      
+      double hppBaru = hppLama;
+      if (type == 'masuk' && (stokLama + qty) > 0) {
+        // Rumus Moving Average: ((Stok Awal * HPP Awal) + (Stok Masuk * Harga Masuk)) / Total Stok Baru
+        hppBaru = ((stokLama * hppLama) + (qty * hargaBeliMasuk)) / (stokLama + qty);
       }
+
+      // Update Master Produk
+      await (update(products)..where((t) => t.id.equals(productId))).write(
+        ProductsCompanion(
+          stock: Value(stokBaru),
+          buyPrice: Value(hppBaru),
+        ),
+      );
+
+      // Insert Kartu Stok Log
+      await into(stockMutations).insert(StockMutationsCompanion.insert(
+        id: 'MUT-${DateTime.now().millisecondsSinceEpoch}',
+        productId: productId,
+        variantId: Value(variantId),
+        type: type,
+        quantity: qty,
+        hppSnapshot: hppBaru,
+        currentStockSnapshot: stokBaru,
+        referenceNo: refNo,
+        notes: Value(catatan),
+        date: Value(DateTime.now()),
+      ));
     });
   }
 }
