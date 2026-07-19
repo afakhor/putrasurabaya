@@ -5,11 +5,12 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/database/local_database.dart';
+// 💡 PASTIKAN: Jika model 'Product' didefinisikan di file terpisah, 
+// silakan import path model Anda di sini, contoh:
+// import '../../core/domain/models/product.dart';
+import '../../core/database/local_database.dart'; 
 import '../../core/utils/format_rupiah.dart';
 import '../../main.dart';
-// Asumsi navigasi diarahkan ke halaman form input terpisah Anda:
-// import 'product_form_page.dart';
 
 class ProductPage extends ConsumerStatefulWidget {
   const ProductPage({super.key});
@@ -22,10 +23,9 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   final ScrollController _scrollController = ScrollController();
   bool _isFabExtended = true;
 
-  // State Kontrol Engine Filter & Debounce Search
   String _searchQuery = '';
   String _selectedCategory = 'Semua';
-  String _selectedStatus = 'Semua'; // Semua, Aktif, Non-Aktif
+  String _selectedStatus = 'Semua'; 
   String _selectedBrand = 'Semua';
   bool _filterStokMenipis = false;
   
@@ -59,7 +59,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     });
   }
 
-  // Helper fungsi untuk hitung margin keuntungan secara real-time vs HPP
   String _hitungMargin(double buy, double sell) {
     if (sell <= 0 || buy <= 0) return '0%';
     final double margin = ((sell - buy) / sell) * 100;
@@ -77,14 +76,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // =========================================================
-            // 1. HEADER & ACTION BAR DENGAN MULTI-FILTER & DEBOUNCE SEARCH
-            // =========================================================
             _buildAdvancedHeaderFilter(isOwner),
-
-            // =========================================================
-            // 2. DAFTAR BARANG / KATALOG PRODUK UTAMA
-            // =========================================================
             Expanded(
               child: StreamBuilder<List<Product>>(
                 stream: db.select(db.products).watch(),
@@ -96,7 +88,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                     return const Center(child: Text('Belum ada master barang terdata di sistem lokal.'));
                   }
 
-                  // Engine Pipeline Filtering Data Multi-Parameter
                   final filteredProducts = snapshot.data!.where((item) {
                     final matchSearch = item.name.toLowerCase().contains(_searchQuery) ||
                         item.id.toLowerCase().contains(_searchQuery) ||
@@ -134,14 +125,10 @@ class _ProductPageState extends ConsumerState<ProductPage> {
           ],
         ),
       ),
-      // =========================================================
-      // 3. MULTI-FAB UTAMA (OWNER BISA TAMBAH DATA, SALESMAN AKSES KHUSUS)
-      // =========================================================
       floatingActionButton: _buildContextualMultiFab(context, isOwner),
     );
   }
 
-  // WIDGET GENERATOR: Kontrol Filter Atas Kompatibel Owner & Salesman
   Widget _buildAdvancedHeaderFilter(bool isOwner) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -167,7 +154,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             ],
           ),
           const SizedBox(height: 10),
-          // Kolom Search Debounce
           TextField(
             onChanged: _onSearchChanged,
             decoration: InputDecoration(
@@ -180,7 +166,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             ),
           ),
           const SizedBox(height: 10),
-          // Baris Dropdown Grid Filter Multi-Opsi
           Row(
             children: [
               Expanded(
@@ -212,7 +197,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             ],
           ),
           const Divider(height: 16),
-          // Switch filter stok menipis lapangan
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -238,7 +222,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     );
   }
 
-  // WIDGET GENERATOR: Baris Item Card Dengan Kepatuhan Aturan Tampilan Informasi Per-Role
   Widget _buildKatalogItemCard(Product item, bool isOwner) {
     final bool isLowStock = (item.stock ?? 0) <= (item.minStock ?? 5);
     final double buyPrice = item.buyPrice ?? 0;
@@ -253,7 +236,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // BARIS 1: Metadata Utama & Label Status Aktif
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -266,7 +248,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, py: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), // Perbaikan: py -> vertical
                   decoration: BoxDecoration(
                     color: (item.isPriceLocked ?? true) ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
@@ -280,13 +262,12 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             ),
             const SizedBox(height: 6),
 
-            // BARIS 2: Nama Produk, Merk, & Tags Pengelompokan Laporan
             Text(item.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
             const SizedBox(height: 4),
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, py: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), // Perbaikan: py -> vertical
                   decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
                   child: Text('Brand: ${item.brand ?? "Tanpa Merk"}', style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.w600)),
                 ),
@@ -304,15 +285,12 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             ),
             const Divider(height: 18),
 
-            // BARIS 3: KATALOG MULTI-IMAGE (Memudahkan Sales Tunjuk Varian ke Customer)
             _buildVisualKatalogStrip(item.id), 
             const SizedBox(height: 8),
 
-            // BARIS 4: CORE ENGINE - HARGA UTAMA & INVENTORI STOCK DATA
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Kompartemen Finansial (Kiri)
                 Expanded(
                   flex: 6,
                   child: Column(
@@ -327,7 +305,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                     ],
                   ),
                 ),
-                // Kompartemen Stok Kuantitas (Kanan)
                 Expanded(
                   flex: 4,
                   child: Column(
@@ -354,7 +331,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               ],
             ),
 
-            // BARIS 5: LOKASI RAK GUDANG (OWNER ONLY)
             if (isOwner && item.warehouseLocation != null && item.warehouseLocation!.isNotEmpty) ...[
               const SizedBox(height: 6),
               Container(
@@ -365,7 +341,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               )
             ],
 
-            // BARIS 6: EXPANSION TIER PRICING ENGINE (GROSIR BERTINGKAT)
             const SizedBox(height: 8),
             ExpansionTile(
               title: const Text('Lihat Tabel Harga Grosir Bertingkat & Varian', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF00A65A))),
@@ -383,9 +358,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     );
   }
 
-  // WIDGET GENERATOR: Tampilan Strip Gambar Multi-Image Pendukung Katalog Visual Penjualan
   Widget _buildVisualKatalogStrip(String productId) {
-    // Simulasi path file multi gambar lokal berdasar ID produk
     final List<String> mockGalleryImages = [
       '/storage/emulated/0/Download/perkakas_1.jpg',
       '/storage/emulated/0/Download/perkakas_2.jpg',
@@ -406,14 +379,13 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.grey[300]!),
             ),
-            child: const Icon(Icons.image, size: 24, color: Colors.grey), // Ganti dengan FileImage(File(mockGalleryImages[idx])) jika path valid
+            child: const Icon(Icons.image, size: 24, color: Colors.grey),
           );
         },
       ),
     );
   }
 
-  // WIDGET GENERATOR: Tabel Dinamis Untuk Memetakan Harga Grosir Bertingkat Serta Perhitungan Margin Kontrol
   Widget _buildTierPricingTable(Product item, bool isOwner) {
     final double buy = item.buyPrice ?? 0;
 
@@ -426,7 +398,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       },
       children: [
         TableRow(
-          backgroundColor: Colors.grey[100],
+          decoration: BoxDecoration(color: Colors.grey[100]), // Perbaikan: properti decoration untuk TableRow
           children: [
             const Padding(padding: EdgeInsets.all(6), child: Text('Tier Grosir', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
             const Padding(padding: EdgeInsets.all(6), child: Text('Harga Jual', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
@@ -456,7 +428,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     );
   }
 
-  // WIDGET GENERATOR: Preview Pembentukan Matriks Varian Berformat SKU Induk Suffix "--v1++"
   Widget _buildVariantMatrixMockList(Product item) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -489,9 +460,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     );
   }
 
-  // WIDGET GENERATOR: Fab-fab Multi Aksi Kontekstual Sesuai Peran User Keamanan POS
   Widget _buildContextualMultiFab(BuildContext context, bool isOwner) {
-    // Apabila user adalah Salesman, sembunyikan FAB Tambah Master Dokumen
     if (!isOwner) return const SizedBox.shrink(); 
 
     return FloatingActionButton.extended(
@@ -499,14 +468,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       backgroundColor: const Color(0xFF00A65A),
       icon: const Icon(Icons.add_box, color: Colors.white),
       label: const Text('Tambah Dokumen Master', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      onPressed: () {
-        /*
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ProductFormPage()),
-        );
-        */
-      },
+      onPressed: () {},
     );
   }
 }
