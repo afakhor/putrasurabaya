@@ -131,7 +131,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                           final isPrimary = formState.primaryImage == img;
                           return Container(
                             key: ValueKey(img),
-                            margin: const EdgeInsets.right(8),
+                            margin: const EdgeInsets.only(right:8),
                             width: 90,
                             decoration: BoxDecoration(
                               border: Border.all(color: isPrimary ? Colors.orange : Colors.grey, width: 2),
@@ -152,7 +152,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                                   child: GestureDetector(
                                     onTap: () => formNotifier.setPrimaryImage(img),
                                     child: Container(
-                                      color: isPrimary ? Colors.orange.withOpacity(0.8) : Colors.black55,
+                                      color: isPrimary ? Colors.orange.withOpacity(0.8) : Colors.black54,
                                       child: Text(isPrimary ? 'Utama' : 'Set Prm', style: const TextStyle(fontSize: 9, color: Colors.white), textAlign: TextAlign.center),
                                     ),
                                   ),
