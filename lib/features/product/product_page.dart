@@ -5,9 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-// 💡 PASTIKAN: Jika model 'Product' didefinisikan di file terpisah, 
-// silakan import path model Anda di sini, contoh:
-// import '../../core/domain/models/product.dart';
+// 💡 Menggunakan database lokal Drift secara penuh
 import '../../core/database/local_database.dart'; 
 import '../../core/utils/format_rupiah.dart';
 import '../../main.dart';
@@ -28,7 +26,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   String _selectedStatus = 'Semua'; 
   String _selectedBrand = 'Semua';
   bool _filterStokMenipis = false;
-  
+
   Timer? _debounceTimer;
 
   @override
@@ -78,7 +76,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
           children: [
             _buildAdvancedHeaderFilter(isOwner),
             Expanded(
-              child: StreamBuilder<List<Product>>(
+              child: StreamBuilder<List<ProductData>>( // 💡 KOREKSI: Menggunakan ProductData dari Drift
                 stream: db.select(db.products).watch(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -96,9 +94,11 @@ class _ProductPageState extends ConsumerState<ProductPage> {
 
                     final matchCategory = _selectedCategory == 'Semua' || item.categoryId == _selectedCategory;
                     final matchBrand = _selectedBrand == 'Semua' || item.brand == _selectedBrand;
-                    final matchStok = !_filterStokMenipis || (item.stock ?? 0) <= (item.minStock ?? 5);
                     
-                    final bool isAktif = item.isPriceLocked ?? true;
+                    // 💡 KOREKSI: Tipe data primitif Drift non-nullable (menghilangkan operator ??)
+                    final matchStok = !_filterStokMenipis || (item.stock) <= (item.minStock);
+
+                    final bool isAktif = item.isPriceLocked;
                     final matchStatus = _selectedStatus == 'Semua' ||
                         (_selectedStatus == 'Aktif' && isAktif) ||
                         (_selectedStatus == 'Non-Aktif' && !isAktif);
@@ -222,9 +222,10 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     );
   }
 
-  Widget _buildKatalogItemCard(Product item, bool isOwner) {
-    final bool isLowStock = (item.stock ?? 0) <= (item.minStock ?? 5);
-    final double buyPrice = item.buyPrice ?? 0;
+  // 💡 KOREKSI: Mengubah tipe parameter pertama menjadi ProductData
+  Widget _buildKatalogItemCard(ProductData item, bool isOwner) {
+    final bool isLowStock = item.stock <= item.minStock;
+    final double buyPrice = item.buyPrice;
 
     return Card(
       color: Colors.white,
@@ -248,14 +249,14 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), // Perbaikan: py -> vertical
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: (item.isPriceLocked ?? true) ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                    color: item.isPriceLocked ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    (item.isPriceLocked ?? true) ? 'AKTIF' : 'NON-AKTIF',
-                    style: TextStyle(color: (item.isPriceLocked ?? true) ? Colors.green : Colors.red, fontSize: 10, fontWeight: FontWeight.bold),
+                    item.isPriceLocked ? 'AKTIF' : 'NON-AKTIF',
+                    style: TextStyle(color: item.isPriceLocked ? Colors.green : Colors.red, fontSize: 10, fontWeight: FontWeight.bold),
                   ),
                 )
               ],
@@ -267,7 +268,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), // Perbaikan: py -> vertical
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
                   child: Text('Brand: ${item.brand ?? "Tanpa Merk"}', style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.w600)),
                 ),
@@ -296,11 +297,11 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Harga Jual Umum: ${formatRupiah(item.sellPriceGeneral ?? 0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 13)),
+                      Text('Harga Jual Umum: ${formatRupiah(item.sellPriceGeneral)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 13)),
                       if (isOwner) ...[
                         const SizedBox(height: 2),
                         Text('HPP (Modal): ${formatRupiah(buyPrice)}', style: TextStyle(color: Colors.red[700], fontSize: 12, fontWeight: FontWeight.bold)),
-                        Text('Margin Eceran: ${_hitungMargin(buyPrice, item.sellPriceGeneral ?? 0)}', style: const TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.w600)),
+                        Text('Margin Eceran: ${_hitungMargin(buyPrice, item.sellPriceGeneral)}', style: const TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.w600)),
                       ],
                     ],
                   ),
@@ -313,7 +314,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          Text('Stok: ${item.stock ?? 0} Pcs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isLowStock ? Colors.red : Colors.black87)),
+                          // 💡 Diubah ke .toInt() agar tampilan pecahan double di SQLite rapi (.0 hilang)
+                          Text('Stok: ${item.stock.toInt()} Pcs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isLowStock ? Colors.red : Colors.black87)),
                           if (isLowStock) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.warning, color: Colors.red, size: 16)),
                         ],
                       ),
@@ -324,7 +326,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                           style: const TextStyle(fontSize: 10, color: Colors.grey),
                         )
                       else
-                        Text('Min Stok: ${item.minStock ?? 5} Pcs', style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
+                        Text('Min Stok: ${item.minStock.toInt()} Pcs', style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
                     ],
                   ),
                 )
@@ -386,8 +388,9 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     );
   }
 
-  Widget _buildTierPricingTable(Product item, bool isOwner) {
-    final double buy = item.buyPrice ?? 0;
+  // 💡 KOREKSI: Mengubah tipe parameter pertama menjadi ProductData
+  Widget _buildTierPricingTable(ProductData item, bool isOwner) {
+    final double buy = item.buyPrice;
 
     return Table(
       border: TableBorder.all(color: Colors.grey[300]!, width: 1, borderRadius: BorderRadius.circular(6)),
@@ -398,7 +401,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       },
       children: [
         TableRow(
-          decoration: BoxDecoration(color: Colors.grey[100]), // Perbaikan: properti decoration untuk TableRow
+          decoration: BoxDecoration(color: Colors.grey[100]), 
           children: [
             const Padding(padding: EdgeInsets.all(6), child: Text('Tier Grosir', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
             const Padding(padding: EdgeInsets.all(6), child: Text('Harga Jual', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
@@ -428,7 +431,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     );
   }
 
-  Widget _buildVariantMatrixMockList(Product item) {
+  // 💡 KOREKSI: Mengubah tipe parameter pertama menjadi ProductData
+  Widget _buildVariantMatrixMockList(ProductData item) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -439,9 +443,9 @@ class _ProductPageState extends ConsumerState<ProductPage> {
           decoration: BoxDecoration(color: const Color(0xfff8f9fa), borderRadius: BorderRadius.circular(6)),
           child: Column(
             children: [
-              _buildVariantRowItem('${item.id}-V1', 'Ukuran Besi Baja 10mm Full', item.sellPriceGeneral ?? 0),
+              _buildVariantRowItem('${item.id}-V1', 'Ukuran Besi Baja 10mm Full', item.sellPriceGeneral),
               const Divider(height: 10),
-              _buildVariantRowItem('${item.id}-V2', 'Ukuran Besi Baja 12mm Full', (item.sellPriceGeneral ?? 0) * 1.2),
+              _buildVariantRowItem('${item.id}-V2', 'Ukuran Besi Baja 12mm Full', (item.sellPriceGeneral) * 1.2),
             ],
           ),
         )
