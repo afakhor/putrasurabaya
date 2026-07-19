@@ -375,4 +375,5 @@ class _POSPageState extends ConsumerState<POSPage> {
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red));
     }
-  }
+  } // Menutup method _prosesTransaksi
+} // Menutup Class POS Page
