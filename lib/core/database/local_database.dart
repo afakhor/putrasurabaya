@@ -2,7 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-part 'app_database.g.dart';
+part 'local_database.g.dart';
 
 @DataClassName('UserData')
 class Users extends Table {
