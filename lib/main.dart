@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'core/database/app_database.dart';
+import 'core/database/local_database.dart';
 import 'core/firebase/firebase_option.dart'; 
 import 'core/services/sync_service.dart';
 import 'features/pos/pos_page.dart';
