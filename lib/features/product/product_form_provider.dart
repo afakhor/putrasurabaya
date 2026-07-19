@@ -1,77 +1,113 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// Model untuk penanganan matriks varian barang (Contoh: Ukuran Besi, Warna Cat)
 class VariantMatrixModel {
   final String id;
-  final String sku;
-  final String name;
+  final String sku; // Format otomatis: [ParentSKU]-V1, [ParentSKU]-V2
+  final String name; // Nama varian, misal: "Ukuran 8mm Banci"
   final String? barcode;
   final double stock;
   final double sellPrice;
 
   VariantMatrixModel({
-    required this.id, required this.sku, required this.name, this.barcode, this.stock = 0, this.sellPrice = 0
+    required this.id,
+    required this.sku,
+    required this.name,
+    this.barcode,
+    this.stock = 0,
+    this.sellPrice = 0,
   });
+
+  VariantMatrixModel copyWith({
+    String? id, String? sku, String? name, String? barcode, double? stock, double? sellPrice
+  }) {
+    return VariantMatrixModel(
+      id: id ?? this.id,
+      sku: sku ?? this.sku,
+      name: name ?? this.name,
+      barcode: barcode ?? this.barcode,
+      stock: stock ?? this.stock,
+      sellPrice: sellPrice ?? this.sellPrice,
+    );
+  }
 }
 
+/// Model untuk multi-satuan bertingkat (Contoh: Pcs -> Dus -> Karton)
 class UnitConversionModel {
   final String id;
-  final String unitName;
-  final int conversion;
-  final double buyPrice;
-  final double sellPrice;
-  final String? barcode;
+  final String unitName; // Misal: "Dus", "Karton", "Bandel"
+  final int conversion; // Jumlah isi kuantitas konversi ke Pcs dasar (Misal: 12)
+  final double buyPrice; // HPP khusus level satuan ini
+  final double sellPrice; // Harga jual khusus level satuan ini
+  final String? barcode; // Barcode unik level satuan grosir
 
   UnitConversionModel({
-    required this.id, required this.unitName, required this.conversion, required this.buyPrice, required this.sellPrice, this.barcode
+    required this.id,
+    required this.unitName,
+    required this.conversion,
+    required this.buyPrice,
+    required this.sellPrice,
+    this.barcode,
   });
 }
 
+/// State penampung seluruh data form inputan produk
 class ProductFormState {
-  final String id;
-  final String name;
-  final String shortName;
-  final String barcode;
-  final String description;
-  final String categoryId;
-  final String subCategory;
-  final String brand;
-  final String warehouseLocation;
-  final String tags;
+  // ==========================================
+  // 1. PRODUCT IDENTITY SECTION (OWNER ONLY EDIT)
+  // ==========================================
+  final String id; // SKU Induk Utama (Auto-generated & Wajib Unik)
+  final String name; // Nama Item Barang Lengkap
+  final String shortName; // Nama Singkat Khusus Cetak Struk (Max 25 Karakter)
+  final String barcode; // Barcode EAN13 atau QR Code Utama
+  final String description; // Deskripsi Detail Katalog Produk
 
-  // Pricing Engine
-  final double buyPrice;
-  final double sellPriceGeneral;
-  final double sellPriceTier1;
-  final double sellPriceTier2;
-  final double sellPriceTier3;
-  final double maxDiscountSales;
-  final bool isPriceLocked;
+  // ==========================================
+  // 2. KLASIFIKASI & TAG GROUPING REPORT
+  // ==========================================
+  final String categoryId; // Kategori Utama (Umum, Perkakas, Material)
+  final String subCategory; // Sub-Kategori Lapangan
+  final String brand; // Merk / Pabrikan Barang (Untuk Filter Salesman)
+  final String warehouseLocation; // Posisi Rak / Gudang (Owner Only View)
+  final String tags; // Tag Khusus Profit Report Grouping (Owner Only)
 
-  // Stock Control
+  // ==========================================
+  // 3. PRICING ENGINE ENGINE (AUTOMATED MARGIN)
+  // ==========================================
+  final double buyPrice; // Harga Modal Dasar / HPP Utama (Owner Only View)
+  final double sellPriceGeneral; // Harga Jual Umum / Eceran
+  final double sellPriceTier1; // Harga Grosir Tingkat 1
+  final double sellPriceTier2; // Harga Grosir Tingkat 2
+  final double sellPriceTier3; // Harga Grosir Tingkat 3
+  final double maxDiscountSales; // Batas Toleransi Diskon Nominal Salesman
+  final bool isPriceLocked; // Status Kunci Harga / Status Aktif Barang
+
+  // ==========================================
+  // 4. STOCK CONTROL & COMPLIANCE
+  // ==========================================
   final double baseStock;
   final double minStock;
   final double maxStock;
   final bool allowMinusStock;
-
-  // Compliance
   final double weight;
   final String dimensions;
   final double ppnPercent;
   final int rewardPoints;
   final DateTime? expiryDate;
 
-  // Lists Data
-  final List<String> galleryImages;
-  final String? primaryImage;
-  final List<UnitConversionModel> multiUnits;
-  final List<VariantMatrixModel> variantMatrix;
-  
-  // Promotion Snapshot (Read/Write Owner, Read Only Sales)
+  // ==========================================
+  // 5. DATA KOLEKSI (MULTI IMAGE & MULTI SATUAN)
+  // ==========================================
+  final List<String> galleryImages; // Multi Gambar untuk Visual Katalog Sales
+  final String? primaryImage; // Cover Utama Gambar Produk
+  final List<UnitConversionModel> multiUnits; // List Konversi Satuan Grosir
+  final List<VariantMatrixModel> variantMatrix; // List Matriks Varian Barang
+
+  // Promo Data Snapshot
   final double promoDiscountPercent;
   final double promoDiscountNominal;
   final DateTime? promoStart;
   final DateTime? promoEnd;
-
   final bool isLoading;
 
   ProductFormState({
@@ -111,6 +147,30 @@ class ProductFormState {
     this.promoEnd,
     this.isLoading = false,
   });
+
+  // Getter Bantuan untuk Hitung Margin Keuntungan Umum Instan vs HPP
+  double get marginGeneralPercent {
+    if (sellPriceGeneral <= 0 || buyPrice <= 0) return 0;
+    return ((sellPriceGeneral - buyPrice) / sellPriceGeneral) * 100;
+  }
+
+  // Getter Hitung Margin Grosir Tier 1 vs HPP
+  double get marginTier1Percent {
+    if (sellPriceTier1 <= 0 || buyPrice <= 0) return 0;
+    return ((sellPriceTier1 - buyPrice) / sellPriceTier1) * 100;
+  }
+
+  // Getter Hitung Margin Grosir Tier 2 vs HPP
+  double get marginTier2Percent {
+    if (sellPriceTier2 <= 0 || buyPrice <= 0) return 0;
+    return ((sellPriceTier2 - buyPrice) / sellPriceTier2) * 100;
+  }
+
+  // Getter Hitung Margin Grosir Tier 3 vs HPP
+  double get marginTier3Percent {
+    if (sellPriceTier3 <= 0 || buyPrice <= 0) return 0;
+    return ((sellPriceTier3 - buyPrice) / sellPriceTier3) * 100;
+  }
 
   ProductFormState copyWith({
     String? id, String? name, String? shortName, String? barcode, String? description,
@@ -161,11 +221,14 @@ class ProductFormState {
   }
 }
 
+/// Kontroler Notifier Form Manajemen Penambahan & Pembaruan Master Data
 class ProductFormNotifier extends StateNotifier<ProductFormState> {
   ProductFormNotifier() : super(ProductFormState(id: 'SKU-${DateTime.now().millisecondsSinceEpoch}'));
 
+  // Reset data inputan kembali ke kondisi kosong dengan SKU Induk Baru
   void resetForm() => state = ProductFormState(id: 'SKU-${DateTime.now().millisecondsSinceEpoch}');
 
+  // Update Field Dinamis
   void updateFields({
     String? name, String? shortName, String? barcode, String? description, String? categoryId,
     String? subCategory, String? brand, String? warehouseLocation, String? tags,
@@ -184,7 +247,9 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
     );
   }
 
-  // Multi-Image Logic
+  // ==========================================
+  // LOGIKA MULTI-IMAGE KATALOG
+  // ==========================================
   void addImage(String path) {
     final images = [...state.galleryImages, path];
     state = state.copyWith(galleryImages: images, primaryImage: state.primaryImage ?? path);
@@ -199,19 +264,77 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
   }
 
   void setPrimaryImage(String path) => state = state.copyWith(primaryImage: path);
+  
   void removeImage(String path) {
     final images = state.galleryImages.where((img) => img != path).toList();
     String? prim = state.primaryImage == path ? (images.isNotEmpty ? images.first : null) : state.primaryImage;
     state = state.copyWith(galleryImages: images, primaryImage: prim);
   }
 
-  // Multi Unit Logic
+  // ==========================================
+  // LOGIKA MULTI-UNIT / KONVERSI SATUAN
+  // ==========================================
   void addUnit(UnitConversionModel unit) => state = state.copyWith(multiUnits: [...state.multiUnits, unit]);
   void removeUnit(String id) => state = state.copyWith(multiUnits: state.multiUnits.where((u) => u.id != id).toList());
 
-  // Variant Matrix Logic
-  void addVariant(VariantMatrixModel variant) => state = state.copyWith(variantMatrix: [...state.variantMatrix, variant]);
+  // ==========================================
+  // LOGIKA MATRIKS VARIAN (OTOMATISASI SKU FORMAT -V1)
+  // ==========================================
+  void addVariantAutoSku({required String variantName, required double sellPrice, String? barcode}) {
+    // Menentukan suffix counter indeks berdasarkan jumlah item yang ada saat ini
+    final int nextIndex = state.variantMatrix.length + 1;
+    final String generatedSku = '${state.id}-V$nextIndex'; // Format Otomatis: SKUINDK-V1
+
+    final newVariant = VariantMatrixModel(
+      id: 'VAR-${DateTime.now().microsecondsSinceEpoch}',
+      sku: generatedSku,
+      name: variantName,
+      sellPrice: sellPrice,
+      barcode: barcode,
+      stock: 0,
+    );
+
+    state = state.copyWith(variantMatrix: [...state.variantMatrix, newVariant]);
+  }
+
   void removeVariant(String id) => state = state.copyWith(variantMatrix: state.variantMatrix.where((v) => v.id != id).toList());
+
+  // ==========================================
+  // MOCK DATA GENERATOR: SIMULASI BARANG PERKAKAS BANGUNAN
+  // ==========================================
+  void loadContohPerkakasBangunan() {
+    state = ProductFormState(
+      id: 'SKU-BRG-BAJA12',
+      name: 'Besi Beton Ulir Krakatau Steel',
+      shortName: 'Besi Beton Ulir 12mm',
+      barcode: '8991234567890',
+      description: 'Besi beton ulir standar SNI kekuatan penuh khusus struktur utama bangunan gedung.',
+      categoryId: 'Perkakas Bangunan',
+      subCategory: 'Besi & Baja',
+      brand: 'Krakatau Steel',
+      warehouseLocation: 'Rak Besi B-3 Barat',
+      tags: 'Kategori-Profit-Tinggi, Fast-Moving-Proyek',
+      buyPrice: 90000, // HPP Dasar per Pcs Rp 90.000
+      sellPriceGeneral: 115000, // Margin eceran otomatis dihitung di UI
+      sellPriceTier1: 108000,
+      sellPriceTier2: 102000,
+      sellPriceTier3: 97000,
+      maxDiscountSales: 3000,
+      isPriceLocked: true,
+      baseStock: 150,
+      minStock: 20,
+    );
+
+    // Otomatis Tambah Multi Satuan
+    addUnit(UnitConversionModel(id: 'U1', unitName: 'Bandel / Ikat', conversion: 10, buyPrice: 880000, sellPrice: 1000000));
+    addUnit(UnitConversionModel(id: 'U2', unitName: 'Karton Besar', conversion: 50, buyPrice: 4300000, sellPrice: 4850000));
+
+    // Otomatis Tambah Matriks Varian dengan SKU Berformat -V1, -V2
+    addVariantAutoSku(variantName: 'Ukuran Diameter 10mm Full', sellPrice: 95000);
+    addVariantAutoSku(variantName: 'Ukuran Diameter 12mm Full', sellPrice: 115000);
+    addVariantAutoSku(variantName: 'Ukuran Diameter 14mm Full', sellPrice: 140000);
+  }
 }
 
+// Global Provider
 final productFormProvider = StateNotifierProvider.autoDispose<ProductFormNotifier, ProductFormState>((ref) => ProductFormNotifier());
