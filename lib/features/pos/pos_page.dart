@@ -299,7 +299,7 @@ class _POSPageState extends ConsumerState<POSPage> {
     );
   }
 
-  void _prosesTransaksi(WidgetRef ref, double total, double bayar, String method, Map<String, dynamic>? user) async {
+    void _prosesTransaksi(WidgetRef ref, double total, double bayar, String method, Map<String, dynamic>? user) async {
     final cart = ref.read(cartProvider);
     final invoiceNo = 'PSB-${DateTime.now().millisecondsSinceEpoch}';
     final String tanggalNota = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
@@ -308,16 +308,34 @@ class _POSPageState extends ConsumerState<POSPage> {
       double sisaHutang = total - bayar > 0 ? total - bayar : 0;
       double uangKembali = bayar > total ? bayar - total : 0;
 
-      // EKSEKUSI OFFLINE FIRST: Simpan ke SQLite Drift Lokal
+      // 1. BUAT ID UNIK UNTUK PRIMARY KEY TRANSAKSI
+      final String txId = 'TX-${DateTime.now().millisecondsSinceEpoch}';
+
+      // 2. MAPPING DARI CART PROVIDER KE COMPANION DRIFT
+      final List<TransactionItemsCompanion> itemTransaksi = cart.map((item) {
+        return TransactionItemsCompanion.insert(
+          id: 'ITEM-$txId-${item.product.id}', // ID unik per baris item barang
+          transactionId: txId,
+          productId: item.product.id,
+          quantity: item.qty,
+          price: item.price,
+          unit: item.unit,
+        );
+      }).toList();
+
+      // 3. EKSEKUSI OFFLINE FIRST: Simpan ke SQLite Drift Lokal dengan struktur baru
       await ref.read(localDatabaseProvider).prosesTransaksiPenyimpanan(
-        invoiceNo: invoiceNo,
-        total: total,
-        bayar: bayar,
-        sisaHutang: sisaHutang,
-        uangKembali: uangKembali,
-        method: method,
-        kasirNama: user?['name'] ?? 'Kasir',
-        cartItems: cart,
+        dataTransaksi: TransactionsCompanion.insert(
+          id: txId,
+          invoiceNo: invoiceNo,
+          subtotal: total,
+          total: total,
+          paid: Value(bayar),
+          debt: Value(sisaHutang),
+          change: Value(uangKembali),
+          paymentMethod: Value(method),
+        ),
+        itemTransaksi: itemTransaksi,
       );
 
       // Pemicu sinkronisasi instan jika jaringan tersedia
@@ -358,4 +376,3 @@ class _POSPageState extends ConsumerState<POSPage> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red));
     }
   }
-}
