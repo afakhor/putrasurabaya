@@ -231,6 +231,32 @@ class LocalDatabase extends _$LocalDatabase {
       ));
     });
   }
+  // Tambahkan method ini di dalam class LocalDatabase (misalnya di bawah catatMutasiStok)
+  Future<void> prosesTransaksiPenyimpanan({
+    required TransactionsCompanion dataTransaksi,
+    required List<TransactionItemsCompanion> itemTransaksi,
+  }) async {
+    await transaction(() async {
+      // 1. Simpan data header transaksi (Invoice, Total, Bayar, dll)
+      await into(transactions).insert(dataTransaksi);
+
+      // 2. Loop untuk simpan item belanjaan & potong stok produk
+      for (final item in itemTransaksi) {
+        await into(transactionItems).insert(item);
+
+        // 3. Potong stok otomatis menggunakan method catatMutasiStok yang sudah Anda buat
+        // Karena ini transaksi keluar (penjualan), hargaBeliMasuk diisi 0 karena tidak mengubah HPP modal
+        await catatMutasiStok(
+          productId: item.productId.value,
+          type: 'keluar',
+          qty: item.quantity.value,
+          hargaBeliMasuk: 0, 
+          refNo: dataTransaksi.invoiceNo.value,
+          catatan: 'Penjualan POS - No Invoice: ${dataTransaksi.invoiceNo.value}',
+        );
+      }
+    });
+  }
 }
 
 QueryExecutor _openConnection() {
