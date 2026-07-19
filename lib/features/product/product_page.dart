@@ -1,28 +1,35 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:drift/drift.dart' show Value;
-import 'dart:ui'; // Digunakan untuk filter blur proteksi keamanan data
+import 'package:intl/intl.dart';
 
 import '../../core/database/local_database.dart';
-import '../../core/database/firestore_service.dart';
 import '../../core/utils/format_rupiah.dart';
-import '../../core/services/sync_service.dart';
 import '../../main.dart';
-import 'product_form_provider.dart';
+// Asumsi navigasi diarahkan ke halaman form input terpisah Anda:
+// import 'product_form_page.dart';
 
 class ProductPage extends ConsumerStatefulWidget {
   const ProductPage({super.key});
+
   @override
   ConsumerState<ProductPage> createState() => _ProductPageState();
 }
 
 class _ProductPageState extends ConsumerState<ProductPage> {
   final ScrollController _scrollController = ScrollController();
-  final _formKey = GlobalKey<FormState>();
   bool _isFabExtended = true;
-  String _searchDebounce = '';
+
+  // State Kontrol Engine Filter & Debounce Search
+  String _searchQuery = '';
+  String _selectedCategory = 'Semua';
+  String _selectedStatus = 'Semua'; // Semua, Aktif, Non-Aktif
+  String _selectedBrand = 'Semua';
+  bool _filterStokMenipis = false;
+  
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -37,461 +44,469 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   }
 
   @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounceTimer?.isActive ?? false) _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      setState(() {
+        _searchQuery = query.toLowerCase();
+      });
+    });
+  }
+
+  // Helper fungsi untuk hitung margin keuntungan secara real-time vs HPP
+  String _hitungMargin(double buy, double sell) {
+    if (sell <= 0 || buy <= 0) return '0%';
+    final double margin = ((sell - buy) / sell) * 100;
+    return '${margin.toStringAsFixed(1)}%';
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final formState = ref.watch(productFormProvider);
-    final formNotifier = ref.read(productFormProvider.notifier);
+    final db = ref.watch(localDatabaseProvider);
     final user = ref.watch(currentUserProvider);
-    
-    // Validasi Dasar RBAC Aman Firebase + VPN Mock
     final bool isOwner = user?['role'] == 'owner';
 
     return Scaffold(
       backgroundColor: const Color(0xfff4f6f9),
       body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(14.0),
-            children: [
-              // 1. Header & Action Bar Terkondisi Role
-              _buildActionBar(isOwner),
-              const SizedBox(height: 16),
+        child: Column(
+          children: [
+            // =========================================================
+            // 1. HEADER & ACTION BAR DENGAN MULTI-FILTER & DEBOUNCE SEARCH
+            // =========================================================
+            _buildAdvancedHeaderFilter(isOwner),
 
-              // 2. Product Identity Section
-              _buildFormCard(
-                title: 'Identitas Utama Barang',
-                icon: Icons.qr_code,
-                children: [
-                  TextFormField(
-                    initialValue: formState.id,
-                    decoration: const InputDecoration(labelText: 'SKU / Kode Barang (Auto-generated)', border: OutlineInputBorder()),
-                    readOnly: true,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: 'Nama Produk Lengkap *', border: OutlineInputBorder()),
-                    validator: (v) => v == null || v.isEmpty ? 'Wajib diisi' : null,
-                    onChanged: (v) => formNotifier.updateFields(name: v),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: 'Nama Singkat Struk (Max 25 Karakter) *', border: OutlineInputBorder()),
-                    maxLength: 25,
-                    validator: (v) => v == null || v.isEmpty ? 'Wajib untuk cetak struk' : null,
-                    onChanged: (v) => formNotifier.updateFields(shortName: v),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          decoration: const InputDecoration(labelText: 'Barcode EAN13 / QR', border: OutlineInputBorder(), prefixIcon: Icon(Icons.center_focus_strong)),
-                          onChanged: (v) => formNotifier.updateFields(barcode: v),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filled(
-                        onPressed: () {}, // Trigger kamera scanner internal device
-                        icon: const Icon(Icons.camera_alt),
-                        style: IconButton.styleFrom(backgroundColor: const Color(0xFF00A65A)),
-                      )
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'Deskripsi Produk Katalog', border: OutlineInputBorder()),
-                    onChanged: (v) => formNotifier.updateFields(description: v),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
+            // =========================================================
+            // 2. DAFTAR BARANG / KATALOG PRODUK UTAMA
+            // =========================================================
+            Expanded(
+              child: StreamBuilder<List<Product>>(
+                stream: db.select(db.products).watch(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator(color: Color(0xFF00A65A)));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(child: Text('Belum ada master barang terdata di sistem lokal.'));
+                  }
 
-              // 3. Visual Asset Section (Multi-Image Gallery & Primary Selector)
-              _buildFormCard(
-                title: 'Galeri Aset Visual Katalog',
-                icon: Icons.collections,
-                children: [
-                  if (formState.galleryImages.isEmpty)
-                    Container(
-                      height: 120,
-                      width: double.infinity,
-                      decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(10)),
-                      child: const Center(child: Text('[ Placeholder Gambar Produk Kosong ]', style: TextStyle(color: Colors.grey))),
-                    )
-                  else
-                    SizedBox(
-                      height: 110,
-                      child: ReorderableListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: formState.galleryImages.length,
-                        itemBuilder: (ctx, idx) {
-                          final img = formState.galleryImages[idx];
-                          final isPrimary = formState.primaryImage == img;
-                          return Container(
-                            key: ValueKey(img),
-                            margin: const EdgeInsets.only(right:8),
-                            width: 90,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: isPrimary ? Colors.orange : Colors.grey, width: 2),
-                              borderRadius: BorderRadius.circular(8),
-                              image: DecorationImage(image: FileImage(File(img)), fit: BoxFit.cover),
-                            ),
-                            child: Stack(
-                              children: [
-                                Positioned(
-                                  top: 0, right: 0,
-                                  child: GestureDetector(
-                                    onTap: () => formNotifier.removeImage(img),
-                                    child: const CircleAvatar(radius: 10, backgroundColor: Colors.red, child: Icon(Icons.close, size: 10, color: Colors.white)),
-                                  ),
-                                ),
-                                Positioned(
-                                  bottom: 0, left: 0, right: 0,
-                                  child: GestureDetector(
-                                    onTap: () => formNotifier.setPrimaryImage(img),
-                                    child: Container(
-                                      color: isPrimary ? Colors.orange.withOpacity(0.8) : Colors.black54,
-                                      child: Text(isPrimary ? 'Utama' : 'Set Prm', style: const TextStyle(fontSize: 9, color: Colors.white), textAlign: TextAlign.center),
-                                    ),
-                                  ),
-                                )
-                              ],
-                            ),
-                          );
-                        },
-                        onReorder: formNotifier.reorderGallery,
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      // Mock add image path dari file picker local storage android
-                      formNotifier.addImage('/storage/emulated/0/Download/perkakas_${DateTime.now().millisecond}.jpg');
+                  // Engine Pipeline Filtering Data Multi-Parameter
+                  final filteredProducts = snapshot.data!.where((item) {
+                    final matchSearch = item.name.toLowerCase().contains(_searchQuery) ||
+                        item.id.toLowerCase().contains(_searchQuery) ||
+                        (item.barcode?.toLowerCase().contains(_searchQuery) ?? false) ||
+                        (item.tags?.toLowerCase().contains(_searchQuery) ?? false);
+
+                    final matchCategory = _selectedCategory == 'Semua' || item.categoryId == _selectedCategory;
+                    final matchBrand = _selectedBrand == 'Semua' || item.brand == _selectedBrand;
+                    final matchStok = !_filterStokMenipis || (item.stock ?? 0) <= (item.minStock ?? 5);
+                    
+                    final bool isAktif = item.isPriceLocked ?? true;
+                    final matchStatus = _selectedStatus == 'Semua' ||
+                        (_selectedStatus == 'Aktif' && isAktif) ||
+                        (_selectedStatus == 'Non-Aktif' && !isAktif);
+
+                    return matchSearch && matchCategory && matchBrand && matchStok && matchStatus;
+                  }).toList();
+
+                  if (filteredProducts.isEmpty) {
+                    return const Center(child: Text('Item barang tidak ditemukan. Silakan ubah filter.'));
+                  }
+
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    itemCount: filteredProducts.length,
+                    itemBuilder: (ctx, idx) {
+                      final item = filteredProducts[idx];
+                      return _buildKatalogItemCard(item, isOwner);
                     },
-                    icon: const Icon(Icons.add_a_photo),
-                    label: const Text('Tambah Gambar Aset'),
-                  )
-                ],
+                  );
+                },
               ),
-              const SizedBox(height: 14),
-
-              // 4. Kategori & Klasifikasi
-              _buildFormCard(
-                title: 'Kategori & Klasifikasi Lapangan',
-                icon: Icons.grid_view,
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: formState.categoryId,
-                    decoration: const InputDecoration(labelText: 'Kategori Utama', border: OutlineInputBorder()),
-                    items: ['Umum', 'Perkakas Bangunan', 'Material Pokok'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                    onChanged: (v) => formNotifier.updateFields(categoryId: v),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: 'Sub-Kategori', border: OutlineInputBorder()),
-                    onChanged: (v) => formNotifier.updateFields(subCategory: v),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: 'Brand / Merk', border: OutlineInputBorder()),
-                    onChanged: (v) => formNotifier.updateFields(brand: v),
-                  ),
-                  const SizedBox(height: 12),
-                  // Proteksi Lokasi Gudang: Sembunyikan field dari Salesman
-                  if (isOwner)
-                    TextFormField(
-                      decoration: const InputDecoration(labelText: 'Rak / Posisi Gudang (Owner Only)', border: OutlineInputBorder()),
-                      onChanged: (v) => formNotifier.updateFields(warehouseLocation: v),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // 5. Unit & Konversi Satuan Multi-Tier
-              _buildFormCard(
-                title: 'Unit & Konversi Satuan Grosir',
-                icon: Icons.schema,
-                children: [
-                  const Text('Satuan Dasar Utama: Pcs / Unit Tunggal', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
-                  const Divider(),
-                  ...formState.multiUnits.map((u) => ListTile(
-                    title: Text('${u.unitName} (Isi: ${u.conversion} Pcs)'),
-                    subtitle: Text('Jual: ${formatRupiah(u.sellPrice)}'),
-                    trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => formNotifier.removeUnit(u.id)),
-                  )),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      formNotifier.addUnit(UnitConversionModel(
-                        id: DateTime.now().toString(), unitName: 'Dus', conversion: 12, buyPrice: 120000, sellPrice: 150000
-                      ));
-                    },
-                    icon: const Icon(Icons.add_box),
-                    label: const Text('Tambah Konversi Satuan Besar (Dus/Karton)'),
-                  )
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // 6. Pricing Engine Dengan Keamanan Blur Untuk Margin
-              _buildPricingEngineSection(isOwner, formState, formNotifier),
-              const SizedBox(height: 14),
-
-              // 7. Promo & Diskon Terikat Produk
-              _buildFormCard(
-                title: 'Promo & Diskon Terikat SKU',
-                icon: Icons.discount,
-                children: [
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: 'Diskon Persentase (%)', border: OutlineInputBorder()),
-                    readOnly: !isOwner, // Salesman hanya bisa baca diskon promo aktif
-                    initialValue: formState.promoDiscountPercent.toString(),
-                    onChanged: (v) => formNotifier.updateFields(promoPct: double.tryParse(v)),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: 'Diskon Nominal (Rp)', border: OutlineInputBorder()),
-                    readOnly: !isOwner,
-                    initialValue: formState.promoDiscountNominal.toString(),
-                    onChanged: (v) => formNotifier.updateFields(promoNom: double.tryParse(v)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // 8. Varian Produk Matriks Bangunan/Perkakas
-              _buildFormCard(
-                title: 'Matriks Varian Produk',
-                icon: Icons.layers,
-                children: [
-                  ...formState.variantMatrix.map((v) => ListTile(
-                    title: Text(v.name),
-                    subtitle: Text('SKU Var: ${v.sku} | Jual: ${formatRupiah(v.sellPrice)}'),
-                    trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => formNotifier.removeVariant(v.id)),
-                  )),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      formNotifier.addVariant(VariantMatrixModel(
-                        id: DateTime.now().microsecondsSinceEpoch.toString(),
-                        sku: '${formState.id}-V1',
-                        name: 'Ukuran 12mm Besi Baja',
-                        sellPrice: formState.sellPriceGeneral
-                      ));
-                    },
-                    icon: const Icon(Icons.account_tree),
-                    label: const Text('Tambah Varian Ukuran/Warna'),
-                  )
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // C. Metadata & Compliance
-              if (isOwner)
-                _buildFormCard(
-                  title: 'Metadata Compliance (Owner Only)',
-                  icon: Icons.gavel,
-                  children: [
-                    TextFormField(
-                      decoration: const InputDecoration(labelText: 'Berat Barang (Gram)', border: OutlineInputBorder()),
-                      onChanged: (v) => formNotifier.updateFields(weight: double.tryParse(v)),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      decoration: const InputDecoration(labelText: 'Dimensi (P x L x T cm)', border: OutlineInputBorder()),
-                      onChanged: (v) => formNotifier.updateFields(dimensions: v),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      decoration: const InputDecoration(labelText: 'PPN (%)', border: OutlineInputBorder()),
-                      onChanged: (v) => formNotifier.updateFields(ppnPercent: double.tryParse(v)),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: 100),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-      floatingActionButton: isOwner 
-        ? FloatingActionButton.extended(
-            isExtended: _isFabExtended,
-            backgroundColor: const Color(0xFF00A65A),
-            icon: const Icon(Icons.cloud_upload, color: Colors.white),
-            label: const Text('Simpan Master IPOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            onPressed: () => _simpanSeluruhDataForm(formState),
-          )
-        : null, // Sales tidak memiliki wewenang memicu FAB Simpan Master Produk
+      // =========================================================
+      // 3. MULTI-FAB UTAMA (OWNER BISA TAMBAH DATA, SALESMAN AKSES KHUSUS)
+      // =========================================================
+      floatingActionButton: _buildContextualMultiFab(context, isOwner),
     );
   }
 
-  // Sub-Widget: Header & Action Bar dengan Filter Debounce Terkondisi
-  Widget _buildActionBar(bool isOwner) {
+  // WIDGET GENERATOR: Kontrol Filter Atas Kompatibel Owner & Salesman
+  Widget _buildAdvancedHeaderFilter(bool isOwner) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)]),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(16), bottomRight: Radius.circular(16)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 3))],
+      ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(isOwner ? 'PANEL DOKUMEN OWNER' : 'PANEL DOKUMEN SALESMAN', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF007F00))),
+              Text(
+                isOwner ? '📊 PANEL MASTER UTAMA (OWNER)' : '📋 KATALOG BARANG LAPANGAN (SALES)',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF007F00)),
+              ),
               if (isOwner)
-                Row(
-                  children: [
-                    IconButton(icon: const Icon(Icons.file_upload, color: Colors.blue), onPressed: () {}, tooltip: 'Import Excel'),
-                    IconButton(icon: const Icon(Icons.download, color: Colors.purple), onPressed: () {}, tooltip: 'Export Excel'),
-                  ],
+                const Badge(
+                  label: Text('Sinkronisasi POS Aktif'),
+                  backgroundColor: Color(0xFF00A65A),
                 )
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
+          // Kolom Search Debounce
           TextField(
-            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari SKU / Nama Barang dengan Debounce...', border: OutlineInputBorder()),
-            onChanged: (v) => setState(() => _searchDebounce = v),
+            onChanged: _onSearchChanged,
+            decoration: InputDecoration(
+              hintText: 'Cari SKU / Nama Barang / Scan Barcode / Tag Proyek...',
+              prefixIcon: const Icon(Icons.search, color: Color(0xFF00A65A)),
+              filled: true,
+              fillColor: const Color(0xfff1f3f5),
+              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+            ),
           ),
+          const SizedBox(height: 10),
+          // Baris Dropdown Grid Filter Multi-Opsi
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedCategory,
+                  decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 8), labelText: 'Kategori', border: OutlineInputBorder()),
+                  items: ['Semua', 'Umum', 'Perkakas Bangunan', 'Material Pokok'].map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 12)))).toList(),
+                  onChanged: (v) => setState(() => _selectedCategory = v ?? 'Semua'),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedStatus,
+                  decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 8), labelText: 'Status', border: OutlineInputBorder()),
+                  items: ['Semua', 'Aktif', 'Non-Aktif'].map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 12)))).toList(),
+                  onChanged: (v) => setState(() => _selectedStatus = v ?? 'Semua'),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedBrand,
+                  decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 8), labelText: 'Brand / Merk', border: OutlineInputBorder()),
+                  items: ['Semua', 'Krakatau Steel', 'Tiga Roda', 'Avian'].map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 12)))).toList(),
+                  onChanged: (v) => setState(() => _selectedBrand = v ?? 'Semua'),
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 16),
+          // Switch filter stok menipis lapangan
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.report_problem, color: Colors.orange, size: 18),
+                  SizedBox(width: 6),
+                  Text('Tampilkan Stok Kritis (Menipis) Di Bawah Minimum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              Transform.scale(
+                scale: 0.8,
+                child: Switch(
+                  value: _filterStokMenipis,
+                  activeColor: const Color(0xFF00A65A),
+                  onChanged: (v) => setState(() => _filterStokMenipis = v),
+                ),
+              )
+            ],
+          )
         ],
       ),
     );
   }
 
-  // Sub-Widget: Pricing Engine dengan Proteksi Keamanan Lapisan Blur Obscure
-  Widget _buildPricingEngineSection(bool isOwner, ProductFormState state, ProductFormNotifier formNotifier) {
-    double hitungMargin(double buy, double sell) {
-      if (sell <= 0) return 0;
-      return ((sell - buy) / sell) * 100;
-    }
+  // WIDGET GENERATOR: Baris Item Card Dengan Kepatuhan Aturan Tampilan Informasi Per-Role
+  Widget _buildKatalogItemCard(Product item, bool isOwner) {
+    final bool isLowStock = (item.stock ?? 0) <= (item.minStock ?? 5);
+    final double buyPrice = item.buyPrice ?? 0;
 
-    return _buildFormCard(
-      title: 'Pricing Engine Matrix & RBAC Control',
-      icon: Icons.monetization_on,
-      children: [
-        if (!isOwner)
-          // Tampilan Terproteksi untuk Salesman (Gunakan Penyamaran Data/Blur)
-          Stack(
-            children: [
-              Column(
-                children: [
-                  TextFormField(initialValue: 'Rp 999.999', decoration: const InputDecoration(labelText: 'Harga Modal (HPP)'), readOnly: true),
-                  const SizedBox(height: 12),
-                  TextFormField(initialValue: formatRupiah(state.sellPriceGeneral), decoration: const InputDecoration(labelText: 'Harga Jual Umum'), readOnly: true),
-                ],
-              ),
-              Positioned.fill(
-                child: ClipRRect(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 7.0, sigmaY: 7.0),
-                    child: Container(color: Colors.white.withOpacity(0.4), child: const Center(child: Text('HARGA MODAL & MARGIN DIKUNCI OWNER', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))),
-                  ),
-                ),
-              )
-            ],
-          )
-        else
-          // Tampilan Terbuka Penuh Khusus Owner dengan Auto-calculate Margin %
-          Column(
-            children: [
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Harga Beli / Modal Dasar (HPP) *', prefixText: 'Rp ', border: OutlineInputBorder()),
-                validator: (v) => v == null || v.isEmpty ? 'Wajib' : null,
-                onChanged: (v) => formNotifier.updateFields(buyPrice: double.tryParse(v)),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Harga Jual Umum *', prefixText: 'Rp ', border: OutlineInputBorder()),
-                onChanged: (v) => formNotifier.updateFields(sellPriceGeneral: double.tryParse(v)),
-              ),
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Margin Keuntungan Umum: ${hitungMargin(state.buyPrice, state.sellPriceGeneral).toStringAsFixed(1)} %', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      decoration: const InputDecoration(labelText: 'Grosir Tier 1', prefixText: 'Rp '),
-                      onChanged: (v) => formNotifier.updateFields(sellPriceTier1: double.tryParse(v)),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: TextFormField(
-                      decoration: const InputDecoration(labelText: 'Grosir Tier 2', prefixText: 'Rp '),
-                      onChanged: (v) => formNotifier.updateFields(sellPriceTier2: double.tryParse(v)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Batas Diskon Maksimal untuk Sales (Rp)', border: OutlineInputBorder()),
-                onChanged: (v) => formNotifier.updateFields(maxDiscountSales: double.tryParse(v)),
-              ),
-            ],
-          )
-      ],
-    );
-  }
-
-  Widget _buildFormCard({required String title, required IconData icon, required List<Widget> children}) {
     return Card(
       color: Colors.white,
       elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(14.0),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [Icon(icon, color: const Color(0xFF00A65A)), const SizedBox(width: 8), Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))]),
-            const Divider(height: 20),
-            ...children
+            // BARIS 1: Metadata Utama & Label Status Aktif
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('SKU INDUK: ${item.id}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[700], fontSize: 11)),
+                    if (item.barcode != null && item.barcode!.isNotEmpty)
+                      Text('Barcode: ${item.barcode}', style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, py: 3),
+                  decoration: BoxDecoration(
+                    color: (item.isPriceLocked ?? true) ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    (item.isPriceLocked ?? true) ? 'AKTIF' : 'NON-AKTIF',
+                    style: TextStyle(color: (item.isPriceLocked ?? true) ? Colors.green : Colors.red, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                )
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            // BARIS 2: Nama Produk, Merk, & Tags Pengelompokan Laporan
+            Text(item.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, py: 2),
+                  decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                  child: Text('Brand: ${item.brand ?? "Tanpa Merk"}', style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.w600)),
+                ),
+                if (item.tags != null && item.tags!.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Tags: ${item.tags}', 
+                      style: TextStyle(fontSize: 11, color: isOwner ? Colors.purple : Colors.grey, fontWeight: isOwner ? FontWeight.bold : FontWeight.normal),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  )
+                ]
+              ],
+            ),
+            const Divider(height: 18),
+
+            // BARIS 3: KATALOG MULTI-IMAGE (Memudahkan Sales Tunjuk Varian ke Customer)
+            _buildVisualKatalogStrip(item.id), 
+            const SizedBox(height: 8),
+
+            // BARIS 4: CORE ENGINE - HARGA UTAMA & INVENTORI STOCK DATA
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Kompartemen Finansial (Kiri)
+                Expanded(
+                  flex: 6,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Harga Jual Umum: ${formatRupiah(item.sellPriceGeneral ?? 0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 13)),
+                      if (isOwner) ...[
+                        const SizedBox(height: 2),
+                        Text('HPP (Modal): ${formatRupiah(buyPrice)}', style: TextStyle(color: Colors.red[700], fontSize: 12, fontWeight: FontWeight.bold)),
+                        Text('Margin Eceran: ${_hitungMargin(buyPrice, item.sellPriceGeneral ?? 0)}', style: const TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.w600)),
+                      ],
+                    ],
+                  ),
+                ),
+                // Kompartemen Stok Kuantitas (Kanan)
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text('Stok: ${item.stock ?? 0} Pcs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isLowStock ? Colors.red : Colors.black87)),
+                          if (isLowStock) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.warning, color: Colors.red, size: 16)),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      if (isOwner)
+                        Text(
+                          'Diubah: ${item.expiryDate != null ? DateFormat('dd/MM/yyyy').format(item.expiryDate!) : '-'}',
+                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                        )
+                      else
+                        Text('Min Stok: ${item.minStock ?? 5} Pcs', style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
+                    ],
+                  ),
+                )
+              ],
+            ),
+
+            // BARIS 5: LOKASI RAK GUDANG (OWNER ONLY)
+            if (isOwner && item.warehouseLocation != null && item.warehouseLocation!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(4)),
+                child: Text('📍 Lokasi Gudang: ${item.warehouseLocation} (Owner Only)', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.black54)),
+              )
+            ],
+
+            // BARIS 6: EXPANSION TIER PRICING ENGINE (GROSIR BERTINGKAT)
+            const SizedBox(height: 8),
+            ExpansionTile(
+              title: const Text('Lihat Tabel Harga Grosir Bertingkat & Varian', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF00A65A))),
+              dense: true,
+              childrenPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              children: [
+                _buildTierPricingTable(item, isOwner),
+                const SizedBox(height: 6),
+                _buildVariantMatrixMockList(item),
+              ],
+            )
           ],
         ),
       ),
     );
   }
 
-  Future<void> _simpanSeluruhDataForm(ProductFormState data) async {
-    if (!_formKey.currentState!.validate()) return;
-    final db = ref.read(localDatabaseProvider);
-    
-    try {
-      await db.into(db.products).insert(ProductsCompanion.insert(
-        id: data.id,
-        name: data.name,
-        shortName: Value(data.shortName),
-        barcode: Value(data.barcode),
-        description: Value(data.description),
-        categoryId: Value(data.categoryId),
-        subCategory: Value(data.subCategory),
-        brand: Value(data.brand),
-        warehouseLocation: Value(data.warehouseLocation),
-        tags: Value(data.tags),
-        buyPrice: Value(data.buyPrice),
-        sellPriceGeneral: Value(data.sellPriceGeneral),
-        sellPriceTier1: Value(data.sellPriceTier1),
-        sellPriceTier2: Value(data.sellPriceTier2),
-        sellPriceTier3: Value(data.sellPriceTier3),
-        maxDiscountSales: Value(data.maxDiscountSales),
-        isPriceLocked: Value(data.isPriceLocked),
-        stock: Value(data.baseStock),
-        minStock: Value(data.minStock),
-        maxStock: Value(data.maxStock),
-        allowMinusStock: Value(data.allowMinusStock),
-        weight: Value(data.weight),
-        dimensions: Value(data.dimensions),
-        ppnPercent: Value(data.ppnPercent),
-        rewardPoints: Value(data.rewardPoints),
-        expiryDate: Value(data.expiryDate),
-      ));
+  // WIDGET GENERATOR: Tampilan Strip Gambar Multi-Image Pendukung Katalog Visual Penjualan
+  Widget _buildVisualKatalogStrip(String productId) {
+    // Simulasi path file multi gambar lokal berdasar ID produk
+    final List<String> mockGalleryImages = [
+      '/storage/emulated/0/Download/perkakas_1.jpg',
+      '/storage/emulated/0/Download/perkakas_2.jpg',
+      '/storage/emulated/0/Download/perkakas_3.jpg',
+    ];
 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text('Master Data Berhasil Didistribusikan ke Semua Channel!')));
-      Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.red, content: Text('Error SQLite: $e')));
-    }
+    return SizedBox(
+      height: 65,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: mockGalleryImages.length,
+        itemBuilder: (ctx, idx) {
+          return Container(
+            width: 65,
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: const Icon(Icons.image, size: 24, color: Colors.grey), // Ganti dengan FileImage(File(mockGalleryImages[idx])) jika path valid
+          );
+        },
+      ),
+    );
+  }
+
+  // WIDGET GENERATOR: Tabel Dinamis Untuk Memetakan Harga Grosir Bertingkat Serta Perhitungan Margin Kontrol
+  Widget _buildTierPricingTable(Product item, bool isOwner) {
+    final double buy = item.buyPrice ?? 0;
+
+    return Table(
+      border: TableBorder.all(color: Colors.grey[300]!, width: 1, borderRadius: BorderRadius.circular(6)),
+      columnWidths: const {
+        0: FlexColumnWidth(3),
+        1: FlexColumnWidth(4),
+        2: FlexColumnWidth(3),
+      },
+      children: [
+        TableRow(
+          backgroundColor: Colors.grey[100],
+          children: [
+            const Padding(padding: EdgeInsets.all(6), child: Text('Tier Grosir', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+            const Padding(padding: EdgeInsets.all(6), child: Text('Harga Jual', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+            Padding(padding: const EdgeInsets.all(6), child: Text(isOwner ? 'Margin vs HPP' : 'Akses', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+          ],
+        ),
+        _buildTierRow('Tier 1 (Grosir Kecil)', item.sellPriceTier1 ?? 0, buy, isOwner),
+        _buildTierRow('Tier 2 (Grosir Menengah)', item.sellPriceTier2 ?? 0, buy, isOwner),
+        _buildTierRow('Tier 3 (Grosir Besar)', item.sellPriceTier3 ?? 0, buy, isOwner),
+      ],
+    );
+  }
+
+  TableRow _buildTierRow(String label, double sellPrice, double buyPrice, bool isOwner) {
+    return TableRow(
+      children: [
+        Padding(padding: const EdgeInsets.all(6), child: Text(label, style: const TextStyle(fontSize: 11))),
+        Padding(padding: const EdgeInsets.all(6), child: Text(formatRupiah(sellPrice), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue))),
+        Padding(
+          padding: const EdgeInsets.all(6), 
+          child: Text(
+            isOwner ? _hitungMargin(buyPrice, sellPrice) : 'Terbuka ✔', 
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isOwner ? Colors.red[700] : Colors.green),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // WIDGET GENERATOR: Preview Pembentukan Matriks Varian Berformat SKU Induk Suffix "--v1++"
+  Widget _buildVariantMatrixMockList(Product item) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Matriks Varian Suffix --v1++ :', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black54)),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(color: const Color(0xfff8f9fa), borderRadius: BorderRadius.circular(6)),
+          child: Column(
+            children: [
+              _buildVariantRowItem('${item.id}-V1', 'Ukuran Besi Baja 10mm Full', item.sellPriceGeneral ?? 0),
+              const Divider(height: 10),
+              _buildVariantRowItem('${item.id}-V2', 'Ukuran Besi Baja 12mm Full', (item.sellPriceGeneral ?? 0) * 1.2),
+            ],
+          ),
+        )
+      ],
+    );
+  }
+
+  Widget _buildVariantRowItem(String skuVar, String nameVar, double priceVar) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(skuVar, style: const TextStyle(fontFamily: 'monospace', fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange)),
+        Text(nameVar, style: const TextStyle(fontSize: 11)),
+        Text(formatRupiah(priceVar), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  // WIDGET GENERATOR: Fab-fab Multi Aksi Kontekstual Sesuai Peran User Keamanan POS
+  Widget _buildContextualMultiFab(BuildContext context, bool isOwner) {
+    // Apabila user adalah Salesman, sembunyikan FAB Tambah Master Dokumen
+    if (!isOwner) return const SizedBox.shrink(); 
+
+    return FloatingActionButton.extended(
+      isExtended: _isFabExtended,
+      backgroundColor: const Color(0xFF00A65A),
+      icon: const Icon(Icons.add_box, color: Colors.white),
+      label: const Text('Tambah Dokumen Master', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      onPressed: () {
+        /*
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ProductFormPage()),
+        );
+        */
+      },
+    );
   }
 }
