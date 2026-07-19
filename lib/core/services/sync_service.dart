@@ -1,29 +1,43 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // Wajib ada untuk membaca 'Provider'
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Sesuaikan path ini dengan lokasi file local_database Anda
 import '../database/local_database.dart'; 
 
 class SyncService {
-  final LocalDatabase _db;
+  final Ref _ref; // 💡 PERBAIKAN: Gunakan Ref untuk fleksibilitas akses provider
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  StreamSubscription? _productSubscription; // 💡 TAMBAHAN: Subscription untuk memantau produk dari Cloud
+  
   bool _isSyncing = false;
 
-  SyncService(this._db);
+  SyncService(this._ref);
 
-  /// Memulai pemantauan koneksi internet secara berkala
+  // Getter helper untuk mempermudah pemanggilan database SQLite lokal
+  LocalDatabase get _db => _ref.read(localDatabaseProvider);
+
+  /// Memulai pemantauan koneksi internet dan sinkronisasi produk real-time
   void startListening() {
-    debugPrint('🔄 SyncService: Memulai pemantauan koneksi internet...');
+    debugPrint('🔄 SyncService: Memulai engine sinkronisasi dua arah...');
 
-    // PERBAIKAN 1: Bersihkan subscription lama jika fungsi ini tidak sengaja terpanggil dua kali
-    // Ini mencegah penumpukan alokasi memori (memory leak) di latar belakang
+    // Bersihkan subscription lama jika fungsi ini tidak sengaja terpanggil ulang
     _connectivitySubscription?.cancel();
+    _productSubscription?.cancel();
 
+    // ==========================================
+    // Arah 1: Cloud Firestore ➔ Drift SQLite Lokal (Real-time)
+    // ==========================================
+    _listenToCloudProducts();
+
+    // ==========================================
+    // Arah 2: Drift SQLite Lokal ➔ Cloud Firestore (Trigger Koneksi)
+    // ==========================================
     _connectivitySubscription = Connectivity()
         .onConnectivityChanged
         .listen((List<ConnectivityResult> results) {
@@ -34,11 +48,44 @@ class SyncService {
           result == ConnectivityResult.ethernet);
 
       if (hasInternet) {
-        debugPrint('🌐 Internet Terdeteksi! Memulai sinkronisasi data...');
+        debugPrint('🌐 Internet Terdeteksi! Menjalankan upload transaksi offline...');
         syncLocalToCloud();
       } else {
-        debugPrint('🚫 Perangkat Offline. Sinkronisasi ditunda.');
+        debugPrint('🚫 Perangkat Offline. Sinkronisasi transaksi ditunda.');
       }
+    });
+  }
+
+  /// 💡 FUNGSI BARU: Mengunduh data produk dari Firestore ke SQLite Lokal secara otomatis
+  void _listenToCloudProducts() {
+    _productSubscription = _firestore
+        .collection('products')
+        .snapshots()
+        .listen((snapshot) async {
+      
+      debugPrint('📦 Mengunduh perubahan data produk (${snapshot.docs.length} item) dari Cloud...');
+      
+      await _db.transaction(() async {
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          
+          // Upsert: Jika ID barang sudah ada maka diupdate, jika belum ada maka dimasukkan baru
+          await _db.into(_db.products).insertOnConflictUpdate(
+            ProductsCompanion(
+              id: Value(doc.id),
+              name: Value(data['name'] ?? ''),
+              barcode: Value(data['barcode']),
+              buyPrice: Value((data['buyPrice'] ?? 0).toDouble()),
+              sellPriceGeneral: Value((data['sellPrice'] ?? 0).toDouble()),
+              stock: Value((data['stock'] ?? 0).toDouble()), // SQLite Drift menggunakan tipe Real/Double
+              categoryId: Value(data['category'] ?? 'Semua'),
+            ),
+          );
+        }
+      });
+      debugPrint('✅ Sinkronisasi produk masuk database lokal sukses.');
+    }, onError: (error) {
+      debugPrint('⚠️ Gagal menyinkronkan data katalog produk dari Cloud: $error');
     });
   }
 
@@ -48,21 +95,19 @@ class SyncService {
       debugPrint('⏳ Sinkronisasi sedang berjalan, mengabaikan request baru.');
       return;
     }
-    
+
     _isSyncing = true;
 
     try {
       await _syncTransactions();
     } catch (e) {
-      debugPrint('❌ Gagal sinkronisasi data: $e');
+      debugPrint('❌ Gagal sinkronisasi data transaksi: $e');
     } finally {
-      // PERBAIKAN 2: Pastikan status dikembalikan ke false di dalam blok 'finally'
-      // agar engine tidak terkunci selamanya jika terjadi error fatal di tengah jalan
       _isSyncing = false;
     }
   }
 
-  /// Proses internal upload transaksi ke Cloud Firestore
+  /// Proses internal upload transaksi ke Cloud Firestore (Logika lama Anda yang sudah aman)
   Future<void> _syncTransactions() async {
     final unsyncedTx = await (_db.select(_db.transactions)
           ..where((t) => t.isSynced.equals(false)))
@@ -77,12 +122,10 @@ class SyncService {
 
     for (var tx in unsyncedTx) {
       try {
-        // Mengambil detail item dari transaksi terkait
         final items = await (_db.select(_db.transactionItems)
               ..where((item) => item.transactionId.equals(tx.id)))
             .get();
 
-        // Kirim data ke Firestore
         await _firestore.collection('transactions').doc(tx.id).set({
           'invoiceNo': tx.invoiceNo,
           'subtotal': tx.subtotal,
@@ -99,10 +142,8 @@ class SyncService {
             'price': item.price,
             'unit': item.unit,
           }).toList(),
-        }, SetOptions(merge: true)); // Gunakan merge agar tidak menimpa data utuh jika dokumen sudah ada
+        }, SetOptions(merge: true));
 
-        // PERBAIKAN 3: Perbarui flag status sinkronisasi lokal ke SQLite
-        // Pastikan 'package:drift/drift.dart' sudah diimpor di atas agar kata kunci 'Value' terbaca
         await (_db.update(_db.transactions)..where((t) => t.id.equals(tx.id)))
             .write(TransactionsCompanion(
               isSynced: const Value(true),
@@ -110,7 +151,6 @@ class SyncService {
 
         debugPrint('🚀 Nota ${tx.invoiceNo} berhasil disinkronkan ke Cloud!');
       } catch (e) {
-        // Jika ada satu nota yang rusak/gagal, loop akan tetap berlanjut ke nota berikutnya
         debugPrint('⚠️ Gagal mengunggah nota ${tx.invoiceNo}: $e');
       }
     }
@@ -119,13 +159,12 @@ class SyncService {
   /// Wajib dipanggil saat modul atau aplikasi ditutup
   void dispose() {
     _connectivitySubscription?.cancel();
-    debugPrint('🛑 SyncService: Pemantauan koneksi resmi dihentikan.');
+    _productSubscription?.cancel(); // 💡 Bersihkan stream produk agar tidak bocor di memory
+    debugPrint('🛑 SyncService: Pemantauan koneksi dan produk resmi dihentikan.');
   }
 }
 
-
+// 💡 PERBAIKAN PROVIDER: Cukup pass 'ref' ke dalam instance service
 final syncServiceProvider = Provider<SyncService>((ref) {
-  // Pastikan 'localDatabaseProvider' sesuai dengan nama provider database lokal Anda
-  final db = ref.watch(localDatabaseProvider); 
-  return SyncService(db);
+  return SyncService(ref);
 });
