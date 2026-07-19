@@ -30,7 +30,7 @@ jobs:
           echo "Installing Android NDK version 25.1.8937393..."
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.1.8937393"
 
-      # ==========================================
+        # ==========================================
       # 2. SETUP FLUTTER
       # ==========================================
       - name: Setup Flutter
@@ -43,7 +43,10 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
 
-      # Cukup jalankan pub get agar versinya 100% sama dengan di HP/Termux Anda
+      # TAMBAHKAN DI SINI: Bersihkan berkas build lama di server CI sebelum install dependensi
+      - name: Clean build artifacts
+        run: flutter clean
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -52,6 +55,7 @@ jobs:
       # ==========================================
       - name: Generate Database Code
         run: dart run build_runner build --delete-conflicting-outputs
+
 
 
       # ==========================================
