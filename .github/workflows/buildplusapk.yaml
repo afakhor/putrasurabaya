@@ -43,18 +43,16 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
 
+      # Cukup jalankan pub get agar versinya 100% sama dengan di HP/Termux Anda
       - name: Install dependencies
-        run: |
-          flutter pub get
-          flutter pub upgrade drift drift_flutter
+        run: flutter pub get
 
       # ==========================================
       # 3. RUN GENERATOR DATABASE (DRIFT)
       # ==========================================
       - name: Generate Database Code
-        run: |
-          dart run build_runner clean
-          dart run build_runner build --delete-conflicting-outputs
+        run: dart run build_runner build --delete-conflicting-outputs
+
 
       # ==========================================
       # 5. BUILD APK RELEASE
