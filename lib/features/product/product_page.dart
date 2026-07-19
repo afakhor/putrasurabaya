@@ -7,7 +7,7 @@ import 'package:drift/drift.dart' show Value;
 
 // Impor file lokal Anda
 import '../../core/database/app_database.dart';
-import 'package:ud_putra_surabaya/core/utils/format_rupiah.dart';
+import '../../core/utils/format_rupiah.dart';
 import '../../core/services/sync_service.dart';
 import 'product_form_provider.dart';
 import '../../config.dart';
