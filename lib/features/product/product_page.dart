@@ -6,12 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' show Value;
 
 // Impor file lokal Anda
-import '../../core/database/app_database.dart';
+import 'package:ud_putra_kasir/lib/core/database/app_database.dart';
+//import '../../core/database/app_database.dart';
 import '../../core/utils/format_rupiah.dart';
 import '../../core/services/sync_service.dart';
 import 'product_form_provider.dart';
-import 'config.dart'; // Menghubungkan ke file konfigurasi tema Anda
-
+import '../../config.dart';
 // Menghubungkan konsterna warna lokal langsung ke static variable GoldenGreenTheme di config.dart
 const Color dominantGold = GoldenGreenTheme.dominantGold;
 const Color greenGold = GoldenGreenTheme.greenGold;
