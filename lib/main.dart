@@ -6,13 +6,13 @@ import 'core/firebase/firebase_option.dart';
 import 'core/services/sync_service.dart';
 import 'features/pos/pos_page.dart';
 import 'features/product/product_page.dart';
-import 'features/stock/stock_mutation_page.dart'; // Menghubungkan modul mutasi stock baru
+import 'features/stock/stock_mutation_page.dart'; 
 
 final currentUserProvider = Provider<Map<String, dynamic>?>((ref) {
   return {
     'uid': 'kasir_01',
     'name': 'Ahmad Fauzi',
-    'role': 'owner',        // Ubah string ke 'salesman' untuk mensimulasikan uji batas RBAC aman
+    'role': 'owner',        
     'canEditPrice': true,
     'canDeleteTransaction': false
   };
@@ -45,6 +45,7 @@ class MyApp extends ConsumerWidget {
   }
 }
 
+// Provider untuk navigasi 4 tab utama
 final navbarIndexProvider = StateProvider<int>((ref) => 0);
 
 class MainNavigationScreen extends ConsumerWidget {
@@ -54,72 +55,176 @@ class MainNavigationScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = ref.watch(navbarIndexProvider);
 
-    // List Halaman Aplikasi Komplit Terintegrasi Tab Bar
+    // 💡 KOREKSI: List halaman utama disederhanakan menjadi 4 Tab Simetris
     final List<Widget> pages = [
-      const Center(child: Text('Dashboard Toko (Home)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
-      const StockMutationPage(), // Index 1 Dialokasikan Untuk Modul Mutasi & Kartu Stok Inventaris
-      const ProductPage(), 
-      const Center(child: Text('Laporan Keuangan (Owner Only)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
-      const POSPage(), 
+      const DashboardPage(),     // Index 0: Halaman Utama dengan tombol QRIS
+      const StockMutationPage(), // Index 1: Mutasi Stok
+      const ProductPage(),       // Index 2: Katalog Produk (FAB Tambah Master aman di sini)
+      const Center(child: Text('Laporan Keuangan (Owner Only)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))), // Index 3: Laporan
     ];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          selectedIndex == 4 ? 'KASIR UTAMA POS' : 'UD. PUTRA SURABAYA IPOS',
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        title: const Text(
+          'UD. PUTRA SURABAYA IPOS',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: const Color(0xFF007F00),
         centerTitle: true,
       ),
       body: pages[selectedIndex],
-      floatingActionButton: FloatingActionButton(
-        shape: const CircleBorder(),
-        backgroundColor: const Color(0xFF00A65A),
-        foregroundColor: Colors.white,
-        onPressed: () => ref.read(navbarIndexProvider.notifier).state = 4,
-        child: const Icon(Icons.qr_code_scanner, size: 28),
+      // 💡 PERBAIKAN: Properti floatingActionButton global DIHAPUS agar tidak menabrak halaman lain
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: selectedIndex,
+        onTap: (index) => ref.read(navbarIndexProvider.notifier).state = index,
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: const Color(0xFF007F00), // Mempertahankan warna hijau khas Anda
+        selectedItemColor: Colors.amber,          // Warna menu aktif
+        unselectedItemColor: Colors.white,        // Warna menu tidak aktif
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontSize: 12),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Beranda'),
+          BottomNavigationBarItem(icon: Icon(Icons.history_toggle_off), label: 'Mutasi Stok'),
+          BottomNavigationBarItem(icon: Icon(Icons.storefront), label: 'Katalog'),
+          BottomNavigationBarItem(icon: Icon(Icons.analytics), label: 'Laporan'),
+        ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8.0,
-        color: const Color(0xFF007F00), 
-        clipBehavior: Clip.antiAlias,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    );
+  }
+}
+
+// 💡 IMPLEMENTASI BARU: Halaman Utama Khusus Menampung Tombol QRIS
+class DashboardPage extends ConsumerWidget {
+  const DashboardPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      backgroundColor: const Color(0xfff4f6f9),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          // Welcome Card Informasi Toko
+          Card(
+            elevation: 1,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Selamat Datang,', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text('UD. Putra Surabaya Admin', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          const Text('Menu Utama Kasir', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+          const SizedBox(height: 12),
+
+          // Grid Menu Aksi Cepat
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.3,
+            children: [
+              // 🔴 TOMBOL QRIS UTAMA (Hanya ada di sini)
+              InkWell(
+                onTap: () {
+                  // Langsung buka Halaman Kasir POS menggunakan Navigator biasa
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const POSPage()),
+                  );
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00A65A), // Hijau POS
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2)),
+                    ],
+                  ),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.qr_code_scanner, size: 38, color: Colors.white),
+                      SizedBox(height: 8),
+                      Text('Scan QRIS Bayar', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Menu Jalan Pintas ke Katalog Produk
+              _buildMenuShortcut(
+                icon: Icons.storefront,
+                label: 'Kelola Katalog',
+                color: Colors.white,
+                iconColor: const Color(0xFF007F00),
+                textColor: Colors.black87,
+                onTap: () => ref.read(navbarIndexProvider.notifier).state = 2, // Lompat ke tab katalog
+              ),
+
+              // Menu Jalan Pintas ke Mutasi Stok
+              _buildMenuShortcut(
+                icon: Icons.history_toggle_off,
+                label: 'Kartu Stok',
+                color: Colors.white,
+                iconColor: const Color(0xFF007F00),
+                textColor: Colors.black87,
+                onTap: () => ref.read(navbarIndexProvider.notifier).state = 1, // Lompat ke tab mutasi
+              ),
+
+              // Menu Jalan Pintas ke Laporan
+              _buildMenuShortcut(
+                icon: Icons.analytics,
+                label: 'Cek Laporan',
+                color: Colors.white,
+                iconColor: const Color(0xFF007F00),
+                textColor: Colors.black87,
+                onTap: () => ref.read(navbarIndexProvider.notifier).state = 3, // Lompat ke tab laporan
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuShortcut({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color iconColor,
+    required Color textColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              children: [
-                IconButton(
-                  tooltip: 'Beranda',
-                  icon: Icon(Icons.home, color: selectedIndex == 0 ? Colors.amber : Colors.white, size: 26),
-                  onPressed: () => ref.read(navbarIndexProvider.notifier).state = 0,
-                ),
-                const SizedBox(width: 20),
-                IconButton(
-                  tooltip: 'Mutasi Stok',
-                  icon: Icon(Icons.history_toggle_off, color: selectedIndex == 1 ? Colors.amber : Colors.white, size: 26),
-                  onPressed: () => ref.read(navbarIndexProvider.notifier).state = 1,
-                ),
-              ],
-            ),
-            const SizedBox(width: 40), 
-            Row(
-              children: [
-                IconButton(
-                  tooltip: 'Katalog Produk',
-                  icon: Icon(Icons.storefront, color: selectedIndex == 2 ? Colors.amber : Colors.white, size: 26),
-                  onPressed: () => ref.read(navbarIndexProvider.notifier).state = 2,
-                ),
-                const SizedBox(width: 20),
-                IconButton(
-                  tooltip: 'Analisa Laporan',
-                  icon: Icon(Icons.analytics, color: selectedIndex == 3 ? Colors.amber : Colors.white, size: 26),
-                  onPressed: () => ref.read(navbarIndexProvider.notifier).state = 3,
-                ),
-              ],
-            ),
+            Icon(icon, size: 34, color: iconColor),
+            const SizedBox(height: 8),
+            Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 13)),
           ],
         ),
       ),
