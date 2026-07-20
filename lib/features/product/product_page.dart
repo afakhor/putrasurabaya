@@ -9,7 +9,7 @@ import '../../core/database/local_database.dart';
 import '../../core/utils/format_rupiah.dart';
 import '../../main.dart';
 // Asumsi navigasi diarahkan ke halaman form input terpisah Anda:
-// import 'product_form_page.dart';
+import 'product_form_page.dart';
 
 class ProductPage extends ConsumerStatefulWidget {
   const ProductPage({super.key});
