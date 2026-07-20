@@ -32,6 +32,7 @@ class ProductPage extends ConsumerStatefulWidget {
 class _ProductPageState extends ConsumerState<ProductPage> {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce;
+  bool _isFabMenuOpen = false;
 
   @override
   void dispose() {
@@ -160,38 +161,109 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         },
       ),
       
-      // CONFIGURATION MULTI-FAB BARU (KIRI DAN KANAN)
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // SISI KIRI: Tombol-tombol Urgent & Darurat Lapangan (Warna Merah)
-            const InventoryEmergencyFab(),
-
-            // SISI KANAN: Integrasi Quick Actions & Akses Form Master Barang Utama
+            // CONFIGURATION MULTI-FAB BARU: DIAGRESIKAN VERTIKAL (ANTI TEKS KEPOTONG)
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (_isFabMenuOpen) ...[
+            // 1. PILIHAN: DARURAT LAPANGAN (KIRI SEBELUMNYA)
             Row(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                const ProductQuickActionsFab(),
-                const SizedBox(width: 12),
-                FloatingActionButton.extended(
-                  heroTag: 'main_add_product_btn',
+                Card(
+                  elevation: 2,
+                  color: Colors.red.shade900,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Text(
+                      'Darurat Lapangan',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const InventoryEmergencyFab(), // Menggunakan widget darurat Anda yang sudah diperbaiki onPressed-nya
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // 2. PILIHAN: AKSI CEPAT (TENGAH SEBELUMNYA)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Card(
+                  elevation: 2,
+                  color: const Color(0xFF007F00),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Text(
+                      'Aksi Cepat Produk',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const ProductQuickActionsFab(), // Menggunakan widget aksi cepat Anda
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // 3. PILIHAN: TAMBAH BARANG MASTER (KANAN SEBELUMNYA)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Card(
+                  elevation: 2,
+                  color: const Color(0xFF00A65A),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Text(
+                      'Tambah Item Baru',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FloatingActionButton.small(
+                  heroTag: 'action_add_product_master',
                   backgroundColor: const Color(0xFF00A65A),
-                  icon: const Icon(Icons.add, color: Colors.white),
-                  label: const Text('TAMBAH BARANG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  onPressed: () => _openFormMasterBarang(context),
+                  child: const Icon(Icons.add, color: Colors.white),
+                  onPressed: () {
+                    setState(() => _isFabMenuOpen = false); // Tutup menu penyatu
+                    _openFormMasterBarang(context);
+                  },
                 ),
               ],
             ),
+            const SizedBox(height: 16),
           ],
-        ),
+
+          // TOMBOL UTAMA (MASTER TRIGGER)
+          FloatingActionButton(
+            heroTag: 'main_master_fab_trigger',
+            backgroundColor: _isFabMenuOpen ? Colors.black : const Color(0xFF00A65A),
+            onPressed: () {
+              setState(() {
+                _isFabMenuOpen = !_isFabMenuOpen;
+              });
+            },
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _isFabMenuOpen
+                  ? const Icon(Icons.close, color: Colors.white, key: ValueKey('close_icon'))
+                  : const Icon(Icons.menu, color: Colors.white, key: ValueKey('menu_icon')),
+            ),
+          ),
+        ],
       ),
     );
   }
+
 
   Widget _buildTopActionBar(BuildContext context, List<String> categories) {
     return Container(
