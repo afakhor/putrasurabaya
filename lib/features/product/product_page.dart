@@ -5,6 +5,8 @@ import '../../core/database/local_database.dart';
 import '../../core/utils/format_rupiah.dart';
 import 'product_form_provider.dart';
 import 'product_form_dialogs.dart';
+import 'inventory_emergency_fab.dart';
+import 'product_quick_actions.dart';
 
 // State Provider internal untuk sistem filter
 final searchQueryProvider = StateProvider<String>((ref) => '');
@@ -48,7 +50,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(localDatabaseProvider);
-    
+
     // Watch status filter & sorting
     final query = ref.watch(searchQueryProvider);
     final catFilter = ref.watch(filterCategoryProvider);
@@ -113,7 +115,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             children: [
               // PANEL SEARCH BAR & ENGINE FILTER QUICK CHIPS
               _buildTopActionBar(context, categories.toList()),
-              
+
               // LIVE SUMMARY DISPLAY CARDS
               _buildSummaryRow(
                 summary: CatalogSummary(
@@ -157,11 +159,36 @@ class _ProductPageState extends ConsumerState<ProductPage> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF00A65A),
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('TAMBAH BARANG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        onPressed: () => _openFormMasterBarang(context),
+      
+      // CONFIGURATION MULTI-FAB BARU (KIRI DAN KANAN)
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            // SISI KIRI: Tombol-tombol Urgent & Darurat Lapangan (Warna Merah)
+            const InventoryEmergencyFab(),
+
+            // SISI KANAN: Integrasi Quick Actions & Akses Form Master Barang Utama
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const ProductQuickActionsFab(),
+                const SizedBox(width: 12),
+                FloatingActionButton.extended(
+                  heroTag: 'main_add_product_btn',
+                  backgroundColor: const Color(0xFF00A65A),
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text('TAMBAH BARANG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  onPressed: () => _openFormMasterBarang(context),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -340,7 +367,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       final units = await (db.select(db.productUnits)..where((t) => t.productId.equals(product.id))).get();
       final variants = await (db.select(db.productVariants)..where((t) => t.productId.equals(product.id))).get();
       final assets = await (db.select(db.productAssets)..where((t) => t.productId.equals(product.id))).get();
-      
+
       notifier.setProduct(product, units, variants, assets.map((e) => e.imagePath).toList());
     } else {
       // Reset form ke mode ID baru auto-generated
@@ -479,7 +506,7 @@ class FormMasterBarangSheet extends ConsumerWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
             child: Text(
-              'Gross Profit Margin Sistem: \$${state.marginPercentage.toStringAsFixed(2)}\%',
+              'Gross Profit Margin Sistem: ${state.marginPercentage.toStringAsFixed(2)}%',
               style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade800, fontSize: 13),
             ),
           ),
