@@ -1,114 +1,44 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart';
+import '../../core/database/local_database.dart';
 
-/// Model untuk penanganan matriks varian barang (Contoh: Ukuran Besi, Warna Cat)
-class VariantMatrixModel {
-  final String id;
-  final String sku; // Format otomatis: [ParentSKU]-V1, [ParentSKU]-V2
-  final String name; // Nama varian, misal: "Ukuran 8mm Banci"
-  final String? barcode;
-  final double stock;
-  final double sellPrice;
-
-  VariantMatrixModel({
-    required this.id,
-    required this.sku,
-    required this.name,
-    this.barcode,
-    this.stock = 0,
-    this.sellPrice = 0,
-  });
-
-  VariantMatrixModel copyWith({
-    String? id, String? sku, String? name, String? barcode, double? stock, double? sellPrice
-  }) {
-    return VariantMatrixModel(
-      id: id ?? this.id,
-      sku: sku ?? this.sku,
-      name: name ?? this.name,
-      barcode: barcode ?? this.barcode,
-      stock: stock ?? this.stock,
-      sellPrice: sellPrice ?? this.sellPrice,
-    );
-  }
-}
-
-/// Model untuk multi-satuan bertingkat (Contoh: Pcs -> Dus -> Karton)
-class UnitConversionModel {
-  final String id;
-  final String unitName; // Misal: "Dus", "Karton", "Bandel"
-  final int conversion; // Jumlah isi kuantitas konversi ke Pcs dasar (Misal: 12)
-  final double buyPrice; // HPP khusus level satuan ini
-  final double sellPrice; // Harga jual khusus level satuan ini
-  final String? barcode; // Barcode unik level satuan grosir
-
-  UnitConversionModel({
-    required this.id,
-    required this.unitName,
-    required this.conversion,
-    required this.buyPrice,
-    required this.sellPrice,
-    this.barcode,
-  });
-}
-
-/// State penampung seluruh data form inputan produk
+/// State penampung data form produk yang kompleks
 class ProductFormState {
-  // ==========================================
-  // 1. PRODUCT IDENTITY SECTION (OWNER ONLY EDIT)
-  // ==========================================
-  final String id; // SKU Induk Utama (Auto-generated & Wajib Unik)
-  final String name; // Nama Item Barang Lengkap
-  final String shortName; // Nama Singkat Khusus Cetak Struk (Max 25 Karakter)
-  final String barcode; // Barcode EAN13 atau QR Code Utama
-  final String description; // Deskripsi Detail Katalog Produk
+  final String id;
+  final String name;
+  final String shortName;
+  final String barcode;
+  final String description;
+  final String categoryId;
+  final String subCategory;
+  final String brand;
+  final String warehouseLocation;
+  final String tags;
+  
+  final double buyPrice;
+  final double sellPriceGeneral;
+  final double sellPriceTier1;
+  final double sellPriceTier2;
+  final double sellPriceTier3;
+  final double maxDiscountSales;
+  final bool isPriceLocked;
 
-  // ==========================================
-  // 2. KLASIFIKASI & TAG GROUPING REPORT
-  // ==========================================
-  final String categoryId; // Kategori Utama (Umum, Perkakas, Material)
-  final String subCategory; // Sub-Kategori Lapangan
-  final String brand; // Merk / Pabrikan Barang (Untuk Filter Salesman)
-  final String warehouseLocation; // Posisi Rak / Gudang (Owner Only View)
-  final String tags; // Tag Khusus Profit Report Grouping (Owner Only)
-
-  // ==========================================
-  // 3. PRICING ENGINE ENGINE (AUTOMATED MARGIN)
-  // ==========================================
-  final double buyPrice; // Harga Modal Dasar / HPP Utama (Owner Only View)
-  final double sellPriceGeneral; // Harga Jual Umum / Eceran
-  final double sellPriceTier1; // Harga Grosir Tingkat 1
-  final double sellPriceTier2; // Harga Grosir Tingkat 2
-  final double sellPriceTier3; // Harga Grosir Tingkat 3
-  final double maxDiscountSales; // Batas Toleransi Diskon Nominal Salesman
-  final bool isPriceLocked; // Status Kunci Harga / Status Aktif Barang
-
-  // ==========================================
-  // 4. STOCK CONTROL & COMPLIANCE
-  // ==========================================
-  final double baseStock;
+  final double stock;
   final double minStock;
   final double maxStock;
   final bool allowMinusStock;
+
   final double weight;
   final String dimensions;
   final double ppnPercent;
   final int rewardPoints;
   final DateTime? expiryDate;
+  final String statusActive;
 
-  // ==========================================
-  // 5. DATA KOLEKSI (MULTI IMAGE & MULTI SATUAN)
-  // ==========================================
-  final List<String> galleryImages; // Multi Gambar untuk Visual Katalog Sales
-  final String? primaryImage; // Cover Utama Gambar Produk
-  final List<UnitConversionModel> multiUnits; // List Konversi Satuan Grosir
-  final List<VariantMatrixModel> variantMatrix; // List Matriks Varian Barang
-
-  // Promo Data Snapshot
-  final double promoDiscountPercent;
-  final double promoDiscountNominal;
-  final DateTime? promoStart;
-  final DateTime? promoEnd;
-  final bool isLoading;
+  // Relasi Sub-Tabel
+  final List<ProductUnitData> units;
+  final List<ProductVariantData> variants;
+  final List<String> imagePaths;
 
   ProductFormState({
     required this.id,
@@ -128,7 +58,7 @@ class ProductFormState {
     this.sellPriceTier3 = 0,
     this.maxDiscountSales = 0,
     this.isPriceLocked = true,
-    this.baseStock = 0,
+    this.stock = 0,
     this.minStock = 5,
     this.maxStock = 100,
     this.allowMinusStock = false,
@@ -137,49 +67,26 @@ class ProductFormState {
     this.ppnPercent = 0,
     this.rewardPoints = 0,
     this.expiryDate,
-    this.galleryImages = const [],
-    this.primaryImage,
-    this.multiUnits = const [],
-    this.variantMatrix = const [],
-    this.promoDiscountPercent = 0,
-    this.promoDiscountNominal = 0,
-    this.promoStart,
-    this.promoEnd,
-    this.isLoading = false,
+    this.statusActive = 'aktif',
+    this.units = const [],
+    this.variants = const [],
+    this.imagePaths = const [],
   });
 
-  // Getter Bantuan untuk Hitung Margin Keuntungan Umum Instan vs HPP
-  double get marginGeneralPercent {
-    if (sellPriceGeneral <= 0 || buyPrice <= 0) return 0;
+  /// Otomatis hitung profit margin dalam persen
+  double get marginPercentage {
+    if (sellPriceGeneral <= 0) return 0;
     return ((sellPriceGeneral - buyPrice) / sellPriceGeneral) * 100;
-  }
-
-  // Getter Hitung Margin Grosir Tier 1 vs HPP
-  double get marginTier1Percent {
-    if (sellPriceTier1 <= 0 || buyPrice <= 0) return 0;
-    return ((sellPriceTier1 - buyPrice) / sellPriceTier1) * 100;
-  }
-
-  // Getter Hitung Margin Grosir Tier 2 vs HPP
-  double get marginTier2Percent {
-    if (sellPriceTier2 <= 0 || buyPrice <= 0) return 0;
-    return ((sellPriceTier2 - buyPrice) / sellPriceTier2) * 100;
-  }
-
-  // Getter Hitung Margin Grosir Tier 3 vs HPP
-  double get marginTier3Percent {
-    if (sellPriceTier3 <= 0 || buyPrice <= 0) return 0;
-    return ((sellPriceTier3 - buyPrice) / sellPriceTier3) * 100;
   }
 
   ProductFormState copyWith({
     String? id, String? name, String? shortName, String? barcode, String? description,
     String? categoryId, String? subCategory, String? brand, String? warehouseLocation, String? tags,
     double? buyPrice, double? sellPriceGeneral, double? sellPriceTier1, double? sellPriceTier2, double? sellPriceTier3,
-    double? maxDiscountSales, bool? isPriceLocked, double? baseStock, double? minStock, double? maxStock, bool? allowMinusStock,
-    double? weight, String? dimensions, double? ppnPercent, int? rewardPoints, DateTime? expiryDate,
-    List<String>? galleryImages, String? primaryImage, List<UnitConversionModel>? multiUnits, List<VariantMatrixModel>? variantMatrix,
-    double? promoDiscountPercent, double? promoDiscountNominal, DateTime? promoStart, DateTime? promoEnd, bool? isLoading,
+    double? maxDiscountSales, bool? isPriceLocked, double? stock, double? minStock, double? maxStock,
+    bool? allowMinusStock, double? weight, String? dimensions, double? ppnPercent, int? rewardPoints,
+    DateTime? expiryDate, String? statusActive, List<ProductUnitData>? units, List<ProductVariantData>? variants,
+    List<String>? imagePaths,
   }) {
     return ProductFormState(
       id: id ?? this.id,
@@ -199,7 +106,7 @@ class ProductFormState {
       sellPriceTier3: sellPriceTier3 ?? this.sellPriceTier3,
       maxDiscountSales: maxDiscountSales ?? this.maxDiscountSales,
       isPriceLocked: isPriceLocked ?? this.isPriceLocked,
-      baseStock: baseStock ?? this.baseStock,
+      stock: stock ?? this.stock,
       minStock: minStock ?? this.minStock,
       maxStock: maxStock ?? this.maxStock,
       allowMinusStock: allowMinusStock ?? this.allowMinusStock,
@@ -208,133 +115,194 @@ class ProductFormState {
       ppnPercent: ppnPercent ?? this.ppnPercent,
       rewardPoints: rewardPoints ?? this.rewardPoints,
       expiryDate: expiryDate ?? this.expiryDate,
-      galleryImages: galleryImages ?? this.galleryImages,
-      primaryImage: primaryImage ?? this.primaryImage,
-      multiUnits: multiUnits ?? this.multiUnits,
-      variantMatrix: variantMatrix ?? this.variantMatrix,
-      promoDiscountPercent: promoDiscountPercent ?? this.promoDiscountPercent,
-      promoDiscountNominal: promoDiscountNominal ?? this.promoDiscountNominal,
-      promoStart: promoStart ?? this.promoStart,
-      promoEnd: promoEnd ?? this.promoEnd,
-      isLoading: isLoading ?? this.isLoading,
+      statusActive: statusActive ?? this.statusActive,
+      units: units ?? this.units,
+      variants: variants ?? this.variants,
+      imagePaths: imagePaths ?? this.imagePaths,
     );
   }
 }
 
-/// Kontroler Notifier Form Manajemen Penambahan & Pembaruan Master Data
 class ProductFormNotifier extends StateNotifier<ProductFormState> {
-  ProductFormNotifier() : super(ProductFormState(id: 'SKU-${DateTime.now().millisecondsSinceEpoch}'));
+  final LocalDatabase _db;
 
-  // Reset data inputan kembali ke kondisi kosong dengan SKU Induk Baru
-  void resetForm() => state = ProductFormState(id: 'SKU-${DateTime.now().millisecondsSinceEpoch}');
+  ProductFormNotifier(this._db) : super(ProductFormState(id: 'PTRS${DateTime.now().millisecondsSinceEpoch}'));
 
-  // Update Field Dinamis
-  void updateFields({
-    String? name, String? shortName, String? barcode, String? description, String? categoryId,
-    String? subCategory, String? brand, String? warehouseLocation, String? tags,
+  void setProduct(ProductData p, List<ProductUnitData> units, List<ProductVariantData> variants, List<String> images) {
+    state = ProductFormState(
+      id: p.id, name: p.name, shortName: p.shortName ?? '', barcode: p.barcode ?? '',
+      description: p.description ?? '', categoryId: p.categoryId, subCategory: p.subCategory ?? '',
+      brand: p.brand ?? '', warehouseLocation: p.warehouseLocation ?? '', tags: p.tags ?? '',
+      buyPrice: p.buyPrice, sellPriceGeneral: p.sellPriceGeneral, sellPriceTier1: p.sellPriceTier1,
+      sellPriceTier2: p.sellPriceTier2, sellPriceTier3: p.sellPriceTier3, maxDiscountSales: p.maxDiscountSales,
+      isPriceLocked: p.isPriceLocked, stock: p.stock, minStock: p.minStock, maxStock: p.maxStock,
+      allowMinusStock: p.allowMinusStock, weight: p.weight, dimensions: p.dimensions ?? '',
+      ppnPercent: p.ppnPercent, rewardPoints: p.rewardPoints, expiryDate: p.expiryDate,
+      statusActive: p.statusActive, units: units, variants: variants, imagePaths: images,
+    );
+  }
+
+  void updateField({
+    String? name, String? shortName, String? barcode, String? description,
+    String? categoryId, String? subCategory, String? brand, String? warehouseLocation, String? tags,
     double? buyPrice, double? sellPriceGeneral, double? sellPriceTier1, double? sellPriceTier2, double? sellPriceTier3,
-    double? maxDiscountSales, bool? isPriceLocked, double? baseStock, double? minStock, double? maxStock, bool? allowMinusStock,
-    double? weight, String? dimensions, double? ppnPercent, int? rewardPoints, DateTime? expiryDate,
-    double? promoPct, double? promoNom, DateTime? pStart, DateTime? pEnd,
+    double? maxDiscountSales, bool? isPriceLocked, double? stock, double? minStock, double? maxStock,
+    bool? allowMinusStock, double? weight, String? dimensions, double? ppnPercent, int? rewardPoints,
+    DateTime? expiryDate, String? statusActive,
   }) {
     state = state.copyWith(
-      name: name, shortName: shortName, barcode: barcode, description: description, categoryId: categoryId,
-      subCategory: subCategory, brand: brand, warehouseLocation: warehouseLocation, tags: tags,
-      buyPrice: buyPrice, sellPriceGeneral: sellPriceGeneral, sellPriceTier1: sellPriceTier1, sellPriceTier2: sellPriceTier2, sellPriceTier3: sellPriceTier3,
-      maxDiscountSales: maxDiscountSales, isPriceLocked: isPriceLocked, baseStock: baseStock, minStock: minStock, maxStock: maxStock, allowMinusStock: allowMinusStock,
-      weight: weight, dimensions: dimensions, ppnPercent: ppnPercent, rewardPoints: rewardPoints, expiryDate: expiryDate,
-      promoDiscountPercent: promoPct, promoDiscountNominal: promoNom, promoStart: pStart, promoEnd: pEnd,
+      name: name, shortName: shortName, barcode: barcode, description: description,
+      categoryId: categoryId, subCategory: subCategory, brand: brand, warehouseLocation: warehouseLocation, tags: tags,
+      buyPrice: buyPrice, sellPriceGeneral: sellPriceGeneral, sellPriceTier1: sellPriceTier1,
+      sellPriceTier2: sellPriceTier2, sellPriceTier3: sellPriceTier3, maxDiscountSales: maxDiscountSales,
+      isPriceLocked: isPriceLocked, stock: stock, minStock: minStock, maxStock: maxStock,
+      allowMinusStock: allowMinusStock, weight: weight, dimensions: dimensions, ppnPercent: ppnPercent,
+      rewardPoints: rewardPoints, expiryDate: expiryDate, statusActive: statusActive,
     );
   }
 
-  // ==========================================
-  // LOGIKA MULTI-IMAGE KATALOG
-  // ==========================================
+  /// Tambah Konversi Multi-Satuan Grosir
+  void addUnit(String unitName, int conversion, double buy, double sell, String? bcode) {
+    final newUnit = ProductUnitData(
+      id: 'UNT-${DateTime.now().millisecondsSinceEpoch}-${state.units.length}',
+      productId: state.id, unitName: unitName, conversion: conversion,
+      buyPriceUnit: buy, sellPriceUnit: sell, barcode: bcode,
+    );
+    state = state.copyWith(units: [...state.units, newUnit]);
+  }
+
+  void removeUnit(String id) {
+    state = state.copyWith(units: state.units.where((e) => e.id != id).toList());
+  }
+
+  /// Otomatis Generate Matriks Varian Kombinasi Atribut
+  void generateVariants({required List<String> warnaList, required List<String> ukuranList}) {
+    List<ProductVariantData> generated = [];
+    int counter = 1;
+    
+    // Default fallback jika salah satu kosong agar looping tetap jalan
+    List<String> wList = warnaList.isEmpty ? [''] : warnaList;
+    List<String> uList = ukuranList.isEmpty ? [''] : ukuranList;
+
+    for (var w in wList) {
+      for (var u in uList) {
+        String variantName = '${state.name} ${w.trim()} ${u.trim()}'.trim();
+        String skuVariant = '${state.id}-V$counter';
+        
+        generated.add(ProductVariantData(
+          id: 'VAR-${DateTime.now().millisecondsSinceEpoch}-$counter',
+          productId: state.id,
+          skuVariant: skuVariant,
+          variantName: variantName,
+          barcode: '',
+          stock: 0,
+          sellPrice: state.sellPriceGeneral,
+        ));
+        counter++;
+      }
+    }
+    state = state.copyWith(variants: generated);
+  }
+
+  void updateVariantDetail(String id, {double? stock, double? price, String? barcode}) {
+    state = state.copyWith(
+      variants: [
+        for (var v in state.variants)
+          if (v.id == id)
+            ProductVariantData(
+              id: v.id, productId: v.productId, skuVariant: v.skuVariant,
+              variantName: v.variantName, barcode: barcode ?? v.barcode,
+              stock: stock ?? v.stock, sellPrice: price ?? v.sellPrice,
+            )
+          else v
+      ],
+    );
+  }
+
   void addImage(String path) {
-    final images = [...state.galleryImages, path];
-    state = state.copyWith(galleryImages: images, primaryImage: state.primaryImage ?? path);
+    state = state.copyWith(imagePaths: [...state.imagePaths, path]);
   }
 
-  void reorderGallery(int oldIndex, int newIndex) {
-    final List<String> images = List.from(state.galleryImages);
-    if (newIndex > oldIndex) newIndex -= 1;
-    final String item = images.removeAt(oldIndex);
-    images.insert(newIndex, item);
-    state = state.copyWith(galleryImages: images);
+  /// Eksekusi Simpan database lokal menggunakan transaksi atomik Drift
+  Future<bool> saveProduct() async {
+    if (state.name.isEmpty) return false;
+
+    try {
+      await _db.transaction(() async {
+        // 1. Simpan/Update Tabel Induk Produk
+        await _db.into(_db.products).insertOnConflictUpdate(
+          ProductsCompanion.insert(
+            id: state.id,
+            name: state.name,
+            shortName: Value(state.shortName.isEmpty ? state.name : state.shortName),
+            barcode: Value(state.barcode),
+            description: Value(state.description),
+            categoryId: Value(state.categoryId),
+            subCategory: Value(state.subCategory),
+            brand: Value(state.brand),
+            warehouseLocation: Value(state.warehouseLocation),
+            tags: Value(state.tags),
+            buyPrice: Value(state.buyPrice),
+            sellPriceGeneral: Value(state.sellPriceGeneral),
+            sellPriceTier1: Value(state.sellPriceTier1),
+            sellPriceTier2: Value(state.sellPriceTier2),
+            sellPriceTier3: Value(state.sellPriceTier3),
+            maxDiscountSales: Value(state.maxDiscountSales),
+            isPriceLocked: Value(state.isPriceLocked),
+            stock: Value(state.stock),
+            minStock: Value(state.minStock),
+            maxStock: Value(state.maxStock),
+            allowMinusStock: Value(state.allowMinusStock),
+            weight: Value(state.weight),
+            dimensions: Value(state.dimensions),
+            ppnPercent: Value(state.ppnPercent),
+            rewardPoints: Value(state.rewardPoints),
+            expiryDate: Value(state.expiryDate),
+            statusActive: Value(state.statusActive),
+          ),
+        );
+
+        // 2. Bersihkan & Tulis Ulang Tabel Unit Konversi
+        await (_db.delete(_db.productUnits)..where((t) => t.productId.equals(state.id))).go();
+        for (var item in state.units) {
+          await _db.into(_db.productUnits).insert(item);
+        }
+
+        // 3. Bersihkan & Tulis Ulang Tabel Varian
+        await (_db.delete(_db.productVariants)..where((t) => t.productId.equals(state.id))).go();
+        for (var item in state.variants) {
+          await _db.into(_db.productVariants).insert(item);
+        }
+
+        // 4. Hubungkan Aset Gambar
+        await (_db.delete(_db.productAssets)..where((t) => t.productId.equals(state.id))).go();
+        for (int i = 0; i < state.imagePaths.length; i++) {
+          await _db.into(_db.productAssets).insert(ProductAssetData(
+            id: 'AST-${DateTime.now().millisecondsSinceEpoch}-$i',
+            productId: state.id,
+            imagePath: state.imagePaths[i],
+            isPrimary: i == 0,
+            sortOrder: i,
+          ));
+        }
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
-  void setPrimaryImage(String path) => state = state.copyWith(primaryImage: path);
-  
-  void removeImage(String path) {
-    final images = state.galleryImages.where((img) => img != path).toList();
-    String? prim = state.primaryImage == path ? (images.isNotEmpty ? images.first : null) : state.primaryImage;
-    state = state.copyWith(galleryImages: images, primaryImage: prim);
-  }
-
-  // ==========================================
-  // LOGIKA MULTI-UNIT / KONVERSI SATUAN
-  // ==========================================
-  void addUnit(UnitConversionModel unit) => state = state.copyWith(multiUnits: [...state.multiUnits, unit]);
-  void removeUnit(String id) => state = state.copyWith(multiUnits: state.multiUnits.where((u) => u.id != id).toList());
-
-  // ==========================================
-  // LOGIKA MATRIKS VARIAN (OTOMATISASI SKU FORMAT -V1)
-  // ==========================================
-  void addVariantAutoSku({required String variantName, required double sellPrice, String? barcode}) {
-    // Menentukan suffix counter indeks berdasarkan jumlah item yang ada saat ini
-    final int nextIndex = state.variantMatrix.length + 1;
-    final String generatedSku = '${state.id}-V$nextIndex'; // Format Otomatis: SKUINDK-V1
-
-    final newVariant = VariantMatrixModel(
-      id: 'VAR-${DateTime.now().microsecondsSinceEpoch}',
-      sku: generatedSku,
-      name: variantName,
-      sellPrice: sellPrice,
-      barcode: barcode,
-      stock: 0,
-    );
-
-    state = state.copyWith(variantMatrix: [...state.variantMatrix, newVariant]);
-  }
-
-  void removeVariant(String id) => state = state.copyWith(variantMatrix: state.variantMatrix.where((v) => v.id != id).toList());
-
-  // ==========================================
-  // MOCK DATA GENERATOR: SIMULASI BARANG PERKAKAS BANGUNAN
-  // ==========================================
-  void loadContohPerkakasBangunan() {
-    state = ProductFormState(
-      id: 'SKU-BRG-BAJA12',
-      name: 'Besi Beton Ulir Krakatau Steel',
-      shortName: 'Besi Beton Ulir 12mm',
-      barcode: '8991234567890',
-      description: 'Besi beton ulir standar SNI kekuatan penuh khusus struktur utama bangunan gedung.',
-      categoryId: 'Perkakas Bangunan',
-      subCategory: 'Besi & Baja',
-      brand: 'Krakatau Steel',
-      warehouseLocation: 'Rak Besi B-3 Barat',
-      tags: 'Kategori-Profit-Tinggi, Fast-Moving-Proyek',
-      buyPrice: 90000, // HPP Dasar per Pcs Rp 90.000
-      sellPriceGeneral: 115000, // Margin eceran otomatis dihitung di UI
-      sellPriceTier1: 108000,
-      sellPriceTier2: 102000,
-      sellPriceTier3: 97000,
-      maxDiscountSales: 3000,
-      isPriceLocked: true,
-      baseStock: 150,
-      minStock: 20,
-    );
-
-    // Otomatis Tambah Multi Satuan
-    addUnit(UnitConversionModel(id: 'U1', unitName: 'Bandel / Ikat', conversion: 10, buyPrice: 880000, sellPrice: 1000000));
-    addUnit(UnitConversionModel(id: 'U2', unitName: 'Karton Besar', conversion: 50, buyPrice: 4300000, sellPrice: 4850000));
-
-    // Otomatis Tambah Matriks Varian dengan SKU Berformat -V1, -V2
-    addVariantAutoSku(variantName: 'Ukuran Diameter 10mm Full', sellPrice: 95000);
-    addVariantAutoSku(variantName: 'Ukuran Diameter 12mm Full', sellPrice: 115000);
-    addVariantAutoSku(variantName: 'Ukuran Diameter 14mm Full', sellPrice: 140000);
+  Future<void> deleteProduct(String id) async {
+    await _db.transaction(() async {
+      await (_db.delete(_db.productAssets)..where((t) => t.productId.equals(id))).go();
+      await (_db.delete(_db.productUnits)..where((t) => t.productId.equals(id))).go();
+      await (_db.delete(_db.productVariants)..where((t) => t.productId.equals(id))).go();
+      await (_db.delete(_db.products)..where((t) => t.id.equals(id))).go();
+    });
   }
 }
 
-// Global Provider
-final productFormProvider = StateNotifierProvider.autoDispose<ProductFormNotifier, ProductFormState>((ref) => ProductFormNotifier());
+final productFormProvider = StateNotifierProvider<ProductFormNotifier, ProductFormState>((ref) {
+  final db = ref.watch(localDatabaseProvider);
+  return ProductFormNotifier(db);
+});
