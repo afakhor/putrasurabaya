@@ -725,7 +725,7 @@ class FormMasterBarangSheet extends ConsumerWidget {
                                   border: OutlineInputBorder(),
                                   contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                 ),
-                                onChanged: (v) => notifier.updateVariantDetail(vr.id, name: v),
+                                onChanged: (v) => notifier.updateVariantDetail(vr.id, variantName: v),
                               ),
                             ),
                             const SizedBox(width: 8),
