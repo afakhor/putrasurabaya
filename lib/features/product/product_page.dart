@@ -253,7 +253,10 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   selectedColor: Colors.red.shade200,
                   onSelected: (s) => ref.read(filterStockStatusProvider.notifier).state = s ? 'habis' : null,
                 ),
-                const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: VerticalDivider(height: 20)),
+                const SizedBox(
+  height: 24,
+  child: VerticalDivider(width: 16, thickness: 1, color: Colors.grey),
+),
                 for (var cat in categories) ...[
                   ChoiceChip(
                     label: Text(cat),
