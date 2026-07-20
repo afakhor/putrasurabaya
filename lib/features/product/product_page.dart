@@ -517,7 +517,7 @@ class FormMasterBarangSheet extends ConsumerWidget {
           // KLASTER 4: MULTI UNIT KONVERSI GROSIR
           const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.between,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildSectionHeader('4. Multi-Unit & Konversi Grosir'),
               TextButton.icon(
