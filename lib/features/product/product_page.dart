@@ -33,7 +33,7 @@ class ProductPage extends ConsumerStatefulWidget {
 class _ProductPageState extends ConsumerState<ProductPage> {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce;
-  bool _isFabMenuOpen = false;
+  int _fabMenuLevel = 0; // <-- Ganti _isFabMenuOpen dengan variabel level ini
 
   @override
   void dispose() {
@@ -48,6 +48,49 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       ref.read(searchQueryProvider.notifier).state = query.toLowerCase();
     });
   }
+
+  /// Helper tombol radial anti-tabrakan dengan IgnorePointer & radius presisi
+  Widget _buildRadialButton({
+    required double angleDegree,
+    required double radius,
+    required bool isVisible,
+    required Widget child,
+    required Color backgroundColor,
+    required VoidCallback onPressed,
+    String? heroTag,
+  }) {
+    final rad = angleDegree * math.pi / 180;
+    final dx = math.cos(rad) * radius;
+    final dy = math.sin(rad) * radius;
+
+    return IgnorePointer(
+      ignoring: !isVisible,
+      child: AnimatedScale(
+        scale: isVisible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutBack,
+        child: AnimatedOpacity(
+          opacity: isVisible ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 180),
+          child: Transform.translate(
+            offset: Offset(dx, dy),
+            child: SizedBox(
+              width: 42,
+              height: 42,
+              child: FloatingActionButton.small(
+                heroTag: heroTag,
+                elevation: 4,
+                backgroundColor: backgroundColor,
+                onPressed: isVisible ? onPressed : null,
+                child: child,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -162,119 +205,154 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         },
       ),
       
-                  // CONFIGURATION MULTI-FAB BARU: DIAGRESIKAN VERTIKAL (ANTI TEKS KEPOTONG & AUTO-HIDE)
+                        // CONFIGURATION RADIAL MULTI-FAB ANTI-TABRAKAN
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (_isFabMenuOpen) ...[
-            // 1. PILIHAN: DARURAT LAPANGAN (KIRI SEBELUMNYA)
-            GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTapDown: (_) => setState(() => _isFabMenuOpen = false), // Otomatis sembunyikan menu pilihan lainnya
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center, // Merapikan posisi vertikal text & button
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade900,
-                      borderRadius: BorderRadius.circular(20), // Menggunakan style pill yang jauh lebih rapi
-                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
-                    ),
-                    child: const Text(
-                      'Darurat Lapangan',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const InventoryEmergencyFab(), 
-                ],
+      floatingActionButton: SizedBox(
+        width: 200,
+        height: 200,
+        child: Stack(
+          alignment: Alignment.bottomRight,
+          clipBehavior: Clip.none,
+          children: [
+            // ==========================================
+            // LEVEL 1: 3 OPSI UTAMA + CLOSE
+            // Radius 120px | Sudut: 180°, 210°, 240°, 270°
+            // ==========================================
+
+            // OPSI 1: DARURAT LAPANGAN (KIRI MURNI / 180°)
+            _buildRadialButton(
+              heroTag: 'opt_1_emergency',
+              angleDegree: 180,
+              radius: 120,
+              isVisible: _fabMenuLevel == 1,
+              backgroundColor: Colors.red.shade900,
+              child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+              onPressed: () {
+                setState(() => _fabMenuLevel = 0);
+                // Trigger aksi darurat di sini
+              },
+            ),
+
+            // OPSI 2: AKSI CEPAT (SERONG KIRI ATAS / 210°)
+            _buildRadialButton(
+              heroTag: 'opt_2_quick_actions',
+              angleDegree: 210,
+              radius: 120,
+              isVisible: _fabMenuLevel == 1,
+              backgroundColor: const Color(0xFF007F00),
+              child: const Icon(Icons.flash_on, color: Colors.white, size: 20),
+              onPressed: () {
+                setState(() => _fabMenuLevel = 2); // Buka Sub-menu Level 2
+              },
+            ),
+
+            // OPSI 3: TAMBAH ITEM BARU (SERONG ATAS KIRI / 240°)
+            _buildRadialButton(
+              heroTag: 'opt_3_add_product',
+              angleDegree: 240,
+              radius: 120,
+              isVisible: _fabMenuLevel == 1,
+              backgroundColor: const Color(0xFF00A65A),
+              child: const Icon(Icons.add, color: Colors.white, size: 20),
+              onPressed: () {
+                setState(() => _fabMenuLevel = 0);
+                _openFormMasterBarang(context);
+              },
+            ),
+
+            // CLOSE LEVEL 1 (ATAS MURNI / 270°)
+            _buildRadialButton(
+              heroTag: 'opt_close_level1',
+              angleDegree: 270,
+              radius: 120,
+              isVisible: _fabMenuLevel == 1,
+              backgroundColor: Colors.black87,
+              child: const Icon(Icons.close, color: Colors.white, size: 18),
+              onPressed: () => setState(() => _fabMenuLevel = 0),
+            ),
+
+            // ==========================================
+            // LEVEL 2: SUB-OPSI AKSI CEPAT + BACK
+            // Radius 120px | Sudut: 180°, 210°, 240°, 270°
+            // ==========================================
+
+            // SUB 2.1: SCAN BARCODE (180°)
+            _buildRadialButton(
+              heroTag: 'sub_2_1_scan',
+              angleDegree: 180,
+              radius: 120,
+              isVisible: _fabMenuLevel == 2,
+              backgroundColor: const Color(0xFF007F00),
+              child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 20),
+              onPressed: () {
+                setState(() => _fabMenuLevel = 0);
+                // Aksi Scan Barcode
+              },
+            ),
+
+            // SUB 2.2: EDIT STOK (210°)
+            _buildRadialButton(
+              heroTag: 'sub_2_2_stock',
+              angleDegree: 210,
+              radius: 120,
+              isVisible: _fabMenuLevel == 2,
+              backgroundColor: const Color(0xFF007F00),
+              child: const Icon(Icons.edit_note, color: Colors.white, size: 20),
+              onPressed: () {
+                setState(() => _fabMenuLevel = 0);
+                // Aksi Edit Stok
+              },
+            ),
+
+            // SUB 2.3: PRINT LABEL (240°)
+            _buildRadialButton(
+              heroTag: 'sub_2_3_print',
+              angleDegree: 240,
+              radius: 120,
+              isVisible: _fabMenuLevel == 2,
+              backgroundColor: const Color(0xFF007F00),
+              child: const Icon(Icons.print, color: Colors.white, size: 20),
+              onPressed: () {
+                setState(() => _fabMenuLevel = 0);
+                // Aksi Print Label
+              },
+            ),
+
+            // BACK LEVEL 2 (270°)
+            _buildRadialButton(
+              heroTag: 'sub_back_level2',
+              angleDegree: 270,
+              radius: 120,
+              isVisible: _fabMenuLevel == 2,
+              backgroundColor: Colors.orange.shade900,
+              child: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+              onPressed: () => setState(() => _fabMenuLevel = 1),
+            ),
+
+            // ==========================================
+            // MASTER TRIGGER FAB
+            // ==========================================
+            FloatingActionButton(
+              heroTag: 'main_master_fab_trigger',
+              backgroundColor: _fabMenuLevel > 0 ? Colors.black : const Color(0xFF00A65A),
+              onPressed: () {
+                setState(() {
+                  _fabMenuLevel = _fabMenuLevel == 0 ? 1 : 0;
+                });
+              },
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: _fabMenuLevel > 0
+                    ? const Icon(Icons.close, color: Colors.white, key: ValueKey('close_icon'))
+                    : const Icon(Icons.menu, color: Colors.white, key: ValueKey('menu_icon')),
               ),
             ),
-            const SizedBox(height: 12),
-
-            // 2. PILIHAN: AKSI CEPAT (TENGAH SEBELUMNYA)
-            GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTapDown: (_) => setState(() => _isFabMenuOpen = false), // Otomatis sembunyikan menu pilihan lainnya
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF007F00),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
-                    ),
-                    child: const Text(
-                      'Aksi Cepat Produk',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const ProductQuickActionsFab(), 
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // 3. PILIHAN: TAMBAH BARANG MASTER (KANAN SEBELUMNYA)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00A65A),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
-                  ),
-                  child: const Text(
-                    'Tambah Item Baru',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                FloatingActionButton.small(
-                  heroTag: 'action_add_product_master',
-                  backgroundColor: const Color(0xFF00A65A),
-                  child: const Icon(Icons.add, color: Colors.white),
-                  onPressed: () {
-                    setState(() => _isFabMenuOpen = false); // Menyembunyikan pilihan lainnya
-                    _openFormMasterBarang(context);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
           ],
-
-          // TOMBOL UTAMA (MASTER TRIGGER)
-          FloatingActionButton(
-            heroTag: 'main_master_fab_trigger',
-            backgroundColor: _isFabMenuOpen ? Colors.black : const Color(0xFF00A65A),
-            onPressed: () {
-              setState(() {
-                _isFabMenuOpen = !_isFabMenuOpen;
-              });
-            },
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: _isFabMenuOpen
-                  ? const Icon(Icons.close, color: Colors.white, key: ValueKey('close_icon'))
-                  : const Icon(Icons.menu, color: Colors.white, key: ValueKey('menu_icon')),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
+
 
 
   Widget _buildTopActionBar(BuildContext context, List<String> categories) {
