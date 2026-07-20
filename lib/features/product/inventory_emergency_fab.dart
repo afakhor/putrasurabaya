@@ -79,10 +79,10 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab> w
         const SizedBox(height: 14),
 
         // FAB TRIGGER UTAMA (TANDA SERU / WARNING)
-        FloatingActionButton(
+                FloatingActionButton(
           heroTag: 'urgent_trigger_fab',
           backgroundColor: _isOpen ? Colors.black : Colors.red.shade900,
-          onTap: _toggle,
+          onPressed: _toggle,
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
             transitionBuilder: (child, anim) => RotationTransition(
@@ -99,6 +99,7 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab> w
       ],
     );
   }
+
 
   Widget _buildChildButton({
     required String label,
