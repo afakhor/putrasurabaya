@@ -161,7 +161,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         },
       ),
       
-            // CONFIGURATION MULTI-FAB BARU: DIAGRESIKAN VERTIKAL (ANTI TEKS KEPOTONG)
+                  // CONFIGURATION MULTI-FAB BARU: DIAGRESIKAN VERTIKAL (ANTI TEKS KEPOTONG & AUTO-HIDE)
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
@@ -169,72 +169,83 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         children: [
           if (_isFabMenuOpen) ...[
             // 1. PILIHAN: DARURAT LAPANGAN (KIRI SEBELUMNYA)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Card(
-                  elevation: 2,
-                  color: Colors.red.shade900,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    child: Text(
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTapDown: (_) => setState(() => _isFabMenuOpen = false), // Otomatis sembunyikan menu pilihan lainnya
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center, // Merapikan posisi vertikal text & button
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade900,
+                      borderRadius: BorderRadius.circular(20), // Menggunakan style pill yang jauh lebih rapi
+                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
+                    ),
+                    child: const Text(
                       'Darurat Lapangan',
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                const InventoryEmergencyFab(), // Menggunakan widget darurat Anda yang sudah diperbaiki onPressed-nya
-              ],
+                  const SizedBox(width: 10),
+                  const InventoryEmergencyFab(), 
+                ],
+              ),
             ),
             const SizedBox(height: 12),
 
             // 2. PILIHAN: AKSI CEPAT (TENGAH SEBELUMNYA)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Card(
-                  elevation: 2,
-                  color: const Color(0xFF007F00),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    child: Text(
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTapDown: (_) => setState(() => _isFabMenuOpen = false), // Otomatis sembunyikan menu pilihan lainnya
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF007F00),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
+                    ),
+                    child: const Text(
                       'Aksi Cepat Produk',
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                const ProductQuickActionsFab(), // Menggunakan widget aksi cepat Anda
-              ],
+                  const SizedBox(width: 10),
+                  const ProductQuickActionsFab(), 
+                ],
+              ),
             ),
             const SizedBox(height: 12),
 
             // 3. PILIHAN: TAMBAH BARANG MASTER (KANAN SEBELUMNYA)
             Row(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Card(
-                  elevation: 2,
-                  color: const Color(0xFF00A65A),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    child: Text(
-                      'Tambah Item Baru',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00A65A),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
+                  ),
+                  child: const Text(
+                    'Tambah Item Baru',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 FloatingActionButton.small(
                   heroTag: 'action_add_product_master',
                   backgroundColor: const Color(0xFF00A65A),
                   child: const Icon(Icons.add, color: Colors.white),
                   onPressed: () {
-                    setState(() => _isFabMenuOpen = false); // Tutup menu penyatu
+                    setState(() => _isFabMenuOpen = false); // Menyembunyikan pilihan lainnya
                     _openFormMasterBarang(context);
                   },
                 ),
@@ -620,34 +631,129 @@ class FormMasterBarangSheet extends ConsumerWidget {
               ),
             ),
 
-          // KLASTER 5: MATRIX VARIAN
+                    // KLASTER 5: MATRIX VARIAN MANUAL (AUTO SKU SUFFIX +Vxxx)
           const SizedBox(height: 16),
-          _buildSectionHeader('5. Varian Produk (Kombinasi Otomatis Matrix SKU)'),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
-            onPressed: () {
-              // Contoh simulasi otomatis generator matrix varian pasca input
-              notifier.generateVariants(warnaList: ['Hitam', 'Kuning'], ukuranList: ['10mm', '12mm']);
-            },
-            child: const Text('Simulasikan Auto-Gen Matrix Varian', style: TextStyle(color: Colors.white)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildSectionHeader('5. Manajemen Varian Manual'),
+              TextButton.icon(
+                icon: const Icon(Icons.add_circle_outline, size: 18, color: Colors.blue),
+                label: const Text('Tambah Varian', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                onPressed: () {
+                  // Hitung index urutan untuk suffix +Vxxx secara real-time
+                  final nextIndex = state.variants.length + 1;
+                  final autoSuffix = '+V${nextIndex.toString().padLeft(3, '0')}';
+                  
+                  // Daftarkan opsi varian baru ke provider Anda
+                  notifier.addManualVariant(
+                    skuId: '${state.id}$autoSuffix', 
+                    defaultName: 'Opsi Varian $nextIndex', 
+                    defaultPrice: state.sellPriceGeneral,
+                  );
+                },
+              ),
+            ],
           ),
-          for (var vr in state.variants)
+          
+          if (state.variants.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Row(
-                children: [
-                  Expanded(flex: 2, child: Text(vr.variantName, style: const TextStyle(fontSize: 11))),
-                  Expanded(
-                    child: TextFormField(
-                      initialValue: vr.sellPrice.toStringAsFixed(0),
-                      style: const TextStyle(fontSize: 12),
-                      decoration: const InputDecoration(labelText: 'Harga Jual', border: OutlineInputBorder(), contentPadding: EdgeInsets.all(6)),
-                      onChanged: (v) => notifier.updateVariantDetail(vr.id, price: double.tryParse(v)),
-                    ),
-                  )
-                ],
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+                child: const Text(
+                  'Produk ini tidak memiliki varian (Single SKU Item).',
+                  style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
+
+          for (int i = 0; i < state.variants.length; i++) ...[
+            Builder(
+              builder: (context) {
+                final vr = state.variants[i];
+                // Ekstrak string suffix +Vxxx untuk penanda visual di form UI
+                final displaySuffix = vr.id.contains('+V') 
+                    ? '+V${vr.id.split('+V').last}' 
+                    : '+V${(i + 1).toString().padLeft(3, '0')}';
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    side: BorderSide(color: Colors.grey.shade300, width: 1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+                              child: Text(
+                                'SKU Varian: $displaySuffix', 
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade800),
+                              ),
+                            ),
+                            IconButton(
+                              constraints: const BoxConstraints(),
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                              onPressed: () => notifier.removeVariant(vr.id), // Pemicu hapus opsi varian tertentu
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            // Field Edit Nama Varian
+                            Expanded(
+                              flex: 3,
+                              child: TextFormField(
+                                initialValue: vr.variantName,
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Nama Varian (Contoh: Putih / XL)',
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                ),
+                                onChanged: (v) => notifier.updateVariantDetail(vr.id, name: v),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Field Edit Harga Jual Varian
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                initialValue: vr.sellPrice.toStringAsFixed(0),
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Harga Jual (Rp)',
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                ),
+                                onChanged: (v) => notifier.updateVariantDetail(vr.id, price: double.tryParse(v)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+            ),
+          ],
+
 
           // KLASTER 6: METADATA & COMPLIANCE
           const SizedBox(height: 16),
