@@ -175,12 +175,15 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
     state = state.copyWith(units: state.units.where((e) => e.id != id).toList());
   }
 
-  /// Otomatis Generate Matriks Varian Kombinasi Atribut
+  /// ==========================================
+  /// CLUSTER MANAJEMEN VARIAN (MANUAL & OTOMATIS)
+  /// ==========================================
+
+  /// 1. Otomatis Generate Matriks Varian Kombinasi Atribut
   void generateVariants({required List<String> warnaList, required List<String> ukuranList}) {
     List<ProductVariantData> generated = [];
     int counter = 1;
-    
-    // Default fallback jika salah satu kosong agar looping tetap jalan
+
     List<String> wList = warnaList.isEmpty ? [''] : warnaList;
     List<String> uList = ukuranList.isEmpty ? [''] : ukuranList;
 
@@ -188,7 +191,7 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
       for (var u in uList) {
         String variantName = '${state.name} ${w.trim()} ${u.trim()}'.trim();
         String skuVariant = '${state.id}-V$counter';
-        
+
         generated.add(ProductVariantData(
           id: 'VAR-${DateTime.now().millisecondsSinceEpoch}-$counter',
           productId: state.id,
@@ -204,20 +207,57 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
     state = state.copyWith(variants: generated);
   }
 
-  void updateVariantDetail(String id, {double? stock, double? price, String? barcode}) {
+  /// 2. Tambah Varian Baru Secara Manual (Dipanggil dari UI Kluster 5)
+  void addManualVariant({
+    required String skuId,
+    required String defaultName,
+    required double defaultPrice,
+  }) {
+    final newVariant = ProductVariantData(
+      id: 'VAR-${DateTime.now().millisecondsSinceEpoch}-${state.variants.length + 1}',
+      productId: state.id,
+      skuVariant: skuId, // Membawa format +Vxxx otomatis dari UI
+      variantName: defaultName,
+      barcode: '',
+      stock: 0,
+      sellPrice: defaultPrice,
+    );
+
+    state = state.copyWith(
+      variants: [...state.variants, newVariant],
+    );
+  }
+
+  /// 3. Hapus Varian Berdasarkan ID Kunci Row
+  void removeVariant(String id) {
+    state = state.copyWith(
+      variants: state.variants.where((v) => v.id != id).toList(),
+    );
+  }
+
+  /// 4. Update Detail Varian (Mendukung Perubahan Nama, Stok, Harga, dan Barcode)
+  void updateVariantDetail(String id, {double? stock, double? price, String? barcode, String? variantName}) {
     state = state.copyWith(
       variants: [
         for (var v in state.variants)
           if (v.id == id)
             ProductVariantData(
-              id: v.id, productId: v.productId, skuVariant: v.skuVariant,
-              variantName: v.variantName, barcode: barcode ?? v.barcode,
-              stock: stock ?? v.stock, sellPrice: price ?? v.sellPrice,
+              id: v.id, 
+              productId: v.productId, 
+              skuVariant: v.skuVariant,
+              variantName: variantName ?? v.variantName, // Menerima update nama manual
+              barcode: barcode ?? v.barcode,
+              stock: stock ?? v.stock, 
+              sellPrice: price ?? v.sellPrice,
             )
           else v
       ],
     );
   }
+
+  /// ==========================================
+  /// ASSET GAMBAR & OPERASI DATABASE LOCAL
+  /// ==========================================
 
   void addImage(String path) {
     state = state.copyWith(imagePaths: [...state.imagePaths, path]);
