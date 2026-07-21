@@ -14,9 +14,9 @@ dependencies:
   firebase_core: ^2.32.0
   cloud_firestore: ^4.17.5
 
-  # KUNCI VERSI - JANGAN PAKAI ^
-  drift: 2.20.1
-  drift_flutter: 0.2.1
+  # PASANGAN KLOP - SUDAH TEST RESOLVE
+  drift: 2.21.0
+  drift_flutter: 0.2.2
   sqlite3_flutter_libs: 0.5.24
   path_provider: ^2.1.2
   path: ^1.9.0
@@ -32,7 +32,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.2
-  drift_dev: 2.20.1
+  drift_dev: 2.21.0
   build_runner: 2.4.13
   riverpod_generator: 2.4.3
 
