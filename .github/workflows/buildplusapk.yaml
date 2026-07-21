@@ -38,7 +38,7 @@ jobs:
         run: flutter doctor -v
 
       # === FIX UTAMA UNTUK DRIFT SEVERE ERROR ===
-            - name: Clean build artifacts total
+      - name: Clean build artifacts total
         run: |
           flutter clean
           rm -rf .dart_tool/
