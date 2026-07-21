@@ -1,9 +1,27 @@
+import 'dart:convert'; // <-- TAMBAHKAN IMPORT INI
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/database/local_database.dart';
 
 class InventoryEmergencyFab extends ConsumerStatefulWidget {
   const InventoryEmergencyFab({super.key});
+
+  /// Static Helper untuk dipanggil langsung dari ProductPage jika diperlukan
+  static void showEmergencyDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mode Darurat Inventaris'),
+        content: const Text('Akses cepat tindakan darurat stok.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   ConsumerState<InventoryEmergencyFab> createState() => _InventoryEmergencyFabState();
@@ -51,7 +69,6 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // Sub-menu hanya muncul & dihitung layout-nya jika _isOpen true
         if (_isOpen) ...[
           _buildChildButton(
             label: 'Koreksi Stok Instan',
@@ -75,8 +92,6 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
           ),
           const SizedBox(height: 14),
         ],
-
-        // FAB Utama
         FloatingActionButton(
           heroTag: 'urgent_trigger_fab',
           backgroundColor: _isOpen ? Colors.black : Colors.red.shade900,
@@ -256,7 +271,8 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
       {"sku": "BRG002", "nama": "Paku Payung Kotak", "stok": 45, "harga": 12000},
     ];
 
-    final rawJsonDump = const JsonEncoder.withIndent('  ').convert(dummyBackupData);
+    // Hapus kata 'const' dari JsonEncoder.withIndent
+    final rawJsonDump = JsonEncoder.withIndent('  ').convert(dummyBackupData);
 
     showDialog(
       context: context,
