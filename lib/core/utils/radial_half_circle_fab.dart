@@ -57,44 +57,52 @@ class _RadialHalfCircleFabState extends State<RadialHalfCircleFab> with SingleTi
   }
 
   Widget _item({
-    required int index,
-    required double angleDeg,
-    required bool show,
-    required Color color,
-    required IconData icon,
-    required VoidCallback tap,
-    required String tag,
-  }) {
-    if (!show) return const SizedBox.shrink();
-    final start = (index * 0.09).clamp(0.0, 0.5);
-    final interval = Interval(start, (0.6 + start).clamp(0.0, 1.0), curve: Curves.easeOutBack, reverseCurve: Curves.easeInBack);
-    final anim = CurvedAnimation(parent: _controller, curve: interval);
-    final rad = angleDeg * math.pi / 180;
+  required int index,
+  required double angleDeg,
+  required bool show,
+  required Color color,
+  required IconData icon,
+  required VoidCallback tap,
+  required String tag,
+}) {
+  if (!show) return const SizedBox.shrink();
+  final start = (index * 0.09).clamp(0.0, 0.5);
+  final interval = Interval(
+    start, 
+    (0.6 + start).clamp(0.0, 1.0), 
+    curve: Curves.easeOutBack,
+  );
+  final anim = CurvedAnimation(
+    parent: _controller, 
+    curve: interval, 
+    reverseCurve: Curves.easeInBack,
+  );
+  final rad = angleDeg * math.pi / 180;
 
-    return AnimatedBuilder(
-      animation: anim,
-      builder: (_, child) {
-        final p = anim.value;
-        return IgnorePointer(
-          ignoring: p < 0.3,
-          child: Transform.translate(
-            offset: Offset(math.cos(rad) * radius * p, math.sin(rad) * radius * p),
-            child: Transform.scale(scale: p, child: Opacity(opacity: p.clamp(0.0, 1.0), child: child)),
-          ),
-        );
-      },
-      child: SizedBox(
-        width: 48, height: 48,
-        child: FloatingActionButton.small(
-          heroTag: tag,
-          backgroundColor: color,
-          elevation: 6,
-          onPressed: tap,
-          child: Icon(icon, color: Colors.white, size: 22),
+  return AnimatedBuilder(
+    animation: anim,
+    builder: (_, child) {
+      final p = anim.value;
+      return IgnorePointer(
+        ignoring: p < 0.3,
+        child: Transform.translate(
+          offset: Offset(math.cos(rad) * radius * p, math.sin(rad) * radius * p),
+          child: Transform.scale(scale: p, child: Opacity(opacity: p.clamp(0.0, 1.0), child: child)),
         ),
+      );
+    },
+    child: SizedBox(
+      width: 48, height: 48,
+      child: FloatingActionButton.small(
+        heroTag: tag,
+        backgroundColor: color,
+        elevation: 6,
+        onPressed: tap,
+        child: Icon(icon, color: Colors.white, size: 22),
       ),
-    );
-  }
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
