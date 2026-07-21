@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class ProductFormDialogs {
-  /// Dialog Cepat Tambah Kategori / Sub-Kategori / Brand
+  /// Dialog Cepat Input Teks (Kategori, Brand, Satuan, Rak)
   static Future<String?> showQuickTextDialog({
     required BuildContext context,
     required String title,
@@ -24,7 +24,7 @@ class ProductFormDialogs {
               border: const OutlineInputBorder(),
               focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00A65A))),
             ),
-            validator: (val) => val == null || val.trim().isEmpty ? 'Form wajib diisi' : null,
+            validator: (val) => (val == null || val.trim().isEmpty) ? 'Form wajib diisi' : null,
           ),
         ),
         actions: [
@@ -46,7 +46,7 @@ class ProductFormDialogs {
     );
   }
 
-  /// Dialog Kompleks Tambah Multi-Satuan Grosir & Konversi
+  /// Dialog Multi-Satuan Grosir & Konversi
   static Future<Map<String, dynamic>?> showUnitConversionDialog({
     required BuildContext context,
     required double baseBuyPrice,
@@ -54,8 +54,8 @@ class ProductFormDialogs {
   }) {
     final unitController = TextEditingController();
     final qtyController = TextEditingController(text: '12');
-    final buyController = TextEditingController();
-    final sellController = TextEditingController();
+    final buyController = TextEditingController(text: (baseBuyPrice * 12).toStringAsFixed(0));
+    final sellController = TextEditingController(text: (baseSellPrice * 12).toStringAsFixed(0));
     final barcodeController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
@@ -71,15 +71,21 @@ class ProductFormDialogs {
               children: [
                 TextFormField(
                   controller: unitController,
-                  decoration: const InputDecoration(labelText: 'Nama Satuan (Contoh: Dus, Renceng, Karton)', border: OutlineInputBorder()),
-                  validator: (val) => val!.isEmpty ? 'Wajib isi' : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Satuan (Contoh: Dus, Karton)',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (val) => (val == null || val.trim().isEmpty) ? 'Wajib isi' : null,
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: qtyController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Isi Konversi (Jumlah Pcs di dalam)', border: OutlineInputBorder()),
-                  validator: (val) => int.tryParse(val ?? '') == null ? 'Wajib angka integer' : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Isi Konversi (Jumlah Pcs di dalam)',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (val) => int.tryParse(val ?? '') == null ? 'Wajib angka bulat' : null,
                   onChanged: (val) {
                     final factor = int.tryParse(val) ?? 1;
                     buyController.text = (baseBuyPrice * factor).toStringAsFixed(0);
@@ -90,18 +96,29 @@ class ProductFormDialogs {
                 TextFormField(
                   controller: buyController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Total Harga HPP Beli Satuan', prefixText: 'Rp ', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Total Harga HPP Beli Satuan',
+                    prefixText: 'Rp ',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: sellController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Total Harga Jual Satuan', prefixText: 'Rp ', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Total Harga Jual Satuan',
+                    prefixText: 'Rp ',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: barcodeController,
-                  decoration: const InputDecoration(labelText: 'Barcode Khusus Satuan Ini (Opsional)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Barcode Khusus Satuan Ini (Opsional)',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
               ],
             ),
@@ -118,7 +135,7 @@ class ProductFormDialogs {
                   'conversion': int.parse(qtyController.text),
                   'buyPriceUnit': double.tryParse(buyController.text) ?? 0,
                   'sellPriceUnit': double.tryParse(sellController.text) ?? 0,
-                  'barcode': barcodeController.text.isEmpty ? null : barcodeController.text.trim(),
+                  'barcode': barcodeController.text.trim().isEmpty ? null : barcodeController.text.trim(),
                 });
               }
             },
