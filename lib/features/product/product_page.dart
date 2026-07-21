@@ -381,7 +381,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   selectedColor: Colors.red.shade200,
                   onSelected: (s) => ref.read(filterStockStatusProvider.notifier).state = s ? 'habis' : null,
                 ),
-                const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: VerticalDivider(height: 20)),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: SizedBox(height: 20, child: VerticalDivider())),
                 for (var cat in categories) ...[
                   ChoiceChip(
                     label: Text(cat),
@@ -636,7 +636,7 @@ class FormMasterBarangSheet extends ConsumerWidget {
 
           const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.between,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildSectionHeader('4. Multi-Unit & Konversi'),
               TextButton.icon(
@@ -670,7 +670,7 @@ class FormMasterBarangSheet extends ConsumerWidget {
 
           const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.between,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildSectionHeader('5. Varian Produk'),
               TextButton.icon(
