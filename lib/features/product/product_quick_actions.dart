@@ -4,6 +4,41 @@ import 'package:drift/drift.dart' hide Column;
 import '../../core/database/local_database.dart';
 import 'product_form_dialogs.dart';
 
+/// Class Helper untuk pemanggilan statis dari ProductPage
+class ProductQuickActions {
+  static void scanBarcode(BuildContext context, WidgetRef ref) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Membuka Scanner Barcode...')),
+    );
+  }
+
+  static void showQuickStockDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Koreksi Stok Cepat'),
+        content: const TextField(
+          decoration: InputDecoration(labelText: 'Jumlah Stok Baru'),
+          keyboardType: TextInputType.number,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static void showPrintLabelDialog(BuildContext context, WidgetRef ref) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Menyiapkan pencetakan label barcode...')),
+    );
+  }
+}
+
 class SpeedDialItem {
   final IconData icon;
   final String label;
@@ -119,7 +154,6 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Sub-menu terlindungi dari overflow dengan ConstrainedBox & SingleChildScrollView
         if (_isMenuOpen)
           ConstrainedBox(
             constraints: BoxConstraints(maxHeight: maxHeight),
@@ -167,8 +201,6 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
               ),
             ),
           ),
-
-        // FAB Utama (Trigger Spin 45 Derajat untuk Animasi Silang/Tutup)
         FloatingActionButton(
           heroTag: 'main_speed_dial_fab',
           backgroundColor: _isMenuOpen ? Colors.red : const Color(0xFF007F00),
