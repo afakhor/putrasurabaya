@@ -11,19 +11,17 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.5.1
-  
-  # Firebase Core & Database (Wajib Ada)
+
   firebase_core: ^2.32.0
   cloud_firestore: ^4.17.5
-  
-  # Local Database
-  drift: ">=2.20.0 <2.24.0"
-  drift_flutter: ">=0.1.0 <0.2.0"
-  path_provider: ^2.1.2
+
+  # Local Database - FIX VERSION
+  drift: ^2.21.0
+  drift_flutter: ^0.2.4
   sqlite3_flutter_libs: ^0.5.32
+  path_provider: ^2.1.2
   path: ^1.9.0
-  
-  # Utilities & Hardware
+
   connectivity_plus: ^6.0.3
   print_bluetooth_thermal: ^1.0.3
   image_picker: ^1.0.7
@@ -35,9 +33,10 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.2
-  drift_dev: ">=2.20.0 <2.24.0"
-  build_runner: ^2.4.9
-  riverpod_generator: ^2.4.0
+  drift_dev: ^2.21.0
+  build_runner: ^2.4.13
+  riverpod_generator: ^2.4.3
+  build_verify: ^3.1.0
 
 flutter:
   uses-material-design: true
