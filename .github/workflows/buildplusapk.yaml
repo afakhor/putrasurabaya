@@ -22,17 +22,11 @@ jobs:
           distribution: 'zulu'
           java-version: '17'  
 
-      # ==========================================
-      # 1. LANGKAH KRUSIAL: INSTALL ANDROID NDK C++
-      # ==========================================
       - name: Install Android NDK
         run: |
           echo "Installing Android NDK version 25.1.8937393..."
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.1.8937393"
 
-        # ==========================================
-      # 2. SETUP FLUTTER
-      # ==========================================
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -43,30 +37,29 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
 
-      # TAMBAHKAN DI SINI: Bersihkan berkas build lama di server CI sebelum install dependensi
-      - name: Clean build artifacts
-        run: flutter clean
+      # === FIX UTAMA UNTUK DRIFT SEVERE ERROR ===
+      - name: Clean build artifacts total
+        run: |
+          flutter clean
+          rm -rf .dart_tool/build
+          rm -rf .dart_tool/drift
+          rm -rf build
+          flutter pub get
 
       - name: Install dependencies
         run: flutter pub get
 
-      # ==========================================
-      # 3. RUN GENERATOR DATABASE (DRIFT)
-      # ==========================================
+      # === GENERATOR DATABASE - PAKAI DART RUN BUILD_RUNNER CLEAN DULU ===
       - name: Generate Database Code
-        run: dart run build_runner build --delete-conflicting-outputs
+        run: |
+          dart run build_runner clean
+          dart run build_runner build --delete-conflicting-outputs --verbose
+        # Jika masih SEVERE, ganti baris atas dengan:
+        # dart run build_runner build --delete-conflicting-outputs --release --build-filter="lib/**"
 
-
-
-      # ==========================================
-      # 5. BUILD APK RELEASE
-      # ==========================================
       - name: Build APK Release
         run: flutter build apk --release --no-shrink --split-per-abi
 
-      # ==========================================
-      # 6. UPLOAD KE ARTIFACTS GITHUB
-      # ==========================================
       - name: Upload APK ke Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -74,17 +67,11 @@ jobs:
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 30
 
-      # ==========================================
-      # KOREKSI: AMBIL TANGGAL & WAKTU WIB SEKARANG
-      # ==========================================
       - name: Dapatkan Waktu Rilis WIB
         id: info_waktu
         run: |
           echo "TANGGAL_RELEASE=$(TZ='Asia/Jakarta' date +'%d-%m-%Y %H:%M WIB')" >> $GITHUB_OUTPUT
 
-      # ==========================================
-      # 7. BIKIN RELEASE OTOMATIS DI GITHUB
-      # ==========================================
       - name: Bikin Release Otomatis
         uses: ncipollo/release-action@v1
         with:
