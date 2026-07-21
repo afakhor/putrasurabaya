@@ -41,9 +41,7 @@ jobs:
       - name: Clean build artifacts total
         run: |
           flutter clean
-          rm -rf .dart_tool/
-          rm -rf build/
-          rm -f pubspec.lock
+          rm -rf .dart_tool/ build/
           flutter pub get
 
       - name: Generate Database Code
