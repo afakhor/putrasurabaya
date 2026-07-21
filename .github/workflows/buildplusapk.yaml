@@ -38,22 +38,18 @@ jobs:
         run: flutter doctor -v
 
       # === FIX UTAMA UNTUK DRIFT SEVERE ERROR ===
-      - name: Clean build artifacts total
+            - name: Clean build artifacts total
         run: |
           flutter clean
-          rm -rf .dart_tool/build
-          rm -rf .dart_tool/drift
-          rm -rf build
+          rm -rf .dart_tool/
+          rm -rf build/
+          rm -f pubspec.lock
           flutter pub get
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      # === GENERATOR DATABASE - PAKAI DART RUN BUILD_RUNNER CLEAN DULU ===
       - name: Generate Database Code
         run: |
           dart run build_runner clean
-          dart run build_runner build --delete-conflicting-outputs --verbose
+          dart run build_runner build --delete-conflicting-outputs
         # Jika masih SEVERE, ganti baris atas dengan:
         # dart run build_runner build --delete-conflicting-outputs --release --build-filter="lib/**"
 
