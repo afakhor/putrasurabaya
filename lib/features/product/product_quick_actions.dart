@@ -4,7 +4,6 @@ import 'package:drift/drift.dart' hide Column;
 import '../../core/database/local_database.dart';
 import 'product_form_dialogs.dart';
 
-/// Model internal untuk item menu di dalam Speed Dial FAB
 class SpeedDialItem {
   final IconData icon;
   final String label;
@@ -26,22 +25,20 @@ class ProductQuickActionsFab extends ConsumerStatefulWidget {
   ConsumerState<ProductQuickActionsFab> createState() => _ProductQuickActionsFabState();
 }
 
-class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab> with SingleTickerProviderStateMixin {
+class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
+    with SingleTickerProviderStateMixin {
   bool _isMenuOpen = false;
   late AnimationController _animationController;
   late Animation<double> _animateIcon;
-  late Animation<double> _translateButton;
-  final double _fabHeight = 56.0;
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 250),
+      duration: const Duration(milliseconds: 200),
     );
-    _animateIcon = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController);
-    _translateButton = Tween<double>(begin: 0.0, end: 12.0).animate(
+    _animateIcon = Tween<double>(begin: 0.0, end: 0.25).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
   }
@@ -67,39 +64,38 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
   Widget build(BuildContext context) {
     final db = ref.watch(localDatabaseProvider);
 
-    // KLASTER MENU UNTUK MENGAKOMODASI 7 INPUT TAMBAHAN YANG SERING LUPA
     final List<SpeedDialItem> actionItems = [
       SpeedDialItem(
         icon: Icons.category,
         label: 'Tambah Kategori',
         onTap: () => _showTextEntryDialog('Kategori', (val) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kategori "$val" siap dipilih di form.')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kategori "$val" tersimpan.')));
         }),
       ),
       SpeedDialItem(
         icon: Icons.layers,
         label: 'Tambah Sub-Kategori',
-        onTap: () => _showSubCategoryDialog(),
+        onTap: _showSubCategoryDialog,
       ),
       SpeedDialItem(
         icon: Icons.branding_watermark,
         label: 'Tambah Brand / Merk',
         onTap: () => _showTextEntryDialog('Brand / Merk', (val) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Brand "$val" berhasil didaftarkan.')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Brand "$val" tersimpan.')));
         }),
       ),
       SpeedDialItem(
-        icon: Icons.gavel,
+        icon: Icons.straighten,
         label: 'Tambah Satuan Master',
-        onTap: () => _showTextEntryDialog('Satuan (e.g. Kg, Liter, Meter)', (val) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Satuan "$val" terdaftar sebagai opsi dasar.')));
+        onTap: () => _showTextEntryDialog('Satuan (e.g. Kg, Liter)', (val) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Satuan "$val" tersimpan.')));
         }),
       ),
       SpeedDialItem(
         icon: Icons.grid_view,
-        label: 'Tambah Rak / Lokasi Gudang',
-        onTap: () => _showTextEntryDialog('Kode Rak / Lokasi (e.g. RAK-A1)', (val) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lokasi Penyimpanan "$val" disimpan.')));
+        label: 'Tambah Rak / Lokasi',
+        onTap: () => _showTextEntryDialog('Kode Rak (e.g. RAK-A1)', (val) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lokasi "$val" tersimpan.')));
         }),
       ),
       SpeedDialItem(
@@ -112,40 +108,41 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
         icon: Icons.percent,
         label: 'Atur Kebijakan Pajak (PPN)',
         color: Colors.blueGrey,
-        onTap: () => _showTaxConfigurationDialog(),
+        onTap: _showTaxConfigurationDialog,
       ),
     ];
+
+    final maxHeight = MediaQuery.of(context).size.height * 0.65;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Tampilan Sub-Menu yang Muncul Ketika FAB Utama Di-klik
+        // Sub-menu terlindungi dari overflow dengan ConstrainedBox & SingleChildScrollView
         if (_isMenuOpen)
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: actionItems.asMap().entries.map((entry) {
-              int idx = entry.key;
-              SpeedDialItem item = entry.value;
-              return AnimatedBuilder(
-                animation: _translateButton,
-                builder: (ctx, child) {
-                  double offset = (_fabHeight + _translateButton.value) * (actionItems.length - idx);
-                  return Transform.translate(
-                    offset: Offset(0, offset - (idx * 65)),
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0, right: 4.0),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: SingleChildScrollView(
+              reverse: true,
+              physics: const BouncingScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: actionItems.map((item) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Card(
                             elevation: 3,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                             color: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               child: Text(
                                 item.label,
                                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
@@ -154,7 +151,7 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
                           ),
                           const SizedBox(width: 8),
                           FloatingActionButton.small(
-                            heroTag: 'sub_fab_$idx',
+                            heroTag: 'sub_fab_${item.label.hashCode}',
                             backgroundColor: item.color,
                             onPressed: () {
                               _toggleMenu();
@@ -164,48 +161,41 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
                           ),
                         ],
                       ),
-                    ),
-                  );
-                },
-              );
-            }).toList(),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
           ),
 
-        // FAB UTAMA / TRIGGER UTAMA ENGINE SPEED DIAL
+        // FAB Utama (Trigger Spin 45 Derajat untuk Animasi Silang/Tutup)
         FloatingActionButton(
           heroTag: 'main_speed_dial_fab',
           backgroundColor: _isMenuOpen ? Colors.red : const Color(0xFF007F00),
           onPressed: _toggleMenu,
-          child: AnimatedBuilder(
-            animation: _animateIcon,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: _animateIcon.value * 0.785, // Rotasi silang efek tombol close 45 derajat
-                child: Icon(
-                  _isMenuOpen ? Icons.add : Icons.tune,
-                  color: Colors.white,
-                ),
-              );
-            },
+          child: RotationTransition(
+            turns: _animateIcon,
+            child: Icon(
+              _isMenuOpen ? Icons.close : Icons.tune,
+              color: Colors.white,
+            ),
           ),
         ),
       ],
     );
   }
 
-  /// HELPER DIALOG: Standard Input String untuk Kategori, Merk, Satuan, & Rak
   void _showTextEntryDialog(String entityName, Function(String) onSave) async {
-    String? result = await ProductFormDialogs.showQuickTextDialog(
+    final result = await ProductFormDialogs.showQuickTextDialog(
       context: context,
       title: 'Pintasan Tambah $entityName',
       labelField: 'Nama / Kode $entityName Baru',
     );
-    if (result != null && result.isNotEmpty) {
+    if (result != null && result.isNotEmpty && mounted) {
       onSave(result);
     }
   }
 
-  /// DIALOG KHUSUS 1: Input Sub-Kategori Terikat Induk
   void _showSubCategoryDialog() {
     final formKey = GlobalKey<FormState>();
     String selectedParent = 'Umum';
@@ -232,7 +222,7 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
               TextFormField(
                 controller: subCtrl,
                 decoration: const InputDecoration(labelText: 'Nama Sub-Kategori', border: OutlineInputBorder()),
-                validator: (val) => val!.isEmpty ? 'Wajib diisi' : null,
+                validator: (val) => (val == null || val.trim().isEmpty) ? 'Wajib diisi' : null,
               )
             ],
           ),
@@ -243,10 +233,11 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A)),
             onPressed: () {
               if (formKey.currentState!.validate()) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Sub-Kategori "${subCtrl.text}" berhasil diikat ke "$selectedParent"'),
-                ));
                 Navigator.pop(ctx);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Sub-Kategori "${subCtrl.text}" diikat ke "$selectedParent"'),
+                ));
               }
             },
             child: const Text('Simpan', style: TextStyle(color: Colors.white)),
@@ -256,7 +247,6 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
     );
   }
 
-  /// DIALOG KHUSUS 2: Input Master Supplier Baru (Dimasukkan langsung ke Tabel Drift SQLite)
   void _showSupplierInputBottomSheet(LocalDatabase db) {
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
@@ -275,12 +265,15 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Registrasi Supplier Baru (UD. Putra)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF007F00))),
+              const Text(
+                'Registrasi Supplier Baru',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF007F00)),
+              ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: nameCtrl,
                 decoration: const InputDecoration(labelText: 'Nama Perusahaan / Supplier*', border: OutlineInputBorder()),
-                validator: (val) => val!.isEmpty ? 'Nama supplier tidak boleh kosong' : null,
+                validator: (val) => (val == null || val.trim().isEmpty) ? 'Nama supplier wajib diisi' : null,
               ),
               const SizedBox(height: 10),
               TextFormField(
@@ -292,8 +285,8 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
               TextFormField(
                 controller: leadTimeCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Rata-rata Pengiriman Barang (Hari)', border: OutlineInputBorder()),
-                validator: (val) => int.tryParse(val ?? '') == null ? 'Wajib isi angka' : null,
+                decoration: const InputDecoration(labelText: 'Rata-rata Pengiriman (Hari)', border: OutlineInputBorder()),
+                validator: (val) => int.tryParse(val ?? '') == null ? 'Wajib berupa angka' : null,
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -303,18 +296,20 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A)),
                   onPressed: () async {
                     if (formKey.currentState!.validate()) {
-                      // Insert baris baru ke tabel Supplier SQLite asli
                       await db.into(db.suppliers).insert(
                         SuppliersCompanion.insert(
                           id: 'SPL-${DateTime.now().millisecondsSinceEpoch}',
                           name: nameCtrl.text.trim(),
-                          phone: Value(phoneCtrl.text.isEmpty ? null : phoneCtrl.text.trim()),
+                          phone: Value(phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim()),
                           leadTimeDays: Value(int.parse(leadTimeCtrl.text)),
                         ),
                       );
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Supplier Utama sukses tersimpan secara offline!'), backgroundColor: Colors.green));
-                        Navigator.pop(ctx);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Supplier tersimpan ke database offline!'),
+                          backgroundColor: Colors.green,
+                        ));
                       }
                     }
                   },
@@ -328,7 +323,6 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
     );
   }
 
-  /// DIALOG KHUSUS 3: Pengaturan Pajak Global & Default Aplikasi
   void _showTaxConfigurationDialog() {
     double currentTax = 11.0;
     showDialog(
@@ -367,8 +361,11 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A)),
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Tarif default pajak diatur ke $currentTax%')));
                 Navigator.pop(ctx);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Tarif default pajak diatur ke $currentTax%'),
+                ));
               },
               child: const Text('Terapkan', style: TextStyle(color: Colors.white)),
             )
