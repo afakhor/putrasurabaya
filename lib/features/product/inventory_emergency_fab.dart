@@ -1,152 +1,76 @@
-import 'dart:convert'; // <-- TAMBAHKAN IMPORT INI
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/database/local_database.dart';
 
-class InventoryEmergencyFab extends ConsumerStatefulWidget {
+/// Floating Action Button Khusus Mode Darurat yang bisa dipasang mandiri
+class InventoryEmergencyFab extends ConsumerWidget {
   const InventoryEmergencyFab({super.key});
 
-  /// Static Helper untuk dipanggil langsung dari ProductPage jika diperlukan
-  static void showEmergencyDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Mode Darurat Inventaris'),
-        content: const Text('Akses cepat tindakan darurat stok.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Tutup'),
-          ),
-        ],
-      ),
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FloatingActionButton.extended(
+      heroTag: 'inventory_emergency_btn',
+      backgroundColor: Colors.red.shade900,
+      icon: const Icon(Icons.warning_amber_rounded, color: Colors.white),
+      label: const Text('DARURAT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      onPressed: () => InventoryEmergencyDialogs.showEmergencyMenuModal(context, ref),
     );
   }
-
-  @override
-  ConsumerState<InventoryEmergencyFab> createState() => _InventoryEmergencyFabState();
 }
 
-class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
-    with SingleTickerProviderStateMixin {
-  bool _isOpen = false;
-  late AnimationController _controller;
-  late Animation<double> _expandAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _expandAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.fastOutSlowIn,
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _toggle() {
-    setState(() {
-      _isOpen = !_isOpen;
-      if (_isOpen) {
-        _controller.forward();
-      } else {
-        _controller.reverse();
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        if (_isOpen) ...[
-          _buildChildButton(
-            label: 'Koreksi Stok Instan',
-            icon: Icons.gavel_rounded,
-            color: Colors.red.shade700,
-            onTap: _showEmergencyStockDialog,
-          ),
-          const SizedBox(height: 10),
-          _buildChildButton(
-            label: 'Ubah Harga Kilat',
-            icon: Icons.monetization_on,
-            color: Colors.amber.shade900,
-            onTap: _showQuickPriceDialog,
-          ),
-          const SizedBox(height: 10),
-          _buildChildButton(
-            label: 'Backup Darurat (JSON)',
-            icon: Icons.vibration_rounded,
-            color: Colors.purple.shade700,
-            onTap: _performEmergencyBackup,
-          ),
-          const SizedBox(height: 14),
-        ],
-        FloatingActionButton(
-          heroTag: 'urgent_trigger_fab',
-          backgroundColor: _isOpen ? Colors.black : Colors.red.shade900,
-          onPressed: _toggle,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            transitionBuilder: (child, anim) => RotationTransition(
-              turns: child.key == const ValueKey('icon1')
-                  ? Tween<double>(begin: 0.75, end: 1.0).animate(anim)
-                  : Tween<double>(begin: 0.0, end: 0.25).animate(anim),
-              child: child,
-            ),
-            child: _isOpen
-                ? const Icon(Icons.close, color: Colors.white, key: ValueKey('icon1'))
-                : const Icon(Icons.warning_amber_rounded, color: Colors.white, key: ValueKey('icon2')),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildChildButton({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return SizeTransition(
-      sizeFactor: _expandAnimation,
-      child: FadeTransition(
-        opacity: _expandAnimation,
-        child: Row(
+/// Helper Dialog & Logika Aksi Darurat Inventaris
+class InventoryEmergencyDialogs {
+  /// Modal Pilihan Menu Darurat
+  static void showEmergencyMenuModal(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Card(
-              color: Colors.grey.shade900,
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                child: Text(
-                  label,
-                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                Icon(Icons.report_problem, color: Colors.red.shade800),
+                const SizedBox(width: 8),
+                Text(
+                  'Aksi Darurat Inventaris',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade900),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(width: 8),
-            FloatingActionButton.small(
-              heroTag: 'urgent_child_${label.hashCode}',
-              backgroundColor: color,
-              onPressed: () {
-                _toggle();
-                onTap();
+            const Divider(),
+            ListTile(
+              leading: Icon(Icons.gavel_rounded, color: Colors.red.shade700),
+              title: const Text('Penyesuaian Stok Paksa (Opname)'),
+              subtitle: const Text('Koreksi stok langsung untuk barang rusak/hilang'),
+              onTap: () {
+                Navigator.pop(ctx);
+                showEmergencyStockDialog(context, ref);
               },
-              child: Icon(icon, color: Colors.white, size: 18),
+            ),
+            ListTile(
+              leading: Icon(Icons.monetization_on, color: Colors.amber.shade900),
+              title: const Text('Ubah Harga Jual Darurat'),
+              subtitle: const Text('Timpa harga jual umum secara kilat'),
+              onTap: () {
+                Navigator.pop(ctx);
+                showQuickPriceDialog(context, ref);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.backup_rounded, color: Colors.purple.shade700),
+              title: const Text('Ekspor JSON Cadangan Darurat'),
+              subtitle: const Text('Salin mentah data katalog jika sistem kendala'),
+              onTap: () {
+                Navigator.pop(ctx);
+                performEmergencyBackup(context, ref);
+              },
             ),
           ],
         ),
@@ -154,7 +78,8 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
     );
   }
 
-  void _showEmergencyStockDialog() {
+  /// 1. Dialog Koreksi Stok Paksa
+  static void showEmergencyStockDialog(BuildContext context, WidgetRef ref) {
     final skuCtrl = TextEditingController();
     final qtyCtrl = TextEditingController();
     String alasan = 'Rusak';
@@ -162,10 +87,9 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
         title: Row(
           children: [
-            Icon(Icons.report_problem, color: Colors.red.shade800),
+            Icon(Icons.warning, color: Colors.red.shade800),
             const SizedBox(width: 8),
             const Text('Koreksi Stok Fisik', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ],
@@ -178,6 +102,7 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
               decoration: const InputDecoration(
                 labelText: 'Scan Barcode / Input SKU',
                 prefixIcon: Icon(Icons.qr_code_scanner),
+                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 10),
@@ -185,33 +110,61 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
               controller: qtyCtrl,
               keyboardType: const TextInputType.numberWithOptions(signed: true),
               decoration: const InputDecoration(
-                labelText: 'Jumlah Perubahan (e.g. -5 atau 2)',
+                labelText: 'Jumlah Penyesuaian (Contoh: -5 atau 10)',
                 prefixIcon: Icon(Icons.exposure),
+                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               value: alasan,
-              items: ['Rusak', 'Hilang / Pencurian', 'Salah Input Sebelumnya', 'Expired']
+              items: ['Rusak', 'Hilang / Pencurian', 'Salah Input', 'Expired']
                   .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                   .toList(),
               onChanged: (v) => alasan = v ?? 'Rusak',
-              decoration: const InputDecoration(labelText: 'Alasan Penyesuaian'),
+              decoration: const InputDecoration(
+                labelText: 'Alasan Penyesuaian',
+                border: OutlineInputBorder(),
+              ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('BATAL')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('BATAL', style: TextStyle(color: Colors.grey)),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
-            onPressed: () {
-              if (skuCtrl.text.isNotEmpty && qtyCtrl.text.isNotEmpty) {
-                Navigator.pop(ctx);
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Stok SKU ${skuCtrl.text} disesuaikan sebanyak ${qtyCtrl.text} ($alasan)'),
-                  backgroundColor: Colors.red.shade800,
-                ));
+            onPressed: () async {
+              final sku = skuCtrl.text.trim();
+              final qtyChange = double.tryParse(qtyCtrl.text.trim()) ?? 0;
+
+              if (sku.isNotEmpty && qtyChange != 0) {
+                final db = ref.read(localDatabaseProvider);
+                
+                // Eksekusi update langsung ke database SQLite
+                final product = await (db.select(db.products)..where((t) => t.id.equals(sku))).getSingleOrNull();
+                
+                if (product != null) {
+                  final newStock = product.stock + qtyChange;
+                  await (db.update(db.products)..where((t) => t.id.equals(sku)))
+                      .write(ProductsCompanion(stock: Value(newStock)));
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Stok ${product.name} diperbarui menjadi $newStock Pcs ($alasan)'),
+                      backgroundColor: Colors.red.shade800,
+                    ));
+                    Navigator.pop(ctx);
+                  }
+                } else {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('SKU tidak ditemukan di database!')),
+                    );
+                  }
+                }
               }
             },
             child: const Text('EKSEKUSI STOK', style: TextStyle(color: Colors.white)),
@@ -221,7 +174,8 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
     );
   }
 
-  void _showQuickPriceDialog() {
+  /// 2. Dialog Timpa Harga Kilat
+  static void showQuickPriceDialog(BuildContext context, WidgetRef ref) {
     final skuCtrl = TextEditingController();
     final priceCtrl = TextEditingController();
 
@@ -234,13 +188,13 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
           children: [
             TextField(
               controller: skuCtrl,
-              decoration: const InputDecoration(labelText: 'Masukkan SKU / Kode Barang'),
+              decoration: const InputDecoration(labelText: 'Kode Barang / SKU', border: OutlineInputBorder()),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: priceCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Harga Jual Baru (Rp)', prefixText: 'Rp '),
+              decoration: const InputDecoration(labelText: 'Harga Jual Baru (Rp)', prefixText: 'Rp ', border: OutlineInputBorder()),
             ),
           ],
         ),
@@ -248,14 +202,28 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('BATAL')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.amber.shade900),
-            onPressed: () {
-              if (skuCtrl.text.isNotEmpty && priceCtrl.text.isNotEmpty) {
-                Navigator.pop(ctx);
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Harga SKU ${skuCtrl.text} diperbarui menjadi Rp ${priceCtrl.text}'),
-                  backgroundColor: Colors.amber.shade900,
-                ));
+            onPressed: () async {
+              final sku = skuCtrl.text.trim();
+              final newPrice = double.tryParse(priceCtrl.text.trim()) ?? 0;
+
+              if (sku.isNotEmpty && newPrice > 0) {
+                final db = ref.read(localDatabaseProvider);
+                final updatedRows = await (db.update(db.products)..where((t) => t.id.equals(sku)))
+                    .write(ProductsCompanion(sellPriceGeneral: Value(newPrice)));
+
+                if (context.mounted) {
+                  if (updatedRows > 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Harga SKU $sku berhasil diubah menjadi Rp $newPrice'),
+                      backgroundColor: Colors.amber.shade900,
+                    ));
+                    Navigator.pop(ctx);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('SKU Produk tidak terdaftar.')),
+                    );
+                  }
+                }
               }
             },
             child: const Text('UPDATE HARGA', style: TextStyle(color: Colors.white)),
@@ -265,67 +233,73 @@ class _InventoryEmergencyFabState extends ConsumerState<InventoryEmergencyFab>
     );
   }
 
-  void _performEmergencyBackup() {
-    final List<Map<String, dynamic>> dummyBackupData = [
-      {"sku": "BRG001", "nama": "Semen Gresik 50kg", "stok": 120, "harga": 65000},
-      {"sku": "BRG002", "nama": "Paku Payung Kotak", "stok": 45, "harga": 12000},
-    ];
+  /// 3. Ekspor Data Cadangan JSON Darurat
+  static Future<void> performEmergencyBackup(BuildContext context, WidgetRef ref) async {
+    final db = ref.read(localDatabaseProvider);
+    final allProducts = await db.select(db.products).get();
 
-    // Hapus kata 'const' dari JsonEncoder.withIndent
-    final rawJsonDump = JsonEncoder.withIndent('  ').convert(dummyBackupData);
+    List<Map<String, dynamic>> dumpList = allProducts.map((p) => {
+      'id': p.id,
+      'name': p.name,
+      'barcode': p.barcode,
+      'buyPrice': p.buyPrice,
+      'sellPriceGeneral': p.sellPriceGeneral,
+      'stock': p.stock,
+      'categoryId': p.categoryId,
+    }).toList();
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.security, color: Colors.purple),
-            SizedBox(width: 8),
-            Text('Ekspor Data Darurat', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Salin teks JSON ini ke media penyimpanan luar jika sistem bermasalah:',
-              style: TextStyle(fontSize: 11, color: Colors.black54),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              height: 150,
-              width: double.maxFinite,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: SingleChildScrollView(
-                child: SelectableText(
-                  rawJsonDump,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.blueGrey),
+    String rawJsonDump = const JsonEncoder.withIndent('  ').convert(dumpList);
+
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.security, color: Colors.purple),
+              SizedBox(width: 8),
+              Text('Ekspor JSON Darurat', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Data katalog mentah berhasil di-generate. Anda dapat menyalin teks ini:', style: TextStyle(fontSize: 11, color: Colors.black54)),
+              const SizedBox(height: 8),
+              Container(
+                height: 180,
+                width: double.maxFinite,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    rawJsonDump,
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.blueGrey),
+                  ),
                 ),
               ),
-            ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('TUTUP')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade800),
+              onPressed: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Teks data cadangan disiapkan untuk disalin.')),
+                );
+              },
+              child: const Text('SALIN TEKS', style: TextStyle(color: Colors.white)),
+            )
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('TUTUP')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade800),
-            onPressed: () {
-              Navigator.pop(ctx);
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('Data siap disalin dari dialog ekspor.'),
-              ));
-            },
-            child: const Text('SALIN TEKS', style: TextStyle(color: Colors.white)),
-          )
-        ],
-      ),
-    );
+      );
+    }
   }
 }
