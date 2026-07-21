@@ -37,15 +37,29 @@ class ProductPage extends ConsumerStatefulWidget {
   ConsumerState<ProductPage> createState() => _ProductPageState();
 }
 
-class _ProductPageState extends ConsumerState<ProductPage> {
+class _ProductPageState extends ConsumerState<ProductPage>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce;
+  
   int _fabMenuLevel = 0; // 0 = Tertutup, 1 = Menu Utama FAB, 2 = Sub-Menu Aksi Cepat
+  late AnimationController _fabController;
+
+  @override
+  void initState() {
+    super.initState();
+    // Inisialisasi controller untuk mengendalikan staggered animation
+    _fabController = AnimationController(
+      duration: const Duration(milliseconds: 450),
+      vsync: this,
+    );
+  }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
     _debounce?.cancel();
+    _fabController.dispose();
     super.dispose();
   }
 
@@ -56,8 +70,24 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     });
   }
 
-  /// Helper tombol radial anti-tabrakan dengan IgnorePointer & radius presisi
-  Widget _buildRadialButton({
+  /// Helper untuk mengganti level menu FAB dengan animasi maju/mundur yang mulus
+  void _changeFabLevel(int newLevel) {
+    if (newLevel == 0) {
+      // Tutup menu berurutan secara terbalik
+      _fabController.reverse().then((_) {
+        if (mounted) {
+          setState(() => _fabMenuLevel = 0);
+        }
+      });
+    } else {
+      setState(() => _fabMenuLevel = newLevel);
+      _fabController.forward(from: 0.0); // Jalankan animasi staggered dari awal
+    }
+  }
+
+  /// Helper tombol radial berurutan (Staggered Animation)
+  Widget _buildStaggeredRadialButton({
+    required int index,
     required double angleDegree,
     required double radius,
     required bool isVisible,
@@ -66,33 +96,51 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     required VoidCallback onPressed,
     String? heroTag,
   }) {
+    if (!isVisible) return const SizedBox.shrink();
+
+    // Kalkulasi interval waktu muncul berdasarkan indeks tombol
+    const double step = 0.12;
+    final double start = (index * step).clamp(0.0, 0.6);
+    final double end = (start + 0.55).clamp(0.0, 1.0);
+
+    final Animation<double> animation = CurvedAnimation(
+      parent: _fabController,
+      curve: Interval(start, end, curve: Curves.easeOutBack),
+      reverseCurve: Interval(start, end, curve: Curves.easeInBack),
+    );
+
     final rad = angleDegree * math.pi / 180;
     final dx = math.cos(rad) * radius;
     final dy = math.sin(rad) * radius;
 
-    return IgnorePointer(
-      ignoring: !isVisible,
-      child: AnimatedScale(
-        scale: isVisible ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutBack,
-        child: AnimatedOpacity(
-          opacity: isVisible ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 180),
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, childWidget) {
+        final progress = animation.value;
+
+        return IgnorePointer(
+          ignoring: !isVisible || progress < 0.5,
           child: Transform.translate(
-            offset: Offset(dx, dy),
-            child: SizedBox(
-              width: 42,
-              height: 42,
-              child: FloatingActionButton.small(
-                heroTag: heroTag,
-                elevation: 4,
-                backgroundColor: backgroundColor,
-                onPressed: isVisible ? onPressed : null,
-                child: child,
+            offset: Offset(dx * progress, dy * progress),
+            child: Transform.scale(
+              scale: progress.clamp(0.0, 1.0),
+              child: Opacity(
+                opacity: progress.clamp(0.0, 1.0),
+                child: childWidget,
               ),
             ),
           ),
+        );
+      },
+      child: SizedBox(
+        width: 42,
+        height: 42,
+        child: FloatingActionButton.small(
+          heroTag: heroTag,
+          elevation: 4,
+          backgroundColor: backgroundColor,
+          onPressed: isVisible ? onPressed : null,
+          child: child,
         ),
       ),
     );
@@ -228,11 +276,11 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         },
       ),
 
-      // CONFIGURATION RADIAL MULTI-FAB ANTI-TABRAKAN
+      // CONFIGURATION RADIAL MULTI-FAB STAGGERED ANIMATION
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: SizedBox(
-        width: 200,
-        height: 200,
+        width: 300,
+        height: 300,
         child: Stack(
           alignment: Alignment.bottomRight,
           clipBehavior: Clip.none,
@@ -243,7 +291,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             // ==========================================
 
             // OPSI 1: DARURAT LAPANGAN (KIRI MURNI / 180°)
-            _buildRadialButton(
+            _buildStaggeredRadialButton(
+              index: 0,
               heroTag: 'opt_1_emergency',
               angleDegree: 180,
               radius: 120,
@@ -252,14 +301,14 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               child: const Icon(Icons.warning_amber_rounded,
                   color: Colors.white, size: 20),
               onPressed: () {
-                setState(() => _fabMenuLevel = 0);
-                // [MERGE-IN]: Memanggil Dialog / BottomSheet Stok Darurat
+                _changeFabLevel(0);
                 InventoryEmergencyFab.showEmergencyDialog(context, ref);
               },
             ),
 
             // OPSI 2: AKSI CEPAT (SERONG KIRI ATAS / 210°)
-            _buildRadialButton(
+            _buildStaggeredRadialButton(
+              index: 1,
               heroTag: 'opt_2_quick_actions',
               angleDegree: 210,
               radius: 120,
@@ -267,12 +316,13 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               backgroundColor: const Color(0xFF007F00),
               child: const Icon(Icons.flash_on, color: Colors.white, size: 20),
               onPressed: () {
-                setState(() => _fabMenuLevel = 2); // Buka Sub-menu Level 2
+                _changeFabLevel(2); // Buka Sub-menu Level 2 secara Staggered
               },
             ),
 
             // OPSI 3: TAMBAH ITEM BARU (SERONG ATAS KIRI / 240°)
-            _buildRadialButton(
+            _buildStaggeredRadialButton(
+              index: 2,
               heroTag: 'opt_3_add_product',
               angleDegree: 240,
               radius: 120,
@@ -280,20 +330,21 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               backgroundColor: const Color(0xFF00A65A),
               child: const Icon(Icons.add, color: Colors.white, size: 20),
               onPressed: () {
-                setState(() => _fabMenuLevel = 0);
+                _changeFabLevel(0);
                 _openFormMasterBarang(context);
               },
             ),
 
             // CLOSE LEVEL 1 (ATAS MURNI / 270°)
-            _buildRadialButton(
+            _buildStaggeredRadialButton(
+              index: 3,
               heroTag: 'opt_close_level1',
               angleDegree: 270,
               radius: 120,
               isVisible: _fabMenuLevel == 1,
               backgroundColor: Colors.black87,
               child: const Icon(Icons.close, color: Colors.white, size: 18),
-              onPressed: () => setState(() => _fabMenuLevel = 0),
+              onPressed: () => _changeFabLevel(0),
             ),
 
             // ==========================================
@@ -302,7 +353,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             // ==========================================
 
             // SUB 2.1: SCAN BARCODE (180°)
-            _buildRadialButton(
+            _buildStaggeredRadialButton(
+              index: 0,
               heroTag: 'sub_2_1_scan',
               angleDegree: 180,
               radius: 120,
@@ -311,14 +363,14 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               child: const Icon(Icons.qr_code_scanner,
                   color: Colors.white, size: 20),
               onPressed: () {
-                setState(() => _fabMenuLevel = 0);
-                // [MERGE-IN]: Aksi Scan Barcode
+                _changeFabLevel(0);
                 ProductQuickActions.scanBarcode(context, ref);
               },
             ),
 
             // SUB 2.2: EDIT STOK (210°)
-            _buildRadialButton(
+            _buildStaggeredRadialButton(
+              index: 1,
               heroTag: 'sub_2_2_stock',
               angleDegree: 210,
               radius: 120,
@@ -327,14 +379,14 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               child: const Icon(Icons.edit_note,
                   color: Colors.white, size: 20),
               onPressed: () {
-                setState(() => _fabMenuLevel = 0);
-                // [MERGE-IN]: Aksi Edit Stok Cepat
+                _changeFabLevel(0);
                 ProductQuickActions.showQuickStockDialog(context, ref);
               },
             ),
 
             // SUB 2.3: PRINT LABEL (240°)
-            _buildRadialButton(
+            _buildStaggeredRadialButton(
+              index: 2,
               heroTag: 'sub_2_3_print',
               angleDegree: 240,
               radius: 120,
@@ -342,42 +394,41 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               backgroundColor: const Color(0xFF007F00),
               child: const Icon(Icons.print, color: Colors.white, size: 20),
               onPressed: () {
-                setState(() => _fabMenuLevel = 0);
-                // [MERGE-IN]: Aksi Print Label
+                _changeFabLevel(0);
                 ProductQuickActions.showPrintLabelDialog(context, ref);
               },
             ),
 
             // BACK LEVEL 2 (270°)
-            _buildRadialButton(
+            _buildStaggeredRadialButton(
+              index: 3,
               heroTag: 'sub_back_level2',
               angleDegree: 270,
               radius: 120,
               isVisible: _fabMenuLevel == 2,
               backgroundColor: Colors.orange.shade900,
               child: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
-              onPressed: () => setState(() => _fabMenuLevel = 1),
+              onPressed: () => _changeFabLevel(1),
             ),
 
             // ==========================================
-            // MASTER TRIGGER FAB
+            // MASTER TRIGGER FAB WITH ANIMATED ICON
             // ==========================================
             FloatingActionButton(
               heroTag: 'main_master_fab_trigger',
               backgroundColor:
                   _fabMenuLevel > 0 ? Colors.black : const Color(0xFF00A65A),
               onPressed: () {
-                setState(() {
-                  _fabMenuLevel = _fabMenuLevel == 0 ? 1 : 0;
-                });
+                if (_fabMenuLevel == 0) {
+                  _changeFabLevel(1);
+                } else {
+                  _changeFabLevel(0);
+                }
               },
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: _fabMenuLevel > 0
-                    ? const Icon(Icons.close,
-                        color: Colors.white, key: ValueKey('close_icon'))
-                    : const Icon(Icons.menu,
-                        color: Colors.white, key: ValueKey('menu_icon')),
+              child: AnimatedIcon(
+                icon: AnimatedIcons.menu_close,
+                progress: _fabController,
+                color: Colors.white,
               ),
             ),
           ],
@@ -646,7 +697,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   }
 }
 
-/// KOMPONEN BOTTOM SHEET: Kompleks Form Form Input 8 Klaster Inti IPOS
+/// KOMPONEN BOTTOM SHEET: Kompleks Form Input 8 Klaster Inti IPOS
 class FormMasterBarangSheet extends ConsumerWidget {
   const FormMasterBarangSheet({super.key});
 
@@ -719,7 +770,6 @@ class FormMasterBarangSheet extends ConsumerWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 10),
           _buildSectionHeader('2. Kategori & Klasifikasi Lokasi'),
           Row(
