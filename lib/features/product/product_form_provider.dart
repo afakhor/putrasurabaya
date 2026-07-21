@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import '../../core/database/local_database.dart';
 
-/// State penampung data form produk yang kompleks
 class ProductFormState {
   final String id;
   final String name;
@@ -35,7 +34,6 @@ class ProductFormState {
   final DateTime? expiryDate;
   final String statusActive;
 
-  // Relasi Sub-Tabel
   final List<ProductUnitData> units;
   final List<ProductVariantData> variants;
   final List<String> imagePaths;
@@ -73,7 +71,6 @@ class ProductFormState {
     this.imagePaths = const [],
   });
 
-  /// Otomatis hitung profit margin dalam persen
   double get marginPercentage {
     if (sellPriceGeneral <= 0) return 0;
     return ((sellPriceGeneral - buyPrice) / sellPriceGeneral) * 100;
@@ -161,7 +158,6 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
     );
   }
 
-  /// Tambah Konversi Multi-Satuan Grosir
   void addUnit(String unitName, int conversion, double buy, double sell, String? bcode) {
     final newUnit = ProductUnitData(
       id: 'UNT-${DateTime.now().millisecondsSinceEpoch}-${state.units.length}',
@@ -175,79 +171,37 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
     state = state.copyWith(units: state.units.where((e) => e.id != id).toList());
   }
 
-  /// ==========================================
-  /// CLUSTER MANAJEMEN VARIAN (MANUAL & OTOMATIS)
-  /// ==========================================
-
-  /// 1. Otomatis Generate Matriks Varian Kombinasi Atribut
-  void generateVariants({required List<String> warnaList, required List<String> ukuranList}) {
-    List<ProductVariantData> generated = [];
-    int counter = 1;
-
-    List<String> wList = warnaList.isEmpty ? [''] : warnaList;
-    List<String> uList = ukuranList.isEmpty ? [''] : ukuranList;
-
-    for (var w in wList) {
-      for (var u in uList) {
-        String variantName = '${state.name} ${w.trim()} ${u.trim()}'.trim();
-        String skuVariant = '${state.id}-V$counter';
-
-        generated.add(ProductVariantData(
-          id: 'VAR-${DateTime.now().millisecondsSinceEpoch}-$counter',
-          productId: state.id,
-          skuVariant: skuVariant,
-          variantName: variantName,
-          barcode: '',
-          stock: 0,
-          sellPrice: state.sellPriceGeneral,
-        ));
-        counter++;
-      }
-    }
-    state = state.copyWith(variants: generated);
-  }
-
-  /// 2. Tambah Varian Baru Secara Manual (Dipanggil dari UI Kluster 5)
-  void addManualVariant({
-    required String skuId,
-    required String defaultName,
-    required double defaultPrice,
-  }) {
+  /// PERBAIKAN: Penambahan method addManualVariant untuk Form Master
+  void addManualVariant({required String skuId, required String defaultName, required double defaultPrice}) {
     final newVariant = ProductVariantData(
-      id: 'VAR-${DateTime.now().millisecondsSinceEpoch}-${state.variants.length + 1}',
+      id: skuId,
       productId: state.id,
-      skuVariant: skuId, // Membawa format +Vxxx otomatis dari UI
+      skuVariant: skuId,
       variantName: defaultName,
       barcode: '',
       stock: 0,
       sellPrice: defaultPrice,
     );
-
-    state = state.copyWith(
-      variants: [...state.variants, newVariant],
-    );
+    state = state.copyWith(variants: [...state.variants, newVariant]);
   }
 
-  /// 3. Hapus Varian Berdasarkan ID Kunci Row
+  /// PERBAIKAN: Penambahan method removeVariant untuk Form Master
   void removeVariant(String id) {
-    state = state.copyWith(
-      variants: state.variants.where((v) => v.id != id).toList(),
-    );
+    state = state.copyWith(variants: state.variants.where((v) => v.id != id).toList());
   }
 
-  /// 4. Update Detail Varian (Mendukung Perubahan Nama, Stok, Harga, dan Barcode)
-  void updateVariantDetail(String id, {double? stock, double? price, String? barcode, String? variantName}) {
+  void updateVariantDetail(String id, {String? name, double? stock, double? price, String? barcode}) {
     state = state.copyWith(
       variants: [
         for (var v in state.variants)
           if (v.id == id)
             ProductVariantData(
-              id: v.id, 
-              productId: v.productId, 
+              id: v.id,
+              productId: v.productId,
               skuVariant: v.skuVariant,
-              variantName: variantName ?? v.variantName, // Menerima update nama manual
+              variantName: name ?? v.variantName,
               barcode: barcode ?? v.barcode,
-              stock: stock ?? v.stock, 
+              stock: stock ?? v.stock,
               sellPrice: price ?? v.sellPrice,
             )
           else v
@@ -255,21 +209,11 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
     );
   }
 
-  /// ==========================================
-  /// ASSET GAMBAR & OPERASI DATABASE LOCAL
-  /// ==========================================
-
-  void addImage(String path) {
-    state = state.copyWith(imagePaths: [...state.imagePaths, path]);
-  }
-
-  /// Eksekusi Simpan database lokal menggunakan transaksi atomik Drift
   Future<bool> saveProduct() async {
     if (state.name.isEmpty) return false;
 
     try {
       await _db.transaction(() async {
-        // 1. Simpan/Update Tabel Induk Produk
         await _db.into(_db.products).insertOnConflictUpdate(
           ProductsCompanion.insert(
             id: state.id,
@@ -302,19 +246,16 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
           ),
         );
 
-        // 2. Bersihkan & Tulis Ulang Tabel Unit Konversi
         await (_db.delete(_db.productUnits)..where((t) => t.productId.equals(state.id))).go();
         for (var item in state.units) {
           await _db.into(_db.productUnits).insert(item);
         }
 
-        // 3. Bersihkan & Tulis Ulang Tabel Varian
         await (_db.delete(_db.productVariants)..where((t) => t.productId.equals(state.id))).go();
         for (var item in state.variants) {
           await _db.into(_db.productVariants).insert(item);
         }
 
-        // 4. Hubungkan Aset Gambar
         await (_db.delete(_db.productAssets)..where((t) => t.productId.equals(state.id))).go();
         for (int i = 0; i < state.imagePaths.length; i++) {
           await _db.into(_db.productAssets).insert(ProductAssetData(
