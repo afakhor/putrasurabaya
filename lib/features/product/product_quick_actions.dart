@@ -37,7 +37,16 @@ class ProductQuickActions {
       const SnackBar(content: Text('Menyiapkan pencetakan label barcode...')),
     );
   }
-}
+
+  // === TARUH DI SINI, MASIH DI DALAM CLASS ===
+  static void showEmergencyPrice(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ubah Harga Kilat...')));
+  }
+  
+  static void showEmergencyBackup(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup JSON...')));
+  }
+} // <-- kurung tutup class ProductQuickActions
 
 class SpeedDialItem {
   final IconData icon;
