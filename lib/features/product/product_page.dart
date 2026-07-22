@@ -1,21 +1,20 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/database/local_database.dart';
 import '../../core/utils/format_rupiah.dart';
 import 'product_form_provider.dart';
 import 'product_form_dialogs.dart';
-import '../../core/utils/radial_half_circle_fab.dart';
 import 'inventory_emergency_fab.dart';
 import 'product_quick_actions.dart';
 
-
+// State Provider internal untuk sistem filter
 final searchQueryProvider = StateProvider<String>((ref) => '');
 final filterCategoryProvider = StateProvider<String?>((ref) => null);
-final filterStockStatusProvider = StateProvider<String?>((ref) => null);
-final sortByProvider = StateProvider<String>((ref) => 'name_asc');
+final filterStockStatusProvider = StateProvider<String?>((ref) => null); // 'menipis', 'habis', 'aman'
+final sortByProvider = StateProvider<String>((ref) => 'name_asc'); // name_asc, price_desc, stock_asc
 
+/// Data model pembawa metrik kalkulasi ringkasan inventaris
 class CatalogSummary {
   final int totalSKU;
   final double totalAssetValue;
@@ -26,7 +25,6 @@ class CatalogSummary {
 
 class ProductPage extends ConsumerStatefulWidget {
   const ProductPage({super.key});
-
   @override
   ConsumerState<ProductPage> createState() => _ProductPageState();
 }
@@ -53,6 +51,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   Widget build(BuildContext context) {
     final db = ref.watch(localDatabaseProvider);
 
+    // Watch status filter & sorting
     final query = ref.watch(searchQueryProvider);
     final catFilter = ref.watch(filterCategoryProvider);
     final stockFilter = ref.watch(filterStockStatusProvider);
@@ -69,6 +68,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
 
           final rawProducts = snapshot.data!;
 
+          // 1. HITUNG METRIKA RINGKASAN BARANG (SUMMARY CARDS)
           double totalHppAsset = 0;
           int lowStock = 0;
           int nonAktif = 0;
@@ -81,6 +81,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             categories.add(p.categoryId);
           }
 
+          // 2. TERAPKAN FILTER LOGIK KUSTOM
           List<ProductData> filteredList = rawProducts.where((p) {
             final matchesQuery = p.name.toLowerCase().contains(query) ||
                 (p.shortName ?? '').toLowerCase().contains(query) ||
@@ -97,6 +98,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             return matchesQuery && matchesCategory && matchesStock;
           }).toList();
 
+          // 3. PROSES SORT ENGINE
           filteredList.sort((a, b) {
             switch (sortRule) {
               case 'name_desc': return b.name.compareTo(a.name);
@@ -111,7 +113,10 @@ class _ProductPageState extends ConsumerState<ProductPage> {
 
           return Column(
             children: [
+              // PANEL SEARCH BAR & ENGINE FILTER QUICK CHIPS
               _buildTopActionBar(context, categories.toList()),
+
+              // LIVE SUMMARY DISPLAY CARDS
               _buildSummaryRow(
                 summary: CatalogSummary(
                   totalSKU: rawProducts.length,
@@ -120,6 +125,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   inactiveCount: nonAktif,
                 ),
               ),
+
+              // DATA GRID LIST UTAMA CATALOG
               Expanded(
                 child: filteredList.isEmpty
                     ? const Center(child: Text('Data barang tidak ditemukan.'))
@@ -152,175 +159,39 @@ class _ProductPageState extends ConsumerState<ProductPage> {
           );
         },
       ),
-
-      // POSISI FAB DI POJOK KANAN BAWAH
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: RadialHalfCircleFab(
-        onAddProduct: () => _openFormMasterBarang(context),
-        onEmergencyStock: () => _showEmergencyStockDialog(),
-        onEmergencyPrice: () => _showQuickPriceDialog(),
-        onEmergencyBackup: () => _performEmergencyBackup(),
-        onScan: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Membuka Mode Scan Barcode...'))),
-        onQuickStock: () => _showEmergencyStockDialog(),
-        onPrintLabel: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mencetak Label Barcode Thermal...'))),
-        onAddCategory: () async {
-          String? newCat = await ProductFormDialogs.showQuickTextDialog(context: context, title: 'Tambah Kategori', labelField: 'Nama Kategori Baru');
-          if (newCat != null && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kategori "$newCat" berhasil didaftarkan.')));
-          }
-        },
-      ),
-    );
-  }
-
-  // ================= METODE HANDLER DIALOG AKSI RADIAL =================
-
-  void _showEmergencyStockDialog() {
-    final skuCtrl = TextEditingController();
-    final qtyCtrl = TextEditingController();
-    String alasan = 'Rusak';
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
+      
+      // CONFIGURATION MULTI-FAB BARU (KIRI DAN KANAN)
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Icon(Icons.report_problem, color: Colors.red.shade800),
-            const SizedBox(width: 8),
-            const Text('Koreksi Stok Fisik', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: skuCtrl,
-              decoration: const InputDecoration(labelText: 'Scan Barcode / Input SKU', prefixIcon: Icon(Icons.qr_code_scanner)),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: qtyCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Jumlah Penyesuaian (e.g. -5)', prefixIcon: Icon(Icons.exposure)),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: alasan,
-              items: ['Rusak', 'Hilang / Pencurian', 'Salah Input', 'Expired']
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: (v) => alasan = v ?? 'Rusak',
-              decoration: const InputDecoration(labelText: 'Alasan Penyesuaian'),
+            // SISI KIRI: Tombol-tombol Urgent & Darurat Lapangan (Warna Merah)
+            const InventoryEmergencyFab(),
+
+            // SISI KANAN: Integrasi Quick Actions & Akses Form Master Barang Utama
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const ProductQuickActionsFab(),
+                const SizedBox(width: 12),
+                FloatingActionButton.extended(
+                  heroTag: 'main_add_product_btn',
+                  backgroundColor: const Color(0xFF00A65A),
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text('TAMBAH BARANG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  onPressed: () => _openFormMasterBarang(context),
+                ),
+              ],
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('BATAL')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
-            onPressed: () {
-              if (skuCtrl.text.isNotEmpty && qtyCtrl.text.isNotEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Stok SKU ${skuCtrl.text} disesuaikan ${qtyCtrl.text} Pcs karena $alasan'),
-                  backgroundColor: Colors.red.shade800,
-                ));
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('EKSEKUSI STOK', style: TextStyle(color: Colors.white)),
-          )
-        ],
       ),
     );
   }
-
-  void _showQuickPriceDialog() {
-    final skuCtrl = TextEditingController();
-    final priceCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Ubah Harga Jual Kilat', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: skuCtrl, decoration: const InputDecoration(labelText: 'Masukkan SKU / Kode Barang')),
-            const SizedBox(height: 10),
-            TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Harga Jual Baru (Rp)', prefixText: 'Rp ')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('BATAL')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.amber.shade900),
-            onPressed: () {
-              if (skuCtrl.text.isNotEmpty && priceCtrl.text.isNotEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Harga SKU ${skuCtrl.text} berhasil diperbarui menjadi Rp ${priceCtrl.text}'),
-                  backgroundColor: Colors.amber.shade900,
-                ));
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('UPDATE HARGA', style: TextStyle(color: Colors.white)),
-          )
-        ],
-      ),
-    );
-  }
-
-  void _performEmergencyBackup() {
-    final List<Map<String, dynamic>> dummyBackupData = [
-      {"sku": "BRG001", "nama": "Semen Gresik 50kg", "stok": 120, "harga": 65000},
-      {"sku": "BRG002", "nama": "Paku Payung Kotak", "stok": 45, "harga": 12000},
-    ];
-
-    String rawJsonDump = const JsonEncoder.withIndent('  ').convert(dummyBackupData);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.security, color: Colors.purple),
-            SizedBox(width: 8),
-            Text('Ekspor Data Darurat', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Gunakan teks JSON di bawah untuk disalin secara manual jika terjadi gangguan sistem:', style: TextStyle(fontSize: 11, color: Colors.black54)),
-            const SizedBox(height: 8),
-            Container(
-              height: 150,
-              width: double.maxFinite,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.grey.shade300)),
-              child: SingleChildScrollView(
-                child: SelectableText(rawJsonDump, style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.blueGrey)),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('TUTUP')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade800),
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Teks data cadangan siap disalin.')));
-            },
-            child: const Text('SALIN TEKS', style: TextStyle(color: Colors.white)),
-          )
-        ],
-      ),
-    );
-  }
-
-  // ================= UI BUILDER COMPONENTS =================
 
   Widget _buildTopActionBar(BuildContext context, List<String> categories) {
     return Container(
@@ -353,6 +224,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   const PopupMenuItem(value: 'price_asc', child: Text('Harga Terendah')),
                   const PopupMenuItem(value: 'stock_asc', child: Text('Stok Terkecil')),
                   const PopupMenuItem(value: 'stock_desc', child: Text('Stok Terbesar')),
+                  const PopupMenuItem(value: 'hpp_desc', child: Text('Nilai Modal Termahal')),
                 ],
               )
             ],
@@ -376,12 +248,12 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                 ),
                 const SizedBox(width: 6),
                 ChoiceChip(
-                  label: const Text('Stok Habis'),
+                  label: const Text('Stok Habis / Minus'),
                   selected: ref.watch(filterStockStatusProvider) == 'habis',
                   selectedColor: Colors.red.shade200,
                   onSelected: (s) => ref.read(filterStockStatusProvider.notifier).state = s ? 'habis' : null,
                 ),
-                const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: SizedBox(height: 20, child: VerticalDivider())),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: VerticalDivider(height: 20)),
                 for (var cat in categories) ...[
                   ChoiceChip(
                     label: Text(cat),
@@ -449,8 +321,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       color: prod.statusActive == 'aktif' ? Colors.white : Colors.grey.shade200,
       child: ListTile(
         leading: Container(
-          width: 46,
-          height: 46,
+          width: 46, height: 46,
           decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
           child: const Icon(Icons.image_not_supported, color: Colors.grey),
         ),
@@ -492,12 +363,14 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     final db = ref.read(localDatabaseProvider);
 
     if (product != null) {
+      // Ambil detail relasi tabel sub dari SQLite sebelum form dibuka
       final units = await (db.select(db.productUnits)..where((t) => t.productId.equals(product.id))).get();
       final variants = await (db.select(db.productVariants)..where((t) => t.productId.equals(product.id))).get();
       final assets = await (db.select(db.productAssets)..where((t) => t.productId.equals(product.id))).get();
 
       notifier.setProduct(product, units, variants, assets.map((e) => e.imagePath).toList());
     } else {
+      // Reset form ke mode ID baru auto-generated
       ref.invalidate(productFormProvider);
     }
 
@@ -515,6 +388,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   }
 }
 
+/// KOMPONEN BOTTOM SHEET: Kompleks Form Form Input 8 Klaster Inti IPOS
 class FormMasterBarangSheet extends ConsumerWidget {
   const FormMasterBarangSheet({super.key});
 
@@ -542,7 +416,8 @@ class FormMasterBarangSheet extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildSectionHeader('1. Identitas Produk'),
+          // KLASTER 1: IDENTITY
+          _buildSectionHeader('1. Identitas Produk (Product Identity)'),
           TextFormField(
             initialValue: state.id,
             decoration: const InputDecoration(labelText: 'SKU / ID Produk (Auto)', border: OutlineInputBorder()),
@@ -551,7 +426,7 @@ class FormMasterBarangSheet extends ConsumerWidget {
           const SizedBox(height: 10),
           TextFormField(
             initialValue: state.name,
-            decoration: const InputDecoration(labelText: 'Nama Produk Lengkap*', border: OutlineInputBorder()),
+            decoration: const InputDecoration(labelText: 'Nama Produk Lengkap (Wajib)*', border: OutlineInputBorder()),
             onChanged: (v) => notifier.updateField(name: v),
           ),
           const SizedBox(height: 10),
@@ -561,7 +436,7 @@ class FormMasterBarangSheet extends ConsumerWidget {
                 child: TextFormField(
                   initialValue: state.shortName,
                   maxLength: 25,
-                  decoration: const InputDecoration(labelText: 'Nama Singkat Struk 58mm', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Nama Singkat Struk Thermal 58mm', border: OutlineInputBorder()),
                   onChanged: (v) => notifier.updateField(shortName: v),
                 ),
               ),
@@ -576,8 +451,9 @@ class FormMasterBarangSheet extends ConsumerWidget {
             ],
           ),
 
+  // KLASTER 2: KATEGORI & KLASIFIKASI
           const SizedBox(height: 10),
-          _buildSectionHeader('2. Kategori & Klasifikasi'),
+          _buildSectionHeader('2. Kategori & Klasifikasi Lokasi'),
           Row(
             children: [
               Expanded(
@@ -601,15 +477,16 @@ class FormMasterBarangSheet extends ConsumerWidget {
             ],
           ),
 
+          // KLASTER 3: PRICING ENGINE
           const SizedBox(height: 16),
-          _buildSectionHeader('3. Harga Jual & Margin'),
+          _buildSectionHeader('3. Pricing Engine & Margin Auto Calculate'),
           Row(
             children: [
               Expanded(
                 child: TextFormField(
                   initialValue: state.buyPrice.toStringAsFixed(0),
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'HPP / Harga Modal', prefixText: 'Rp ', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'HPP / Harga Modal Awal', prefixText: 'Rp ', border: OutlineInputBorder()),
                   onChanged: (v) => notifier.updateField(buyPrice: double.tryParse(v) ?? 0),
                 ),
               ),
@@ -629,16 +506,17 @@ class FormMasterBarangSheet extends ConsumerWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
             child: Text(
-              'Gross Profit Margin: ${state.marginPercentage.toStringAsFixed(2)}%',
+              'Gross Profit Margin Sistem: ${state.marginPercentage.toStringAsFixed(2)}%',
               style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade800, fontSize: 13),
             ),
           ),
 
+          // KLASTER 4: MULTI UNIT KONVERSI GROSIR
           const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.between,
             children: [
-              _buildSectionHeader('4. Multi-Unit & Konversi'),
+              _buildSectionHeader('4. Multi-Unit & Konversi Grosir'),
               TextButton.icon(
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Tambah Satuan'),
@@ -658,8 +536,7 @@ class FormMasterBarangSheet extends ConsumerWidget {
           if (state.units.isEmpty) const Text('Hanya menggunakan Satuan Dasar (Pcs).', style: TextStyle(fontSize: 11, color: Colors.grey)),
           for (var unt in state.units)
             Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(6)),
+              elevation: 0, shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(6)),
               child: ListTile(
                 dense: true,
                 title: Text('1 ${unt.unitName} = ${unt.conversion} Pcs', style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -668,98 +545,140 @@ class FormMasterBarangSheet extends ConsumerWidget {
               ),
             ),
 
+          // KLASTER 5: MATRIX VARIAN MANUAL (AUTO SKU SUFFIX +Vxxx)
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildSectionHeader('5. Varian Produk'),
+              _buildSectionHeader('5. Manajemen Varian Manual'),
               TextButton.icon(
                 icon: const Icon(Icons.add_circle_outline, size: 18, color: Colors.blue),
                 label: const Text('Tambah Varian', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
                 onPressed: () {
+                  // Hitung index urutan untuk suffix +Vxxx secara real-time
                   final nextIndex = state.variants.length + 1;
                   final autoSuffix = '+V${nextIndex.toString().padLeft(3, '0')}';
+                  
+                  // Daftarkan opsi varian baru ke provider Anda
                   notifier.addManualVariant(
-                    skuId: '${state.id}$autoSuffix',
-                    defaultName: 'Opsi Varian $nextIndex',
+                    skuId: '${state.id}$autoSuffix', 
+                    defaultName: 'Opsi Varian $nextIndex', 
                     defaultPrice: state.sellPriceGeneral,
                   );
                 },
               ),
             ],
           ),
+          
+          if (state.variants.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+                child: const Text(
+                  'Produk ini tidak memiliki varian (Single SKU Item).',
+                  style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
 
           for (int i = 0; i < state.variants.length; i++) ...[
-            Builder(builder: (context) {
-              final vr = state.variants[i];
-              final displaySuffix = vr.id.contains('+V') ? '+V${vr.id.split('+V').last}' : '+V${(i + 1).toString().padLeft(3, '0')}';
+            Builder(
+              builder: (context) {
+                final vr = state.variants[i];
+                // Ekstrak string suffix +Vxxx untuk penanda visual di form UI
+                final displaySuffix = vr.id.contains('+V') 
+                    ? '+V${vr.id.split('+V').last}' 
+                    : '+V${(i + 1).toString().padLeft(3, '0')}';
 
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 6),
-                elevation: 0,
-                shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
-                child: Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
-                            child: Text('SKU Varian: $displaySuffix', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-                          ),
-                          IconButton(
-                            constraints: const BoxConstraints(),
-                            padding: EdgeInsets.zero,
-                            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                            onPressed: () => notifier.removeVariant(vr.id),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: TextFormField(
-                              initialValue: vr.variantName,
-                              style: const TextStyle(fontSize: 12),
-                              decoration: const InputDecoration(labelText: 'Nama Varian', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
-                              onChanged: (v) => notifier.updateVariantDetail(vr.id, name: v),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              initialValue: vr.sellPrice.toStringAsFixed(0),
-                              keyboardType: TextInputType.number,
-                              style: const TextStyle(fontSize: 12),
-                              decoration: const InputDecoration(labelText: 'Harga Jual', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
-                              onChanged: (v) => notifier.updateVariantDetail(vr.id, price: double.tryParse(v)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    side: BorderSide(color: Colors.grey.shade300, width: 1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                ),
-              );
-            }),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+                              child: Text(
+                                'SKU Varian: $displaySuffix', 
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade800),
+                              ),
+                            ),
+                            IconButton(
+                              constraints: const BoxConstraints(),
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                              onPressed: () => notifier.removeVariant(vr.id), // Pemicu hapus opsi varian tertentu
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            // Field Edit Nama Varian
+                            Expanded(
+                              flex: 3,
+                              child: TextFormField(
+                                initialValue: vr.variantName,
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Nama Varian (Contoh: Putih / XL)',
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                ),
+                                onChanged: (v) => notifier.updateVariantDetail(vr.id, name: v),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Field Edit Harga Jual Varian
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                initialValue: vr.sellPrice.toStringAsFixed(0),
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Harga Jual (Rp)',
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                ),
+                                onChanged: (v) => notifier.updateVariantDetail(vr.id, price: double.tryParse(v)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+            ),
           ],
 
+
+          // KLASTER 6: METADATA & COMPLIANCE
           const SizedBox(height: 16),
-          _buildSectionHeader('6. Kontrol Stok'),
+          _buildSectionHeader('6. Kontrol Stok & Pengaman Alert'),
           Row(
             children: [
               Expanded(
                 child: TextFormField(
                   initialValue: state.stock.toStringAsFixed(0),
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Stok Fisik Awal', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Stok Awal Fisik', border: OutlineInputBorder()),
                   onChanged: (v) => notifier.updateField(stock: double.tryParse(v) ?? 0),
                 ),
               ),
@@ -768,7 +687,7 @@ class FormMasterBarangSheet extends ConsumerWidget {
                 child: TextFormField(
                   initialValue: state.minStock.toStringAsFixed(0),
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Stok Min Alert', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Batas Minimum Alert', border: OutlineInputBorder()),
                   onChanged: (v) => notifier.updateField(minStock: double.tryParse(v) ?? 5),
                 ),
               ),
@@ -784,7 +703,9 @@ class FormMasterBarangSheet extends ConsumerWidget {
               onPressed: () async {
                 final success = await notifier.saveProduct();
                 if (success && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Katalog Berhasil Diperbarui!'), backgroundColor: Colors.green));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Katalog Berhasil Diperbarui!'), backgroundColor: Colors.green),
+                  );
                   Navigator.pop(context);
                 }
               },
