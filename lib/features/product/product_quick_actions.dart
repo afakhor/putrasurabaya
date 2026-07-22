@@ -156,7 +156,7 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
                           FloatingActionButton.small(
                             heroTag: 'sub_fab_$idx',
                             backgroundColor: item.color,
-                            onTap: () {
+                            onPressed: () {
                               _toggleMenu();
                               item.onTap();
                             },
@@ -175,7 +175,7 @@ class _ProductQuickActionsFabState extends ConsumerState<ProductQuickActionsFab>
         FloatingActionButton(
           heroTag: 'main_speed_dial_fab',
           backgroundColor: _isMenuOpen ? Colors.red : const Color(0xFF007F00),
-          onTap: _toggleMenu,
+          onPressed: _toggleMenu,
           child: AnimatedBuilder(
             animation: _animateIcon,
             builder: (context, child) {
