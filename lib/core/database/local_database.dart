@@ -127,6 +127,7 @@ class Transactions extends Table {
   RealColumn get debt => real().withDefault(const Constant(0))();
   RealColumn get change => real().withDefault(const Constant(0))();
   TextColumn get paymentMethod => text().withDefault(const Constant('cash'))();
+  TextColumn get customerId => text().nullable()(); // <-- TAMBAHAN UNTUK PIUTANG
   DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))(); 
   @override Set<Column> get primaryKey => {id};
@@ -143,39 +144,72 @@ class TransactionItems extends Table {
   @override Set<Column> get primaryKey => {id};
 }
 
+@DataClassName('CustomerData')
+class Customers extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get phone => text().nullable()();
+  RealColumn get totalDebt => real().withDefault(const Constant(0))();
+  @override Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('CustomerDebtData')
+class CustomerDebts extends Table {
+  TextColumn get id => text()();
+  TextColumn get transactionId => text().references(Transactions, #id)();
+  TextColumn get customerId => text().references(Customers, #id)();
+  RealColumn get amount => real()();
+  TextColumn get status => text().withDefault(const Constant('belum_lunas'))();
+  DateTimeColumn get dueDate => dateTime().nullable()();
+  @override Set<Column> get primaryKey => {id};
+}
+
 @DriftDatabase(tables: [
   Users, Products, ProductAssets, ProductUnits, ProductVariants, 
-  ProductPromos, Suppliers, StockMutations, Transactions, TransactionItems
+  ProductPromos, Suppliers, StockMutations, Transactions, TransactionItems,
+  Customers, CustomerDebts
 ])
 class LocalDatabase extends _$LocalDatabase { 
-  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v4'));
+  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v5'));
 
   @override
-  int get schemaVersion => 4; 
+  int get schemaVersion => 5; 
 
-  Future<void> catatMutasiStok({
-    required String productId, required String type, required double qty,
-    required double hargaBeliMasuk, required String refNo, String? variantId, String? catatan,
-  }) async {
-    await transaction(() async {
-      final prod = await (select(products)..where((t) => t.id.equals(productId))).getSingle();
-      double stokLama = prod.stock;
-      double hppLama = prod.buyPrice;
-      double stokBaru = type == 'masuk' || type == 'retur' ? stokLama + qty : stokLama - qty;
-      double hppBaru = hppLama;
-      if (type == 'masuk' && (stokLama + qty) > 0) {
-        hppBaru = ((stokLama * hppLama) + (qty * hargaBeliMasuk)) / (stokLama + qty);
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (Migrator m) async => await m.createAll(),
+    onUpgrade: (Migrator m, int from, int to) async {
+      if (from < 5) {
+        await m.createTable(customers);
+        await m.createTable(customerDebts);
+        await m.addColumn(transactions, transactions.customerId);
       }
-      await (update(products)..where((t) => t.id.equals(productId))).write(ProductsCompanion(stock: Value(stokBaru), buyPrice: Value(hppBaru)));
-      await into(stockMutations).insert(StockMutationsCompanion.insert(
-        id: 'MUT-${DateTime.now().millisecondsSinceEpoch}', productId: productId,
-        variantId: Value(variantId), type: type, quantity: qty,
-        hppSnapshot: hppBaru, currentStockSnapshot: stokBaru,
-        referenceNo: refNo, notes: Value(catatan), date: Value(DateTime.now()),
-      ));
-    });
+    },
+  );
+
+  // HPP Moving Average tanpa nested transaction
+  Future<void> _mutasiDalamTransaksi({
+    required String productId, required String type, required double qty,
+    required double hargaMasuk, required String refNo,
+  }) async {
+    final prod = await (select(products)..where((t) => t.id.equals(productId))).getSingle();
+    double stokLama = prod.stock;
+    double hppLama = prod.buyPrice;
+    double stokBaru = (type == 'masuk' || type == 'retur') ? stokLama + qty : stokLama - qty;
+    double hppBaru = hppLama;
+    if (type == 'masuk' && (stokLama + qty) > 0) {
+      hppBaru = ((stokLama * hppLama) + (qty * hargaMasuk)) / (stokLama + qty);
+    }
+    await (update(products)..where((t) => t.id.equals(productId))).write(ProductsCompanion(stock: Value(stokBaru), buyPrice: Value(hppBaru)));
+    await into(stockMutations).insert(StockMutationsCompanion.insert(
+      id: 'MUT-${DateTime.now().millisecondsSinceEpoch}-${productId}',
+      productId: productId, variantId: const Value(null), type: type, quantity: qty,
+      hppSnapshot: hppBaru, currentStockSnapshot: stokBaru, referenceNo: refNo,
+      notes: Value('POS $refNo'), date: Value(DateTime.now()),
+    ));
   }
 
+  // DIPAKAI POS - OFFLINE FIRST + PIUTANG
   Future<void> prosesTransaksiPenyimpanan({
     required TransactionsCompanion dataTransaksi,
     required List<TransactionItemsCompanion> itemTransaksi,
@@ -184,11 +218,19 @@ class LocalDatabase extends _$LocalDatabase {
       await into(transactions).insert(dataTransaksi);
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        await catatMutasiStok(
+        await _mutasiDalamTransaksi(
           productId: item.productId.value, type: 'keluar', qty: item.quantity.value,
-          hargaBeliMasuk: 0, refNo: dataTransaksi.invoiceNo.value,
-          catatan: 'POS ${dataTransaksi.invoiceNo.value}',
+          hargaMasuk: 0, refNo: dataTransaksi.invoiceNo.value,
         );
+      }
+      // Jika ada hutang -> catat piutang
+      if (dataTransaksi.debt.value > 0 && dataTransaksi.customerId.value != null) {
+        final custId = dataTransaksi.customerId.value!;
+        await into(customerDebts).insert(CustomerDebtsCompanion.insert(
+          id: 'DEBT-${dataTransaksi.id.value}', transactionId: dataTransaksi.id.value,
+          customerId: custId, amount: dataTransaksi.debt.value,
+          status: const Value('belum_lunas'), dueDate: Value(DateTime.now().add(const Duration(days: 7))),
+        ));
       }
     });
   }
