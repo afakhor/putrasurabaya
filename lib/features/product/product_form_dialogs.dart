@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 class ProductFormDialogs {
+  /// Dialog Cepat Tambah Kategori / Sub-Kategori / Brand
   static Future<String?> showQuickTextDialog({
     required BuildContext context,
     required String title,
@@ -45,6 +46,7 @@ class ProductFormDialogs {
     );
   }
 
+  /// Dialog Kompleks Tambah Multi-Satuan Grosir & Konversi
   static Future<Map<String, dynamic>?> showUnitConversionDialog({
     required BuildContext context,
     required double baseBuyPrice,
@@ -69,15 +71,15 @@ class ProductFormDialogs {
               children: [
                 TextFormField(
                   controller: unitController,
-                  decoration: const InputDecoration(labelText: 'Nama Satuan (Contoh: Dus, Renceng)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Nama Satuan (Contoh: Dus, Renceng, Karton)', border: OutlineInputBorder()),
                   validator: (val) => val!.isEmpty ? 'Wajib isi' : null,
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: qtyController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Isi Konversi (Jumlah Pcs)', border: OutlineInputBorder()),
-                  validator: (val) => int.tryParse(val ?? '') == null ? 'Wajib angka' : null,
+                  decoration: const InputDecoration(labelText: 'Isi Konversi (Jumlah Pcs di dalam)', border: OutlineInputBorder()),
+                  validator: (val) => int.tryParse(val ?? '') == null ? 'Wajib angka integer' : null,
                   onChanged: (val) {
                     final factor = int.tryParse(val) ?? 1;
                     buyController.text = (baseBuyPrice * factor).toStringAsFixed(0);
@@ -99,7 +101,7 @@ class ProductFormDialogs {
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: barcodeController,
-                  decoration: const InputDecoration(labelText: 'Barcode Khusus Satuan (Opsional)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Barcode Khusus Satuan Ini (Opsional)', border: OutlineInputBorder()),
                 ),
               ],
             ),
