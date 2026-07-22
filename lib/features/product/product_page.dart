@@ -178,34 +178,20 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       ),
       
       // CONFIGURATION MULTI-FAB BARU (KIRI DAN KANAN)
-           floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+                 floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: RadialHalfCircleFab(
         onAddProduct: () => _openFormMasterBarang(context),
-        onEmergencyStock: () {
-          // TODO: aksi stok darurat
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Emergency Stock')));
-        },
-        onEmergencyPrice: () {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Emergency Price')));
-        },
-        onEmergencyBackup: () {
-          ref.read(syncServiceProvider).syncLocalToCloud();
-        },
-        onScan: () {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Buka Scanner')));
-        },
-        onQuickStock: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const StockMutationPage()));
-        },
-        onPrintLabel: () {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Print Label')));
-        },
-        onAddCategory: () {
-          _showTextEntryDialog('Kategori');
-        },
+        onEmergencyStock: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Emergency Stock'))),
+        onEmergencyPrice: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Emergency Price'))),
+        onEmergencyBackup: () => ref.read(syncServiceProvider).syncLocalToCloud(),
+        onScan: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Buka Scanner'))),
+        onQuickStock: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StockMutationPage())),
+        onPrintLabel: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Print Label'))),
+        onAddCategory: () => _showTextEntryDialog('Kategori'),
       ),
     );
   }
+}
 
   Widget _buildTopActionBar(BuildContext context, List<String> categories) {
     return Container(
