@@ -545,7 +545,7 @@ class FormMasterBarangSheet extends ConsumerWidget {
               ),
             ),
 
-          // KLASTER 5: MATRIX VARIAN MANUAL (AUTO SKU SUFFIX +Vxxx)
+                    // KLASTER 5: MATRIX VARIAN MANUAL (AUTO SKU SUFFIX +Vxxx)
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -555,14 +555,12 @@ class FormMasterBarangSheet extends ConsumerWidget {
                 icon: const Icon(Icons.add_circle_outline, size: 18, color: Colors.blue),
                 label: const Text('Tambah Varian', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
                 onPressed: () {
-                  // Hitung index urutan untuk suffix +Vxxx secara real-time
                   final nextIndex = state.variants.length + 1;
                   final autoSuffix = '+V${nextIndex.toString().padLeft(3, '0')}';
-                  
-                  // Daftarkan opsi varian baru ke provider Anda
+                  final baseId = state.id.isEmpty ? 'PSB-${DateTime.now().millisecondsSinceEpoch}' : state.id;
                   notifier.addManualVariant(
-                    skuId: '${state.id}$autoSuffix', 
-                    defaultName: 'Opsi Varian $nextIndex', 
+                    skuId: '$baseId$autoSuffix',
+                    defaultName: 'Opsi Varian $nextIndex',
                     defaultPrice: state.sellPriceGeneral,
                   );
                 },
