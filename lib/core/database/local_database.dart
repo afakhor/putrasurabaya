@@ -234,6 +234,58 @@ class LocalDatabase extends _$LocalDatabase {
       }
     });
   }
+  // PUBLIC WRAPPER BIAR DIPANGGIL DARI LUAR - AUTO SYNC HPP + STOK
+  Future<List<ProductData>> getAllProducts() => select(products).get();
+
+  Future<void> catatMutasiStok({
+    required String productId,
+    required String type, // masuk, keluar, opname, retur
+    required double qty,
+    required double hargaBeliMasuk,
+    required String refNo,
+    String? variantId,
+    String? catatan,
+  }) async {
+    await transaction(() async {
+      // ambil stok & HPP sekarang
+      final prod = await (select(products)..where((t) => t.id.equals(productId))).getSingle();
+      double stokLama = prod.stock;
+      double hppLama = prod.buyPrice;
+      
+      double stokBaru;
+      double hppBaru = hppLama;
+
+      if (type == 'opname') {
+        stokBaru = qty; // opname = timpa langsung jumlah fisik
+      } else if (type == 'masuk' || type == 'retur') {
+        stokBaru = stokLama + qty;
+        // RUMUS HPP MOVING AVERAGE - AUTO SYNC
+        if (stokLama + qty > 0) {
+          hppBaru = ((stokLama * hppLama) + (qty * hargaBeliMasuk)) / (stokLama + qty);
+        }
+      } else {
+        stokBaru = stokLama - qty; // keluar
+      }
+
+      // UPDATE 2 arah: Products.stock + Products.buyPrice (HPP) langsung update
+      await (update(products)..where((t) => t.id.equals(productId))).write(
+        ProductsCompanion(stock: Value(stokBaru), buyPrice: Value(hppBaru))
+      );
+
+      await into(stockMutations).insert(StockMutationsCompanion.insert(
+        id: 'MUT-${DateTime.now().millisecondsSinceEpoch}',
+        productId: productId,
+        variantId: Value(variantId),
+        type: type,
+        quantity: qty,
+        hppSnapshot: hppBaru,
+        currentStockSnapshot: stokBaru,
+        referenceNo: refNo,
+        notes: Value(catatan),
+        date: Value(DateTime.now()),
+      ));
+    });
+  }
 }
 
 final localDatabaseProvider = Provider<LocalDatabase>((ref) => LocalDatabase());
