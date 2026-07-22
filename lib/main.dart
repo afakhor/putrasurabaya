@@ -51,13 +51,14 @@ final navbarIndexProvider = StateProvider<int>((ref) => 0);
 class MainNavigationScreen extends ConsumerWidget {
   const MainNavigationScreen({super.key});
 
-  @override
+   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = ref.watch(navbarIndexProvider);
+    final bool isHome = selectedIndex == 0;
 
     // 0=POS (Beranda), 1=Mutasi, 2=Katalog, 3=Laporan
     final List<Widget> pages = [
-      const POSPage(), // <-- BERANDA LANGSUNG POS
+      const POSPage(),
       const StockMutationPage(),
       const ProductPage(),
       const Center(child: Text('Laporan Keuangan (Owner Only)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
@@ -72,7 +73,7 @@ class MainNavigationScreen extends ConsumerWidget {
       ),
       body: pages[selectedIndex],
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: Container(
+      floatingActionButton: isHome? Container(
         width: 72, height: 72,
         margin: const EdgeInsets.only(top: 10),
         child: FloatingActionButton(
@@ -80,10 +81,9 @@ class MainNavigationScreen extends ConsumerWidget {
           shape: const CircleBorder(),
           elevation: 4,
           onPressed: () {
-            // Tombol QRIS tengah - langsung ke dialog bayar QRIS
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('QRIS Scanner - hubungkan ke payment gateway kamu'), backgroundColor: Color(0xFF007F00)));
-            // Kalau mau langsung buka POSPage fokus QR, cukup:
-            ref.read(navbarIndexProvider.notifier).state = 0;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('QRIS Scanner - hubungkan ke payment gateway'), backgroundColor: Color(0xFF007F00))
+            );
           },
           child: const Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -93,10 +93,10 @@ class MainNavigationScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
+      ) : null,
       bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
+        shape: isHome? const CircularNotchedRectangle() : null,
+        notchMargin: isHome? 8 : 0,
         color: const Color(0xFF007F00),
         child: SizedBox(
           height: 60,
@@ -105,7 +105,7 @@ class MainNavigationScreen extends ConsumerWidget {
             children: [
               _buildNavItem(context, ref, icon: Icons.point_of_sale, label: 'POS', index: 0, selectedIndex: selectedIndex),
               _buildNavItem(context, ref, icon: Icons.history, label: 'Mutasi', index: 1, selectedIndex: selectedIndex),
-              const SizedBox(width: 40), // space untuk FAB tengah
+              if (isHome) const SizedBox(width: 40),
               _buildNavItem(context, ref, icon: Icons.storefront, label: 'Katalog', index: 2, selectedIndex: selectedIndex),
               _buildNavItem(context, ref, icon: Icons.analytics, label: 'Laporan', index: 3, selectedIndex: selectedIndex),
             ],
@@ -114,20 +114,3 @@ class MainNavigationScreen extends ConsumerWidget {
       ),
     );
   }
-
-  Widget _buildNavItem(BuildContext context, WidgetRef ref, {required IconData icon, required String label, required int index, required int selectedIndex}) {
-    final isSelected = selectedIndex == index;
-    return InkWell(
-      onTap: () => ref.read(navbarIndexProvider.notifier).state = index,
-      borderRadius: BorderRadius.circular(12),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: isSelected? Colors.amber : Colors.white, size: 22),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(fontSize: 10, fontWeight: isSelected? FontWeight.bold : FontWeight.normal, color: isSelected? Colors.amber : Colors.white)),
-        ],
-      ),
-    );
-  }
-}
