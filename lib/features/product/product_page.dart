@@ -49,6 +49,21 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     });
   }
 
+  void _openFormMasterBarang(BuildContext context) {
+    showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => const FormMasterBarangSheet());
+  }
+
+  void _showTextEntryDialog(String title) {
+    final c = TextEditingController();
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Text('Tambah $title'),
+      content: TextField(controller: c, decoration: InputDecoration(labelText: title)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+        ElevatedButton(onPressed: () { Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$title "${c.text}" disimpan'))); }, child: const Text('Simpan')),
+      ],
+    ));
+  }
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(localDatabaseProvider);
