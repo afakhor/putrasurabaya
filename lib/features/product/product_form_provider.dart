@@ -175,48 +175,41 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
     state = state.copyWith(units: state.units.where((e) => e.id != id).toList());
   }
 
-  /// Otomatis Generate Matriks Varian Kombinasi Atribut
-  void generateVariants({required List<String> warnaList, required List<String> ukuranList}) {
-    List<ProductVariantData> generated = [];
-    int counter = 1;
-    
-    // Default fallback jika salah satu kosong agar looping tetap jalan
-    List<String> wList = warnaList.isEmpty ? [''] : warnaList;
-    List<String> uList = ukuranList.isEmpty ? [''] : ukuranList;
-
-    for (var w in wList) {
-      for (var u in uList) {
-        String variantName = '${state.name} ${w.trim()} ${u.trim()}'.trim();
-        String skuVariant = '${state.id}-V$counter';
-        
-        generated.add(ProductVariantData(
-          id: 'VAR-${DateTime.now().millisecondsSinceEpoch}-$counter',
-          productId: state.id,
-          skuVariant: skuVariant,
-          variantName: variantName,
-          barcode: '',
-          stock: 0,
-          sellPrice: state.sellPriceGeneral,
-        ));
-        counter++;
-      }
-    }
-    state = state.copyWith(variants: generated);
+  /// MANUAL ONLY - Sesuai request POS kamu
+  void addManualVariant({required String skuId, required String defaultName, required double defaultPrice}) {
+    state = state.copyWith(variants: [
+      ...state.variants,
+      ProductVariantData(
+        id: skuId,
+        productId: state.id.isEmpty ? 'TEMP' : state.id,
+        skuVariant: skuId,
+        variantName: defaultName,
+        barcode: '',
+        stock: 0,
+        sellPrice: defaultPrice,
+      )
+    ]);
   }
 
-  void updateVariantDetail(String id, {double? stock, double? price, String? barcode}) {
-    state = state.copyWith(
-      variants: [
-        for (var v in state.variants)
-          if (v.id == id)
-            ProductVariantData(
-              id: v.id, productId: v.productId, skuVariant: v.skuVariant,
-              variantName: v.variantName, barcode: barcode ?? v.barcode,
-              stock: stock ?? v.stock, sellPrice: price ?? v.sellPrice,
-            )
-          else v
-      ],
-    );
+  void removeVariant(String id) {
+    state = state.copyWith(variants: state.variants.where((e) => e.id != id).toList());
+  }
+
+  void updateVariantDetail(String id, {String? variantName, double? sellPrice, double? stock, String? barcode}) {
+    state = state.copyWith(variants: [
+      for (var v in state.variants)
+        if (v.id == id)
+          ProductVariantData(
+            id: v.id,
+            productId: v.productId,
+            skuVariant: v.skuVariant,
+            variantName: variantName ?? v.variantName,
+            barcode: barcode ?? v.barcode,
+            stock: stock ?? v.stock,
+            sellPrice: sellPrice ?? v.sellPrice,
+          )
+        else v
+    ]);
   }
 
   void addImage(String path) {
@@ -269,10 +262,20 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
         }
 
         // 3. Bersihkan & Tulis Ulang Tabel Varian
-        await (_db.delete(_db.productVariants)..where((t) => t.productId.equals(state.id))).go();
-        for (var item in state.variants) {
-          await _db.into(_db.productVariants).insert(item);
-        }
+await (_db.delete(_db.productVariants)..where((t) => t.productId.equals(state.id))).go();
+for (var item in state.variants) {
+  await _db.into(_db.productVariants).insert(
+    ProductVariantsCompanion.insert(
+      id: item.id,
+      productId: state.id,
+      skuVariant: item.skuVariant,
+      variantName: item.variantName,
+      barcode: Value(item.barcode),
+      stock: Value(item.stock),
+      sellPrice: Value(item.sellPrice),
+    ),
+  );
+}
 
         // 4. Hubungkan Aset Gambar
         await (_db.delete(_db.productAssets)..where((t) => t.productId.equals(state.id))).go();
