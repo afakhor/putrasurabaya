@@ -1,10 +1,18 @@
 import 'package:permission_handler/permission_handler.dart';
 
-Future<void> requestBluetoothPermissions() async {
-  Map<Permission, PermissionStatus> statuses = await [
-    Permission.bluetoothConnect,
-    Permission.bluetoothScan,
-  ].request();
-
-  print('Android Bluetooth permission status: $statuses');
+class PermissionHelper {
+  static Future<bool> requestBluetoothPermissions() async {
+    try {
+      final statuses = await [
+        Permission.bluetoothConnect,
+        Permission.bluetoothScan,
+        Permission.bluetoothAdvertise,
+      ].request();
+      return statuses.values.every((s) => s.isGranted);
+    } catch (e) {
+      return false;
+    }
+  }
 }
+
+Future<void> requestBluetoothPermissions() => PermissionHelper.requestBluetoothPermissions();
