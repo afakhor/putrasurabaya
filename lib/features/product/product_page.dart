@@ -627,33 +627,34 @@ class FormMasterBarangSheet extends ConsumerWidget {
                         Row(
                           children: [
                             // Field Edit Nama Varian
-                            Expanded(
+                             Expanded(
                               flex: 3,
                               child: TextFormField(
+                                key: ValueKey('name_${vr.id}'),
                                 initialValue: vr.variantName,
                                 style: const TextStyle(fontSize: 12),
                                 decoration: const InputDecoration(
-                                  labelText: 'Nama Varian (Contoh: Putih / XL)',
+                                  labelText: 'Nama Varian',
                                   border: OutlineInputBorder(),
                                   contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                 ),
-                                onChanged: (v) => notifier.updateVariantDetail(vr.id, name: v),
+                                onChanged: (v) => notifier.updateVariantDetail(vr.id, variantName: v),
                               ),
                             ),
                             const SizedBox(width: 8),
-                            // Field Edit Harga Jual Varian
                             Expanded(
                               flex: 2,
                               child: TextFormField(
+                                key: ValueKey('price_${vr.id}'),
                                 initialValue: vr.sellPrice.toStringAsFixed(0),
                                 keyboardType: TextInputType.number,
                                 style: const TextStyle(fontSize: 12),
                                 decoration: const InputDecoration(
-                                  labelText: 'Harga Jual (Rp)',
+                                  labelText: 'Harga',
                                   border: OutlineInputBorder(),
                                   contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                 ),
-                                onChanged: (v) => notifier.updateVariantDetail(vr.id, price: double.tryParse(v)),
+                                onChanged: (v) => notifier.updateVariantDetail(vr.id, sellPrice: double.tryParse(v) ?? 0),
                               ),
                             ),
                           ],
