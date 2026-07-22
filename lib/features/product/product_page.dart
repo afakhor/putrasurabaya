@@ -162,34 +162,31 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       ),
       
       // CONFIGURATION MULTI-FAB BARU (KIRI DAN KANAN)
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // SISI KIRI: Tombol-tombol Urgent & Darurat Lapangan (Warna Merah)
-            const InventoryEmergencyFab(),
-
-            // SISI KANAN: Integrasi Quick Actions & Akses Form Master Barang Utama
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const ProductQuickActionsFab(),
-                const SizedBox(width: 12),
-                FloatingActionButton.extended(
-                  heroTag: 'main_add_product_btn',
-                  backgroundColor: const Color(0xFF00A65A),
-                  icon: const Icon(Icons.add, color: Colors.white),
-                  label: const Text('TAMBAH BARANG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  onPressed: () => _openFormMasterBarang(context),
-                ),
-              ],
-            ),
-          ],
-        ),
+           floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: RadialHalfCircleFab(
+        onAddProduct: () => _openFormMasterBarang(context),
+        onEmergencyStock: () {
+          // TODO: aksi stok darurat
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Emergency Stock')));
+        },
+        onEmergencyPrice: () {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Emergency Price')));
+        },
+        onEmergencyBackup: () {
+          ref.read(syncServiceProvider).syncLocalToCloud();
+        },
+        onScan: () {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Buka Scanner')));
+        },
+        onQuickStock: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const StockMutationPage()));
+        },
+        onPrintLabel: () {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Print Label')));
+        },
+        onAddCategory: () {
+          _showTextEntryDialog('Kategori');
+        },
       ),
     );
   }
