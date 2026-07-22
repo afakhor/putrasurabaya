@@ -51,12 +51,11 @@ final navbarIndexProvider = StateProvider<int>((ref) => 0);
 class MainNavigationScreen extends ConsumerWidget {
   const MainNavigationScreen({super.key});
 
-   @override
+  @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = ref.watch(navbarIndexProvider);
     final bool isHome = selectedIndex == 0;
 
-    // 0=POS (Beranda), 1=Mutasi, 2=Katalog, 3=Laporan
     final List<Widget> pages = [
       const POSPage(),
       const StockMutationPage(),
@@ -73,27 +72,30 @@ class MainNavigationScreen extends ConsumerWidget {
       ),
       body: pages[selectedIndex],
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: isHome? Container(
-        width: 72, height: 72,
-        margin: const EdgeInsets.only(top: 10),
-        child: FloatingActionButton(
-          backgroundColor: const Color(0xFF00A65A),
-          shape: const CircleBorder(),
-          elevation: 4,
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('QRIS Scanner - hubungkan ke payment gateway'), backgroundColor: Color(0xFF007F00))
-            );
-          },
-          child: const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
-              Text('QRIS', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-      ) : null,
+      floatingActionButton: isHome
+         ? Container(
+              width: 72,
+              height: 72,
+              margin: const EdgeInsets.only(top: 10),
+              child: FloatingActionButton(
+                backgroundColor: const Color(0xFF00A65A),
+                shape: const CircleBorder(),
+                elevation: 4,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('QRIS Scanner'), backgroundColor: Color(0xFF007F00)),
+                  );
+                },
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
+                    Text('QRIS', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            )
+          : null,
       bottomNavigationBar: BottomAppBar(
         shape: isHome? const CircularNotchedRectangle() : null,
         notchMargin: isHome? 8 : 0,
@@ -114,3 +116,20 @@ class MainNavigationScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _buildNavItem(BuildContext context, WidgetRef ref, {required IconData icon, required String label, required int index, required int selectedIndex}) {
+    final isSelected = selectedIndex == index;
+    return InkWell(
+      onTap: () => ref.read(navbarIndexProvider.notifier).state = index,
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: isSelected? Colors.amber : Colors.white, size: 22),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(fontSize: 10, fontWeight: isSelected? FontWeight.bold : FontWeight.normal, color: isSelected? Colors.amber : Colors.white)),
+        ],
+      ),
+    );
+  }
+}
