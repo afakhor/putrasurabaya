@@ -64,7 +64,7 @@ class _RadialHalfCircleFabState extends ConsumerState<RadialHalfCircleFab> with 
     final currentItems = _activeTopic == null? mainTopics : topics[_activeTopic]!;
 
     return Stack(
-      alignment: Alignment.bottomRight,
+      alignment: Alignment.bottomCenter,
       clipBehavior: Clip.none,
       children: [
         if (_isOpen)
