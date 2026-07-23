@@ -284,8 +284,10 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: QuartFabProduct(
-        onOpenProductForm: (context, {product}) {
-          _openFormMasterBarang(context, product: product);
+        floatingActionButton: QuartFabProduct(
+  onOpenProductForm: (BuildContext ctx, {ProductData? product}) {
+    _openFormMasterBarang(ctx, product: product);
+  },
         },
       ),
     );
