@@ -101,24 +101,41 @@ class FormMasterBarangSheet extends ConsumerWidget {
         _buildSectionHeader('7. Asset Foto & Dokumen Produk'),
         Row(children: [Expanded(child: Container(height: 80, decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)), child: const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_a_photo, color: Colors.grey), Text('Foto Produk', style: TextStyle(fontSize: 10))])))), const SizedBox(width: 8), Expanded(child: Container(height: 80, decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)), child: const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.qr_code, color: Colors.grey), Text('Barcode', style: TextStyle(fontSize: 10))]))))]),
 
-        _buildSectionHeader('8. Status & Compliance'),
-Row(children: [
-  Expanded(child: DropdownButtonFormField<String>(
-    value: state.statusActive, 
-    items: const [
-      DropdownMenuItem(value: 'aktif', child: Text('Aktif Dijual')), 
-      DropdownMenuItem(value: 'nonaktif', child: Text('Non-Aktif / Arsip'))
-    ], 
-    onChanged: (v) => notifier.updateField(statusActive: v!), 
-    decoration: const InputDecoration(labelText: 'Status Produk', border: OutlineInputBorder())
-  )), 
-  const SizedBox(width: 8), 
-  Expanded(child: TextFormField(
-    initialValue: '', 
-    decoration: const InputDecoration(labelText: 'Rak / Gudang (Catatan)', border: OutlineInputBorder(), hintText: 'RAK-A1'), 
-    onChanged: (v) {} // cuma catatan, gak wajib save
-  ))
-],),
-);
-}
+                _buildSectionHeader('8. Status & Compliance'),
+        Row(children: [
+          Expanded(child: DropdownButtonFormField<String>(
+            value: state.statusActive, 
+            items: const [
+              DropdownMenuItem(value: 'aktif', child: Text('Aktif Dijual')), 
+              DropdownMenuItem(value: 'nonaktif', child: Text('Non-Aktif / Arsip'))
+            ], 
+            onChanged: (v) => notifier.updateField(statusActive: v!), 
+            decoration: const InputDecoration(labelText: 'Status Produk', border: OutlineInputBorder())
+          )), 
+          const SizedBox(width: 8), 
+          Expanded(child: TextFormField(
+            initialValue: '', 
+            decoration: const InputDecoration(labelText: 'Rak / Gudang (Catatan)', border: OutlineInputBorder(), hintText: 'RAK-A1'), 
+            onChanged: (v) {}
+          ))
+        ]),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A)),
+            onPressed: () async {
+              final success = await notifier.saveProduct();
+              if (success && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Katalog Berhasil Diperbarui!'), backgroundColor: Colors.green));
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('EKSEKUSI SIMPAN DATA BARANG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ]),
+    );
+  }
 }
