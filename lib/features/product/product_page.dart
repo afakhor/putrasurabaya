@@ -5,7 +5,7 @@ import '../../core/database/local_database.dart';
 import '../../core/utils/format_rupiah.dart';
 import 'product_form_provider.dart';
 import 'product_form_dialogs.dart';
-import '../../core/utils/radial_half_circle_fab.dart';
+import '../../core/utils/fab_product_punya.dart';
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 final filterCategoryProvider = StateProvider<String?>((ref) => null);
@@ -57,7 +57,12 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         return Column(children: [_buildTopActionBar(context, categories.toList()), _buildSummaryRow(summary: CatalogSummary(totalSKU: rawProducts.length, totalAssetValue: totalHppAsset, lowStockCount: lowStock, inactiveCount: nonAktif)), Expanded(child: filteredList.isEmpty? const Center(child: Text('Data barang tidak ditemukan.')) : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: filteredList.length, itemBuilder: (c, idx) => _buildProductRowCard(filteredList[idx])))]);
       }),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: RadialHalfCircleFab(onAddProduct: () => _openFormMasterBarang(context)),
+      floatingActionButton: QuartFabProduct(
+    onOpenProductForm: (context, {product}) {
+      _openFormMasterBarang(context, product: product);
+    },
+  ),
+);
     );
   }
 }
