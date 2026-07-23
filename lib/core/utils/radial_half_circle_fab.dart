@@ -91,7 +91,7 @@ class _RadialHalfCircleFabState extends ConsumerState<RadialHalfCircleFab> with 
             builder: (_, child) {
               final r = radius * _expand.value;
               return Transform.translate(
-                offset: Offset(r * math.cos(angle), r * math.sin(angle)),
+offset: Offset(r * math.cos(angle) - 40, r * math.sin(angle)),
                 child: Opacity(opacity: _expand.value, child: child),
               );
             },
