@@ -118,5 +118,7 @@ Row(children: [
     decoration: const InputDecoration(labelText: 'Rak / Gudang (Catatan)', border: OutlineInputBorder(), hintText: 'RAK-A1'), 
     onChanged: (v) {} // cuma catatan, gak wajib save
   ))
-]);
+],),
+);
+}
 }
