@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'package:flutter/material';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' hide Column;
 import '../database/local_database.dart';
