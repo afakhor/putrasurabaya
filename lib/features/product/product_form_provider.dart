@@ -132,17 +132,40 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
 
 // Ganti metode generateVariants yang lama dengan kode ini:
 
-void generateVariants([List<String>? variantNames, double? defaultPrice]) {
-  final names = (variantNames == null || variantNames.isEmpty)
-      ? ['Varian Baru']
-      : variantNames;
+// Ganti metode generateVariants yang lama di product_form_provider.dart dengan ini:
+
+void generateVariants({
+  List<String>? warnaList,
+  List<String>? ukuranList,
+  List<String>? variantNames,
+  double? defaultPrice,
+}) {
   final currentVariants = List<ProductVariantData>.from(state.variants);
   final baseId = state.id.isEmpty ? 'PSB-${DateTime.now().millisecondsSinceEpoch}' : state.id;
   final price = defaultPrice ?? state.sellPriceGeneral;
 
-  for (var name in names) {
-    if (name.trim().isEmpty) continue;
+  List<String> namesToCreate = [];
 
+  // Kombinasi Warna & Ukuran jika keduanya diisi
+  if (warnaList != null && warnaList.isNotEmpty && ukuranList != null && ukuranList.isNotEmpty) {
+    for (var w in warnaList) {
+      for (var u in ukuranList) {
+        if (w.trim().isNotEmpty && u.trim().isNotEmpty) {
+          namesToCreate.add('${w.trim()} - ${u.trim()}');
+        }
+      }
+    }
+  } else if (warnaList != null && warnaList.isNotEmpty) {
+    namesToCreate.addAll(warnaList.where((e) => e.trim().isNotEmpty));
+  } else if (ukuranList != null && ukuranList.isNotEmpty) {
+    namesToCreate.addAll(ukuranList.where((e) => e.trim().isNotEmpty));
+  } else if (variantNames != null && variantNames.isNotEmpty) {
+    namesToCreate.addAll(variantNames.where((e) => e.trim().isNotEmpty));
+  } else {
+    namesToCreate.add('Varian Baru');
+  }
+
+  for (var name in namesToCreate) {
     final nextIndex = currentVariants.length + 1;
     final autoSuffix = '+V${nextIndex.toString().padLeft(3, '0')}';
     final sku = '$baseId$autoSuffix';
@@ -151,8 +174,8 @@ void generateVariants([List<String>? variantNames, double? defaultPrice]) {
       ProductVariantData(
         id: sku,
         productId: baseId,
-        skuVariant: sku, // <-- Menambahkan parameter wajib skuVariant
-        variantName: name.trim(),
+        skuVariant: sku,
+        variantName: name,
         sellPrice: price,
         stock: 0,
       ),
@@ -161,6 +184,7 @@ void generateVariants([List<String>? variantNames, double? defaultPrice]) {
 
   state = state.copyWith(variants: currentVariants);
 }
+
 
 
   void setProduct(ProductData p, List<ProductUnitData> units, List<ProductVariantData> variants, List<String> images) {
