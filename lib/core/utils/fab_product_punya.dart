@@ -357,7 +357,7 @@ class _QuartFabProductState extends ConsumerState<QuartFabProduct>
       {
         'title': 'Import Data',
         'icon': Icons.file_upload_rounded,
-        'color': Colors.emerald,
+        'color': const Color(0xFF10B981),
         'action': () => _showActionSnackBar('Import Data dari Excel / CSV')
       },
       {
