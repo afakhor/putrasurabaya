@@ -5,7 +5,7 @@ import '../../core/database/local_database.dart';
 import '../../core/utils/format_rupiah.dart';
 import 'product_form_provider.dart';
 import 'product_form_dialogs.dart';
-import '../../core/utils/fab_product_punya.dart';
+import '../../core/utils/quart_fab_product.dart';
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 final filterCategoryProvider = StateProvider<String?>((ref) => null);
@@ -283,15 +283,14 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         },
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-        floatingActionButton: QuartFabProduct(
-  onOpenProductForm: (BuildContext ctx, {ProductData? product}) {
-    _openFormMasterBarang(ctx, product: product);
-  },
+      floatingActionButton: QuartFabProduct(
+        onOpenProductForm: (BuildContext ctx, {ProductData? product}) {
+          _openFormMasterBarang(ctx, product: product);
         },
       ),
     );
   }
-
+}
 
 class FormMasterBarangSheet extends ConsumerWidget {
   const FormMasterBarangSheet({super.key});
