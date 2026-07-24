@@ -131,40 +131,58 @@ class _QuartFabProductState extends ConsumerState<QuartFabProduct>
   }
 
   Widget _buildShortcutItem({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return FadeTransition(
+  required IconData icon,
+  required String label,
+  required Color color,
+  required VoidCallback onTap,
+}) {
+  return SizeTransition(
+    sizeFactor: _expandAnimation,
+    axisAlignment: 1.0, // Animasi tumbuh dari bawah ke atas
+    child: FadeTransition(
       opacity: _expandAnimation,
-      child: ScaleTransition(
-        scale: _expandAnimation,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10.0), // Jarak otomatis antar icon
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Label / Teks Keterangan
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.black87,
+                color: Colors.black.withOpacity(0.8),
                 borderRadius: BorderRadius.circular(6),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
               ),
               child: Text(
                 label,
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
             const SizedBox(width: 8),
+
+            // Tombol Icon Sub-Menu
             FloatingActionButton.small(
               heroTag: 'shortcut_$label',
               backgroundColor: color,
               foregroundColor: Colors.white,
+              elevation: 3,
               onPressed: onTap,
               child: Icon(icon, size: 20),
             ),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }
