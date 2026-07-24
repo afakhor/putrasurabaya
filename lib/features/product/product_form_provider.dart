@@ -128,6 +128,34 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
 
   ProductFormNotifier(this._db) : super(ProductFormState(id: 'PTRS${DateTime.now().millisecondsSinceEpoch}'));
 
+// Tambahkan di dalam class ProductFormNotifier:
+
+void generateVariants(List<String> variantNames, {double? defaultPrice}) {
+  final currentVariants = List<ProductVariantData>.from(state.variants);
+  final baseId = state.id.isEmpty ? 'PSB-${DateTime.now().millisecondsSinceEpoch}' : state.id;
+  final price = defaultPrice ?? state.sellPriceGeneral;
+
+  for (var name in variantNames) {
+    if (name.trim().isEmpty) continue;
+    
+    final nextIndex = currentVariants.length + 1;
+    final autoSuffix = '+V${nextIndex.toString().padLeft(3, '0')}';
+    
+    currentVariants.add(
+      ProductVariantData(
+        id: '$baseId$autoSuffix',
+        productId: baseId,
+        variantName: name.trim(),
+        sellPrice: price,
+        stock: 0,
+      ),
+    );
+  }
+
+  state = state.copyWith(variants: currentVariants);
+}
+
+
   void setProduct(ProductData p, List<ProductUnitData> units, List<ProductVariantData> variants, List<String> images) {
     state = ProductFormState(
       id: p.id, name: p.name, shortName: p.shortName ?? '', barcode: p.barcode ?? '',
