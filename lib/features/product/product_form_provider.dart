@@ -130,21 +130,28 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
 
 // Tambahkan di dalam class ProductFormNotifier:
 
-void generateVariants(List<String> variantNames, {double? defaultPrice}) {
+// Ganti metode generateVariants yang lama dengan kode ini:
+
+void generateVariants([List<String>? variantNames, double? defaultPrice]) {
+  final names = (variantNames == null || variantNames.isEmpty)
+      ? ['Varian Baru']
+      : variantNames;
   final currentVariants = List<ProductVariantData>.from(state.variants);
   final baseId = state.id.isEmpty ? 'PSB-${DateTime.now().millisecondsSinceEpoch}' : state.id;
   final price = defaultPrice ?? state.sellPriceGeneral;
 
-  for (var name in variantNames) {
+  for (var name in names) {
     if (name.trim().isEmpty) continue;
-    
+
     final nextIndex = currentVariants.length + 1;
     final autoSuffix = '+V${nextIndex.toString().padLeft(3, '0')}';
-    
+    final sku = '$baseId$autoSuffix';
+
     currentVariants.add(
       ProductVariantData(
-        id: '$baseId$autoSuffix',
+        id: sku,
         productId: baseId,
+        skuVariant: sku, // <-- Menambahkan parameter wajib skuVariant
         variantName: name.trim(),
         sellPrice: price,
         stock: 0,
