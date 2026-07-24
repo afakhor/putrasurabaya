@@ -5,7 +5,7 @@ import '../../core/database/local_database.dart';
 import '../../core/utils/format_rupiah.dart';
 import 'product_form_provider.dart';
 import 'product_form_dialogs.dart';
-import '../../core/utils/quart_fab_product.dart';
+import '../../core/utils/fab_product_punya.dart';
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 final filterCategoryProvider = StateProvider<String?>((ref) => null);
