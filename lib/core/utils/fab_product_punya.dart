@@ -59,43 +59,45 @@ class _QuartFabProductState extends ConsumerState<QuartFabProduct>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // --- ITEM SUB-MENU / SHORTCUTS (Dapat di-expand) ---
-        if (_isOpen) ...[
-          _buildShortcutItem(
-            icon: Icons.qr_code_scanner,
-            label: 'Scan Barcode Cepat',
-            color: Colors.purple,
-            onTap: () {
-              _toggle();
-              // TODO: Aksi Scan Barcode Instan
-            },
-          ),
-          const SizedBox(height: 10),
-          _buildShortcutItem(
-            icon: Icons.flash_on,
-            label: 'Stok Darurat / Adjust',
-            color: Colors.orange,
-            onTap: () {
-              _toggle();
-              // TODO: Aksi Stok Darurat
-            },
-          ),
-          const SizedBox(height: 10),
-          _buildShortcutItem(
-            icon: Icons.style,
-            label: 'Buat Varian Cepat',
-            color: Colors.blue,
-            onTap: () {
-              _toggle();
-              ref.read(productFormProvider.notifier).generateVariants(
-                warnaList: ['Merah', 'Hitam'],
-                ukuranList: ['S', 'M', 'L'],
-              );
-              widget.onOpenProductForm?.call(context);
-            },
-          ),
-          const SizedBox(height: 12),
-        ],
+        // --- ITEM SUB-MENU / SHORTCUTS ---
+        // Tanpa `if (_isOpen)` agar animasi reverse/menutup tetap berjalan halus
+        _buildShortcutItem(
+          icon: Icons.qr_code_scanner,
+          label: 'Scan Barcode Cepat',
+          color: Colors.purple,
+          onTap: () {
+            _toggle();
+            // TODO: Aksi Scan Barcode Instan
+          },
+        ),
+        _buildShortcutItem(
+          icon: Icons.flash_on,
+          label: 'Stok Darurat / Adjust',
+          color: Colors.orange,
+          onTap: () {
+            _toggle();
+            // TODO: Aksi Stok Darurat
+          },
+        ),
+        _buildShortcutItem(
+          icon: Icons.style,
+          label: 'Buat Varian Cepat',
+          color: Colors.blue,
+          onTap: () {
+            _toggle();
+            ref.read(productFormProvider.notifier).generateVariants(
+              warnaList: ['Merah', 'Hitam'],
+              ukuranList: ['S', 'M', 'L'],
+            );
+            widget.onOpenProductForm?.call(context);
+          },
+        ),
+
+        // Spasi kecil sebelum tombol utama (ikut mengecil saat tertutup)
+        SizeTransition(
+          sizeFactor: _expandAnimation,
+          child: const SizedBox(height: 4),
+        ),
 
         // --- TOMBOL UTAMA (+) & TOGGLE SHORTCUT ---
         Row(
@@ -131,58 +133,59 @@ class _QuartFabProductState extends ConsumerState<QuartFabProduct>
   }
 
   Widget _buildShortcutItem({
-  required IconData icon,
-  required String label,
-  required Color color,
-  required VoidCallback onTap,
-}) {
-  return SizeTransition(
-    sizeFactor: _expandAnimation,
-    axisAlignment: 1.0, // Animasi tumbuh dari bawah ke atas
-    child: FadeTransition(
-      opacity: _expandAnimation,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 10.0), // Jarak otomatis antar icon
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Label / Teks Keterangan
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(6),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return SizeTransition(
+      sizeFactor: _expandAnimation,
+      axisAlignment: 1.0, // Animasi tumbuh dari bawah ke atas
+      child: FadeTransition(
+        opacity: _expandAnimation,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10.0), // Jarak otomatis antar item
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Label / Teks Keterangan
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
-                ],
-              ),
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
+              const SizedBox(width: 8),
 
-            // Tombol Icon Sub-Menu
-            FloatingActionButton.small(
-              heroTag: 'shortcut_$label',
-              backgroundColor: color,
-              foregroundColor: Colors.white,
-              elevation: 3,
-              onPressed: onTap,
-              child: Icon(icon, size: 20),
-            ),
-          ],
+              // Tombol Icon Sub-Menu
+              FloatingActionButton.small(
+                heroTag: 'shortcut_$label',
+                backgroundColor: color,
+                foregroundColor: Colors.white,
+                elevation: 3,
+                onPressed: onTap,
+                child: Icon(icon, size: 20),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
