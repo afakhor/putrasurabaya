@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 import '../local_database.dart';
 
+part 'receivables_dao.g.dart';
+
 /// Model wrapper untuk menggabungkan data piutang dengan data pelanggan
 class ReceivableWithCustomer {
   final Receivable receivable;
@@ -12,7 +14,10 @@ class ReceivableWithCustomer {
   });
 }
 
-extension ReceivablesDao on LocalDatabase {
+@DriftAccessor(tables: [Receivables, Customers])
+class ReceivablesDao extends DatabaseAccessor<LocalDatabase> with _$ReceivablesDaoMixin {
+  ReceivablesDao(LocalDatabase db) : super(db);
+
   /// Stream daftar piutang beserta data pelanggan (Join Table)
   Stream<List<ReceivableWithCustomer>> watchReceivablesWithCustomer() {
     final query = select(receivables).join([
