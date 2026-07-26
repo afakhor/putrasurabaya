@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-// Import provider dari folder providers
-import '../../providers/dashboard_providers.dart';
+import '../providers/dashboard_providers.dart';
 
 class DashboardSummaryCards extends ConsumerWidget {
   const DashboardSummaryCards({super.key});
@@ -11,7 +10,8 @@ class DashboardSummaryCards extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summaryAsync = ref.watch(dashboardFinanceSummaryProvider);
-    final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+    final currency = NumberFormat.currency(
+        locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
     return summaryAsync.when(
       data: (data) => Column(
@@ -61,10 +61,47 @@ class DashboardSummaryCards extends ConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          // Baris 3: Pengeluaran & Stok Menipis
+          Row(
+            children: [
+              _buildCard(
+                title: 'Pengeluaran Hari Ini',
+                value: currency.format(data.pengeluaranHariIni),
+                subtitle: 'Beban Operasional',
+                color: Colors.orange.shade800,
+                bgColor: Colors.orange.shade50,
+                icon: Icons.receipt_long_outlined,
+              ),
+              const SizedBox(width: 12),
+              _buildCard(
+                title: 'Stok Menipis',
+                value: '${data.stokMenipisCount} Produk',
+                subtitle: 'Perlu Restock Segera',
+                color: data.stokMenipisCount > 0
+                    ? Colors.amber.shade900
+                    : Colors.grey.shade700,
+                bgColor: data.stokMenipisCount > 0
+                    ? Colors.amber.shade50
+                    : Colors.grey.shade100,
+                icon: Icons.warning_amber_rounded,
+              ),
+            ],
+          ),
         ],
       ),
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Text('Error: $err'),
+      loading: () => const Center(
+        padding: EdgeInsets.all(24.0),
+        child: CircularProgressIndicator(),
+      ),
+      error: (err, stack) => Card(
+        color: Colors.red.shade50,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text('Gagal memuat data dashboard: $err',
+              style: const TextStyle(color: Colors.red)),
+        ),
+      ),
     );
   }
 
@@ -89,7 +126,14 @@ class DashboardSummaryCards extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                          fontSize: 12, color: Colors.black54),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                   Icon(icon, size: 18, color: color),
                 ],
               ),
@@ -98,11 +142,16 @@ class DashboardSummaryCards extends ConsumerWidget {
                 fit: BoxFit.scaleDown,
                 child: Text(
                   value,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold, color: color),
                 ),
               ),
               const SizedBox(height: 4),
-              Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.black45)),
+              Text(
+                subtitle,
+                style: const TextStyle(fontSize: 11, color: Colors.black45),
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),
