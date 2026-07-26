@@ -1,3 +1,4 @@
+// lib/features/pos/pos_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,14 +6,10 @@ import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:intl/intl.dart';
 import 'package:drift/drift.dart' hide Column;
 
-import '../../core/utils/format_rupiah.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../core/database/local_database.dart';
-import '../../core/firebase/firestore_service.dart';
-import '../../core/services/sync_service.dart';
-import '../../main.dart';
+import '../../main.dart'; // tempat productsStreamProvider dipublish
 import 'pos_cart_provider.dart';
-import 'pos_models.dart';
 
 class PosPage extends ConsumerStatefulWidget {
   const PosPage({super.key});
@@ -65,6 +62,8 @@ class _PosPageState extends ConsumerState<PosPage> {
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsStreamProvider);
     final db = ref.watch(localDatabaseProvider);
+    
+    // 1. Membaca State Keranjang dari posCartProvider
     final cartState = ref.watch(posCartProvider);
     final cartNotifier = ref.read(posCartProvider.notifier);
 
@@ -128,8 +127,7 @@ class _PosPageState extends ConsumerState<PosPage> {
                         if (!snap.hasData || snap.data!.isEmpty) {
                           return const Center(child: Text('Belum ada produk (offline)'));
                         }
-                        final local = snap.data!.map((e) => Product.fromDrift(e)).toList();
-                        return _buildProductGrid(local, isLandscape, cartNotifier);
+                        return _buildProductGrid(snap.data!, isLandscape, cartNotifier);
                       },
                     );
                   },
@@ -166,7 +164,7 @@ class _PosPageState extends ConsumerState<PosPage> {
                             final item = cartState.items[index];
                             return ListTile(
                               title: Text(item.product.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                              subtitle: Text('${_currencyFormatter.format(item.unitPrice)} x ${item.qty} ${item.unit}'),
+                              subtitle: Text('${_currencyFormatter.format(item.price)} x ${item.quantity} ${item.unit}'),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -176,15 +174,16 @@ class _PosPageState extends ConsumerState<PosPage> {
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.remove_circle_outline, color: Colors.orange, size: 20),
-                                    onPressed: () => cartNotifier.updateQty(index, item.qty - 1),
+                                    onPressed: () => cartNotifier.updateQuantity(item.product.id, item.quantity - 1),
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.add_circle_outline, color: Colors.green, size: 20),
-                                    onPressed: () => cartNotifier.updateQty(index, item.qty + 1),
+                                    // 2. Menambah Produk saat Item Ditekan
+                                    onPressed: () => cartNotifier.addProduct(item.product),
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                                    onPressed: () => cartNotifier.removeItem(index),
+                                    onPressed: () => cartNotifier.removeProduct(item.product.id),
                                   ),
                                 ],
                               ),
@@ -213,7 +212,7 @@ class _PosPageState extends ConsumerState<PosPage> {
                         children: [
                           const Text('TOTAL BAYAR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                           Text(
-                            _currencyFormatter.format(cartState.grandTotal),
+                            _currencyFormatter.format(cartState.total),
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF00A65A)),
                           ),
                         ],
@@ -262,7 +261,7 @@ class _PosPageState extends ConsumerState<PosPage> {
   }
 
   /// Widget Grid Katalog Produk
-  Widget _buildProductGrid(List<Product> products, bool isLandscape, dynamic cartNotifier) {
+  Widget _buildProductGrid(List<ProductData> products, bool isLandscape, PosCartNotifier cartNotifier) {
     final filtered = products.where((p) {
       final nameMatch = p.name.toLowerCase().contains(_searchQuery);
       final barcodeMatch = p.barcode?.toLowerCase().contains(_searchQuery) ?? false;
@@ -287,7 +286,8 @@ class _PosPageState extends ConsumerState<PosPage> {
         return Card(
           elevation: 2,
           child: InkWell(
-            onTap: () => cartNotifier.addItem(product),
+            // 2. Menambah Produk saat Item Ditekan
+            onTap: () => cartNotifier.addProduct(product),
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: Column(
@@ -305,7 +305,7 @@ class _PosPageState extends ConsumerState<PosPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _currencyFormatter.format(product.sellPriceGeneral > 0 ? product.sellPriceGeneral : product.sellPrice),
+                        _currencyFormatter.format(product.sellPriceGeneral > 0 ? product.sellPriceGeneral : 0),
                         style: const TextStyle(color: Color(0xFF00A65A), fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       const SizedBox(height: 2),
@@ -327,12 +327,14 @@ class _PosPageState extends ConsumerState<PosPage> {
     );
   }
 
-  /// Dialog Form Pembayaran (Cash, QRIS, Tempo)
+  /// Dialog Form Pembayaran (Tunai, QRIS, Tempo)
   void _showCheckoutModal(BuildContext context, WidgetRef ref) {
-    final cartState = ref.watch(posCartProvider);
+    final cartState = ref.read(posCartProvider);
     final cartNotifier = ref.read(posCartProvider.notifier);
-    final cashController = TextEditingController(text: cartState.cashPaid > 0 ? cartState.cashPaid.toStringAsFixed(0) : '');
-    final dpController = TextEditingController(text: cartState.dpAmount > 0 ? cartState.dpAmount.toStringAsFixed(0) : '');
+    
+    final cashController = TextEditingController(
+      text: cartState.paidAmount > 0 ? cartState.paidAmount.toStringAsFixed(0) : '',
+    );
 
     showModalBottomSheet(
       context: context,
@@ -357,7 +359,10 @@ class _PosPageState extends ConsumerState<PosPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Metode Pembayaran', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        Text('Total: ${_currencyFormatter.format(state.grandTotal)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF00A65A))),
+                        Text(
+                          'Total: ${_currencyFormatter.format(state.total)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF00A65A)),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -386,7 +391,8 @@ class _PosPageState extends ConsumerState<PosPage> {
                         ),
                         onChanged: (val) {
                           final n = double.tryParse(val) ?? 0;
-                          cartNotifier.updatePaymentDetails(cashPaid: n);
+                          // 3. Mengubah Nominal Pembayaran
+                          cartNotifier.setPaidAmount(n);
                         },
                       ),
                       const SizedBox(height: 8),
@@ -394,16 +400,16 @@ class _PosPageState extends ConsumerState<PosPage> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: state.changeAmount >= 0 ? Colors.green.shade50 : Colors.red.shade50,
+                          color: state.paidAmount >= state.total ? Colors.green.shade50 : Colors.red.shade50,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          state.changeAmount >= 0
-                              ? 'Kembali: ${_currencyFormatter.format(state.changeAmount)}'
-                              : 'Kurang: ${_currencyFormatter.format(state.changeAmount.abs())}',
+                          state.paidAmount >= state.total
+                              ? 'Kembali: ${_currencyFormatter.format(state.change)}'
+                              : 'Kurang: ${_currencyFormatter.format(state.total - state.paidAmount)}',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: state.changeAmount >= 0 ? Colors.green.shade800 : Colors.red.shade800,
+                            color: state.paidAmount >= state.total ? Colors.green.shade800 : Colors.red.shade800,
                           ),
                         ),
                       ),
@@ -412,12 +418,16 @@ class _PosPageState extends ConsumerState<PosPage> {
                     // OPSI TEMPO / KREDIT
                     if (state.paymentMethod == 'tempo') ...[
                       ListTile(
-                        title: Text(state.customer == null ? 'Pilih Customer (Wajib)' : 'Customer: ${state.customer!.name}'),
+                        title: Text(
+                          state.selectedCustomer == null 
+                              ? 'Pilih Customer (Wajib)' 
+                              : 'Customer: ${state.selectedCustomer!.name}'
+                        ),
                         trailing: const Icon(Icons.person_add),
                         tileColor: Colors.amber[50],
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         onTap: () {
-                          // Contoh Dummy set customer (Bisa dihubungkan ke Dialog / List Customer)
+                          // Dummy set customer (Dapat dihubungkan dengan dialog/list customer)
                           cartNotifier.setCustomer(const CustomerData(
                             id: 'CUST-001',
                             name: 'Pelanggan Umum',
@@ -427,7 +437,7 @@ class _PosPageState extends ConsumerState<PosPage> {
                       ),
                       const SizedBox(height: 8),
                       TextField(
-                        controller: dpController,
+                        controller: cashController,
                         keyboardType: TextInputType.number,
                         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         decoration: const InputDecoration(
@@ -437,12 +447,13 @@ class _PosPageState extends ConsumerState<PosPage> {
                         ),
                         onChanged: (val) {
                           final n = double.tryParse(val) ?? 0;
-                          cartNotifier.updatePaymentDetails(dpAmount: n);
+                          // 3. Mengubah Nominal Pembayaran
+                          cartNotifier.setPaidAmount(n);
                         },
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Sisa Piutang: ${_currencyFormatter.format(state.remainingTempo)}',
+                        'Sisa Piutang: ${_currencyFormatter.format(state.debt)}',
                         style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
                       ),
                     ],
@@ -457,18 +468,28 @@ class _PosPageState extends ConsumerState<PosPage> {
                           foregroundColor: Colors.white,
                         ),
                         onPressed: () async {
-                          try {
-                            // Eksekusi Simpan Transaksi & Background Sync
-                            final txId = await _prosesPenyimpanan(ref);
-                            if (context.mounted && txId != null) {
+                          // Simpan Snapshot state keranjang untuk dicetak
+                          final snapshotCart = state;
+
+                          // 4. Memproses Tombol Bayar / Checkout via PosCartNotifier
+                          final success = await ref.read(posCartProvider.notifier).checkout(
+                            salesId: 'SALES-01',
+                            shiftId: 'SHIFT-01',
+                          );
+
+                          if (context.mounted) {
+                            if (success) {
                               Navigator.pop(context);
-                              _cetakStrukAutomatis(ref, txId);
-                              _showSuccessAndPrintDialog(context, txId);
+                              _cetakStrukAutomatis(snapshotCart);
+                              _showSuccessAndPrintDialog(context, snapshotCart);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Gagal melakukan checkout transaksi'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
                             }
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Gagal Checkout: $e'), backgroundColor: Colors.red),
-                            );
                           }
                         },
                         child: const Text('PROSES & SIMPAN TRANSAKSI', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -485,71 +506,29 @@ class _PosPageState extends ConsumerState<PosPage> {
     );
   }
 
-  /// Eksekusi Penyimpanan Transaksi ke Local Drift & Sync Background
-  Future<String?> _prosesPenyimpanan(WidgetRef ref) async {
-    final cartState = ref.read(posCartProvider);
-    final cartNotifier = ref.read(posCartProvider.notifier);
-    final txId = 'TX-${DateTime.now().millisecondsSinceEpoch}';
-    final invoiceNo = 'PSB-${DateTime.now().millisecondsSinceEpoch}';
-
-    final items = cartState.items.map((it) => TransactionItemsCompanion.insert(
-      id: 'ITEM-$txId-${it.product.id}',
-      transactionId: txId,
-      productId: it.product.id,
-      quantity: it.qty,
-      price: it.unitPrice,
-      unit: it.unit,
-    )).toList();
-
-    // 1. Simpan Offline-First ke Drift DB
-    await ref.read(localDatabaseProvider).prosesTransaksiPenyimpanan(
-      dataTransaksi: TransactionsCompanion.insert(
-        id: txId,
-        invoiceNo: invoiceNo,
-        subtotal: cartState.subtotal,
-        total: cartState.grandTotal,
-        paid: Value(cartState.paymentMethod == 'cash' ? cartState.cashPaid : cartState.dpAmount),
-        debt: Value(cartState.remainingTempo),
-        change: Value(cartState.changeAmount > 0 ? cartState.changeAmount : 0),
-        paymentMethod: Value(cartState.paymentMethod),
-      ),
-      itemTransaksi: items,
-    );
-
-    // 2. Trigger Sync ke Firestore di Background
-    ref.read(syncServiceProvider).syncLocalToCloud();
-
-    // 3. Clear Keranjang
-    cartNotifier.clearCart();
-
-    return txId;
-  }
-
   /// Format & Kirim Perintah Cetak ke Thermal Printer
-  Future<void> _cetakStrukAutomatis(WidgetRef ref, String txId) async {
-    if (!_isConnected) return;
-    final cartState = ref.read(posCartProvider);
+  Future<void> _cetakStrukAutomatis(PosCartState cartSnapshot) async {
+    if (!_isConnected || cartSnapshot.items.isEmpty) return;
 
     String s = '      UD. PUTRA SURABAYA\n';
     s += '--------------------------------\n';
-    s += 'ID: $txId\n';
     s += 'Tgl: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}\n';
     s += '--------------------------------\n';
 
-    for (var it in cartState.items) {
+    for (var it in cartSnapshot.items) {
       s += '${it.product.name}\n';
-      s += _baris(' ${it.qty.toStringAsFixed(0)} ${it.unit} x ${_currencyFormatter.format(it.unitPrice)}', _currencyFormatter.format(it.subtotal));
+      s += _baris(' ${it.quantity.toStringAsFixed(0)} ${it.unit} x ${_currencyFormatter.format(it.price)}', _currencyFormatter.format(it.subtotal));
     }
 
     s += '--------------------------------\n';
-    s += _baris('TOTAL:', _currencyFormatter.format(cartState.grandTotal));
-    
-    if (cartState.paymentMethod == 'cash') {
-      s += _baris('BAYAR:', _currencyFormatter.format(cartState.cashPaid));
-      s += _baris('KEMBALI:', _currencyFormatter.format(cartState.changeAmount));
-    } else if (cartState.paymentMethod == 'tempo') {
-      s += _baris('DP/UM:', _currencyFormatter.format(cartState.dpAmount));
-      s += _baris('PIUTANG:', _currencyFormatter.format(cartState.remainingTempo));
+    s += _baris('TOTAL:', _currencyFormatter.format(cartSnapshot.total));
+
+    if (cartSnapshot.paymentMethod == 'cash') {
+      s += _baris('BAYAR:', _currencyFormatter.format(cartSnapshot.paidAmount));
+      s += _baris('KEMBALI:', _currencyFormatter.format(cartSnapshot.change));
+    } else if (cartSnapshot.paymentMethod == 'tempo') {
+      s += _baris('DP/UM:', _currencyFormatter.format(cartSnapshot.paidAmount));
+      s += _baris('PIUTANG:', _currencyFormatter.format(cartSnapshot.debt));
     }
 
     s += '--------------------------------\n';
@@ -559,18 +538,18 @@ class _PosPageState extends ConsumerState<PosPage> {
   }
 
   /// Dialog Sukses & Opsi Cetak Struk Manual
-  void _showSuccessAndPrintDialog(BuildContext context, String txId) {
+  void _showSuccessAndPrintDialog(BuildContext context, PosCartState cartSnapshot) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Icon(Icons.check_circle, color: Color(0xFF00A65A), size: 60),
-        content: Column(
+        content: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Transaksi Berhasil Disimpan!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 4),
-            Text('No. Transaksi: $txId', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text('Transaksi Berhasil Disimpan!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            SizedBox(height: 4),
+            Text('Data tersimpan secara offline & siap disinkronkan ke cloud.', style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
           ],
         ),
         actions: [
@@ -578,7 +557,7 @@ class _PosPageState extends ConsumerState<PosPage> {
             icon: const Icon(Icons.print),
             label: const Text('Cetak Struk Lagi'),
             onPressed: () {
-              _cetakStrukAutomatis(ref, txId);
+              _cetakStrukAutomatis(cartSnapshot);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Mengirim perintah ke printer thermal...')),
               );
