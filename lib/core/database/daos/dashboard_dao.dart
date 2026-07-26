@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:rxdart/rxdart.dart';
+
 import '../local_database.dart';
+import '../tables/finance_table.dart'; // <--- TAMBAHKAN IMPORT INI
 import '../../../features/dashboard/models/dashboard_finance_summary.dart';
 
 part 'dashboard_dao.g.dart';
