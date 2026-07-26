@@ -2,6 +2,8 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'tables/finance_table.dart'; // Import tabel keuangan (Payables, Receivables, dll)
+
 part 'local_database.g.dart';
 
 @DataClassName('UserData')
@@ -127,7 +129,7 @@ class Transactions extends Table {
   RealColumn get debt => real().withDefault(const Constant(0))();
   RealColumn get change => real().withDefault(const Constant(0))();
   TextColumn get paymentMethod => text().withDefault(const Constant('cash'))();
-  TextColumn get customerId => text().nullable()(); // <-- TAMBAHAN UNTUK PIUTANG
+  TextColumn get customerId => text().nullable()();
   DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))(); 
   @override Set<Column> get primaryKey => {id};
@@ -167,22 +169,32 @@ class CustomerDebts extends Table {
 @DriftDatabase(tables: [
   Users, Products, ProductAssets, ProductUnits, ProductVariants, 
   ProductPromos, Suppliers, StockMutations, Transactions, TransactionItems,
-  Customers, CustomerDebts
+  Customers, CustomerDebts,
+  // TABEL KEUANGAN & HUTANG PIUTANG
+  Payables, Receivables, DebtPayments, Expenses
 ])
 class LocalDatabase extends _$LocalDatabase { 
-  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v5'));
+  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v6'));
 
   @override
-  int get schemaVersion => 5; 
+  int get schemaVersion => 6; 
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async => await m.createAll(),
     onUpgrade: (Migrator m, int from, int to) async {
+      // Migrasi v4 -> v5 (Tabel Pelanggan & Piutang)
       if (from < 5) {
         await m.createTable(customers);
         await m.createTable(customerDebts);
         await m.addColumn(transactions, transactions.customerId);
+      }
+      // Migrasi v5 -> v6 (Tabel Keuangan Lanjutan)
+      if (from < 6) {
+        await m.createTable(payables);
+        await m.createTable(receivables);
+        await m.createTable(debtPayments);
+        await m.createTable(expenses);
       }
     },
   );
@@ -200,9 +212,11 @@ class LocalDatabase extends _$LocalDatabase {
     if (type == 'masuk' && (stokLama + qty) > 0) {
       hppBaru = ((stokLama * hppLama) + (qty * hargaMasuk)) / (stokLama + qty);
     }
-    await (update(products)..where((t) => t.id.equals(productId))).write(ProductsCompanion(stock: Value(stokBaru), buyPrice: Value(hppBaru)));
+    await (update(products)..where((t) => t.id.equals(productId))).write(
+      ProductsCompanion(stock: Value(stokBaru), buyPrice: Value(hppBaru))
+    );
     await into(stockMutations).insert(StockMutationsCompanion.insert(
-      id: 'MUT-${DateTime.now().millisecondsSinceEpoch}-${productId}',
+      id: 'MUT-${DateTime.now().millisecondsSinceEpoch}-$productId',
       productId: productId, variantId: const Value(null), type: type, quantity: qty,
       hppSnapshot: hppBaru, currentStockSnapshot: stokBaru, referenceNo: refNo,
       notes: Value('POS $refNo'), date: Value(DateTime.now()),
@@ -223,7 +237,7 @@ class LocalDatabase extends _$LocalDatabase {
           hargaMasuk: 0, refNo: dataTransaksi.invoiceNo.value,
         );
       }
-      // Jika ada hutang -> catat piutang
+      // Jika ada hutang -> catat piutang pelanggan
       if (dataTransaksi.debt.value > 0 && dataTransaksi.customerId.value != null) {
         final custId = dataTransaksi.customerId.value!;
         await into(customerDebts).insert(CustomerDebtsCompanion.insert(
@@ -234,6 +248,7 @@ class LocalDatabase extends _$LocalDatabase {
       }
     });
   }
+
   // PUBLIC WRAPPER BIAR DIPANGGIL DARI LUAR - AUTO SYNC HPP + STOK
   Future<List<ProductData>> getAllProducts() => select(products).get();
 
@@ -247,11 +262,10 @@ class LocalDatabase extends _$LocalDatabase {
     String? catatan,
   }) async {
     await transaction(() async {
-      // ambil stok & HPP sekarang
       final prod = await (select(products)..where((t) => t.id.equals(productId))).getSingle();
       double stokLama = prod.stock;
       double hppLama = prod.buyPrice;
-      
+
       double stokBaru;
       double hppBaru = hppLama;
 
@@ -267,7 +281,6 @@ class LocalDatabase extends _$LocalDatabase {
         stokBaru = stokLama - qty; // keluar
       }
 
-      // UPDATE 2 arah: Products.stock + Products.buyPrice (HPP) langsung update
       await (update(products)..where((t) => t.id.equals(productId))).write(
         ProductsCompanion(stock: Value(stokBaru), buyPrice: Value(hppBaru))
       );
