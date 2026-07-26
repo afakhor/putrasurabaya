@@ -1,5 +1,11 @@
 import 'package:drift/drift.dart';
-import '../local_database.dart';
+
+// Import LocalDatabase
+import 'package:ud_putra_kasir/core/database/local_database.dart';
+
+// Import File Tabel Spesifik (Menghindari Circular Import)
+import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
 
 part 'payables_dao.g.dart';
 
@@ -9,10 +15,9 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
   PayablesDao(LocalDatabase db) : super(db);
 
   // ===========================================================================
-  // 1. QUERY & STREAM DAFTAR HUTANG (PAYABLES)
+  // 1. QUERY & STREAM DAFTAR HUTANG
   // ===========================================================================
 
-  /// Stream semua hutang ke supplier yang belum lunas
   Stream<List<PayableData>> watchActivePayables() {
     return (select(payables)
           ..where((tbl) => tbl.status.isNotIn(['paid', 'LUNAS']))
@@ -23,10 +28,8 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
         .watch();
   }
 
-  /// Alias stream untuk hutang yang belum lunas
   Stream<List<PayableData>> watchUnpaidPayables() => watchActivePayables();
 
-  /// Stream hutang supplier yang hampir / sudah jatuh tempo
   Stream<List<PayableData>> watchOverduePayables({DateTime? dateLimit}) {
     final limit = dateLimit ?? DateTime.now();
     return (select(payables)
@@ -40,7 +43,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
         .watch();
   }
 
-  /// Stream daftar hutang per supplier spesifik
   Stream<List<PayableData>> watchPayablesBySupplier(String supplierId) {
     return (select(payables)
           ..where((tbl) => tbl.supplierId.equals(supplierId))
@@ -55,7 +57,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
   // 2. TRANSAKSI (MUTASI HUTANG & PEMBAYARAN)
   // ===========================================================================
 
-  /// Pencatatan hutang usaha dari pembelian tempo ke supplier
   Future<void> catatPembelianTempo({
     required String purchaseRef,
     required String supplierId,
@@ -78,11 +79,10 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
           paidAmount: Value(dpAmount),
           remainingAmount: sisaHutang < 0 ? 0.0 : sisaHutang,
           dueDate: dueDate,
-          status: status,
+          status: Value(status), // FIXED: Wajib dibungkus Value()
         ),
       );
 
-      // Jika ada DP awal, catat ke log riwayat pembayaran arus kas keluar
       if (dpAmount > 0) {
         await into(debtPayments).insert(
           DebtPaymentsCompanion.insert(
@@ -98,7 +98,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
     });
   }
 
-  /// Alias method untuk pencatatan hutang supplier
   Future<void> catatHutang({
     required String purchaseRef,
     required String supplierId,
@@ -114,11 +113,10 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
         dueDate: dueDate,
       );
 
-  /// Pembayaran cicilan / pelunasan hutang ke supplier
   Future<bool> bayarAngsuranHutang({
     required String payableId,
     required double nominalBayar,
-    required String paymentMethod, // 'cash', 'transfer'
+    required String paymentMethod,
     String? notes,
   }) async {
     return transaction(() async {
@@ -134,7 +132,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
         throw Exception('Hutang ini sudah lunas');
       }
 
-      // Proteksi overpayment agar nominal bayar tidak melebihi sisa hutang
       final actualBayar = nominalBayar > item.remainingAmount
           ? item.remainingAmount
           : nominalBayar;
@@ -153,7 +150,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
         ),
       );
 
-      // Catat log transaksi di DebtPayments
       await into(debtPayments).insert(
         DebtPaymentsCompanion.insert(
           id: 'PAY-AP-${DateTime.now().millisecondsSinceEpoch}',
@@ -172,7 +168,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
     });
   }
 
-  /// Alias method untuk pembayaran angsuran hutang
   Future<bool> bayarHutangSupplier({
     required String payableId,
     required double nominalBayar,
@@ -190,7 +185,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
   // 3. RIWAYAT PEMBAYARAN
   // ===========================================================================
 
-  /// Ambil riwayat angsuran / pembayaran suatu hutang supplier
   Future<List<DebtPaymentData>> getPaymentHistory(String payableId) {
     return (select(debtPayments)
           ..where((tbl) =>
