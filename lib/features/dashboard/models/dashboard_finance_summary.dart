@@ -1,20 +1,23 @@
 class DashboardFinanceSummary {
-  final double totalSisaHutang;      // Total Hutang Usaha ke Supplier
-  final int jumlahHutangAktif;        // Jumlah Transaksi Hutang Belum Lunas
-  final double totalSisaPiutang;     // Total Piutang Usaha dari Customer
-  final int jumlahPiutangAktif;       // Jumlah Transaksi Piutang Belum Lunas
+  final double omsetHariIni;
+  final int jumlahTransaksiHariIni;
+  final double labaKotorHariIni;
+  final double pengeluaranHariIni;
+  final double totalSisaHutang;
+  final int jumlahHutangAktif;
+  final double totalSisaPiutang;
+  final int jumlahPiutangAktif;
+  final int stokMenipisCount;
 
   DashboardFinanceSummary({
+    required this.omsetHariIni,
+    required this.jumlahTransaksiHariIni,
+    required this.labaKotorHariIni,
+    required this.pengeluaranHariIni,
     required this.totalSisaHutang,
     required this.jumlahHutangAktif,
     required this.totalSisaPiutang,
     required this.jumlahPiutangAktif,
+    required this.stokMenipisCount,
   });
-
-  factory DashboardFinanceSummary.empty() => DashboardFinanceSummary(
-        totalSisaHutang: 0,
-        jumlahHutangAktif: 0,
-        totalSisaPiutang: 0,
-        jumlahPiutangAktif: 0,
-      );
 }
