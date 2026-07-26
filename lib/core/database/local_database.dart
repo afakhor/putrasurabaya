@@ -2,7 +2,9 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'tables/finance_table.dart'; // Import tabel keuangan (Payables, Receivables, dll)
+import 'daos/dashboard_dao.dart';
+import 'daos/receivables_dao.dart';
+import 'tables/finance_table.dart';
 
 part 'local_database.g.dart';
 
@@ -10,10 +12,25 @@ part 'local_database.g.dart';
 class Users extends Table {
   TextColumn get id => text()(); 
   TextColumn get name => text()();
-  TextColumn get role => text()();
-  TextColumn get status => text()(); 
+  TextColumn get role => text()(); // owner, admin, salesman, kasir
+  TextColumn get status => text().withDefault(const Constant('aktif'))(); 
   BoolColumn get canEditPrice => boolean().withDefault(const Constant(false))();
   BoolColumn get canDeleteTransaction => boolean().withDefault(const Constant(false))();
+  @override Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('ShiftKasirData')
+class ShiftKasir extends Table {
+  TextColumn get id => text()();
+  TextColumn get userId => text().references(Users, #id)();
+  DateTimeColumn get startTime => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get endTime => dateTime().nullable()();
+  RealColumn get initialCash => real().withDefault(const Constant(0))();
+  RealColumn get expectedCash => real().withDefault(const Constant(0))();
+  RealColumn get actualCash => real().nullable()();
+  RealColumn get cashDifference => real().nullable()();
+  TextColumn get notes => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('open'))(); // open / closed
   @override Set<Column> get primaryKey => {id};
 }
 
@@ -119,33 +136,6 @@ class StockMutations extends Table {
   @override Set<Column> get primaryKey => {id};
 }
 
-@DataClassName('TransactionData')
-class Transactions extends Table {
-  TextColumn get id => text()(); 
-  TextColumn get invoiceNo => text()();
-  RealColumn get subtotal => real()();
-  RealColumn get total => real()();
-  RealColumn get paid => real().withDefault(const Constant(0))();
-  RealColumn get debt => real().withDefault(const Constant(0))();
-  RealColumn get change => real().withDefault(const Constant(0))();
-  TextColumn get paymentMethod => text().withDefault(const Constant('cash'))();
-  TextColumn get customerId => text().nullable()();
-  DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
-  BoolColumn get isSynced => boolean().withDefault(const Constant(false))(); 
-  @override Set<Column> get primaryKey => {id};
-}
-
-@DataClassName('TransactionItemData')
-class TransactionItems extends Table {
-  TextColumn get id => text()(); 
-  TextColumn get transactionId => text()(); 
-  TextColumn get productId => text()(); 
-  RealColumn get quantity => real()();
-  RealColumn get price => real()();
-  TextColumn get unit => text()();
-  @override Set<Column> get primaryKey => {id};
-}
-
 @DataClassName('CustomerData')
 class Customers extends Table {
   TextColumn get id => text()();
@@ -155,42 +145,62 @@ class Customers extends Table {
   @override Set<Column> get primaryKey => {id};
 }
 
-@DataClassName('CustomerDebtData')
-class CustomerDebts extends Table {
-  TextColumn get id => text()();
-  TextColumn get transactionId => text().references(Transactions, #id)();
-  TextColumn get customerId => text().references(Customers, #id)();
-  RealColumn get amount => real()();
-  TextColumn get status => text().withDefault(const Constant('belum_lunas'))();
-  DateTimeColumn get dueDate => dateTime().nullable()();
+@DataClassName('TransactionData')
+class Transactions extends Table {
+  TextColumn get id => text()(); 
+  TextColumn get invoiceNo => text()();
+  TextColumn get salesId => text().nullable()();
+  TextColumn get shiftId => text().nullable()();
+  TextColumn get customerId => text().nullable()();
+  RealColumn get subtotal => real()();
+  RealColumn get discountTotal => real().withDefault(const Constant(0))();
+  RealColumn get taxTotal => real().withDefault(const Constant(0))();
+  RealColumn get total => real()();
+  RealColumn get paid => real().withDefault(const Constant(0))();
+  RealColumn get debt => real().withDefault(const Constant(0))();
+  RealColumn get change => real().withDefault(const Constant(0))();
+  TextColumn get paymentMethod => text().withDefault(const Constant('cash'))();
+  DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))(); 
   @override Set<Column> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [
-  Users, Products, ProductAssets, ProductUnits, ProductVariants, 
-  ProductPromos, Suppliers, StockMutations, Transactions, TransactionItems,
-  Customers, CustomerDebts,
-  // TABEL KEUANGAN & HUTANG PIUTANG
-  Payables, Receivables, DebtPayments, Expenses
-])
+@DataClassName('TransactionItemData')
+class TransactionItems extends Table {
+  TextColumn get id => text()(); 
+  TextColumn get transactionId => text().references(Transactions, #id)(); 
+  TextColumn get productId => text().references(Products, #id)(); 
+  RealColumn get quantity => real()();
+  RealColumn get price => real()();
+  RealColumn get buyPriceAtTransaction => real().withDefault(const Constant(0))(); // SNAPSHOT HPP
+  TextColumn get unit => text()();
+  @override Set<Column> get primaryKey => {id};
+}
+
+@DriftDatabase(
+  tables: [
+    Users, ShiftKasir, Products, ProductAssets, ProductUnits, ProductVariants, 
+    ProductPromos, Suppliers, StockMutations, Transactions, TransactionItems,
+    Customers,
+    // TABEL KEUANGAN & HUTANG PIUTANG DARI FINANCE_TABLE.DART
+    Payables, Receivables, DebtPayments, Expenses
+  ],
+  daos: [
+    DashboardDao, ReceivablesDao
+  ],
+)
 class LocalDatabase extends _$LocalDatabase { 
-  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v6'));
+  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v7'));
 
   @override
-  int get schemaVersion => 6; 
+  int get schemaVersion => 7; 
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async => await m.createAll(),
     onUpgrade: (Migrator m, int from, int to) async {
-      // Migrasi v4 -> v5 (Tabel Pelanggan & Piutang)
-      if (from < 5) {
-        await m.createTable(customers);
-        await m.createTable(customerDebts);
-        await m.addColumn(transactions, transactions.customerId);
-      }
-      // Migrasi v5 -> v6 (Tabel Keuangan Lanjutan)
-      if (from < 6) {
+      if (from < 7) {
+        await m.createTable(shiftKasir);
         await m.createTable(payables);
         await m.createTable(receivables);
         await m.createTable(debtPayments);
@@ -199,62 +209,90 @@ class LocalDatabase extends _$LocalDatabase {
     },
   );
 
-  // HPP Moving Average tanpa nested transaction
+  // HPP Moving Average
   Future<void> _mutasiDalamTransaksi({
-    required String productId, required String type, required double qty,
-    required double hargaMasuk, required String refNo,
+    required String productId, 
+    required String type, 
+    required double qty,
+    required double hargaMasuk, 
+    required String refNo,
   }) async {
     final prod = await (select(products)..where((t) => t.id.equals(productId))).getSingle();
     double stokLama = prod.stock;
     double hppLama = prod.buyPrice;
     double stokBaru = (type == 'masuk' || type == 'retur') ? stokLama + qty : stokLama - qty;
     double hppBaru = hppLama;
+
     if (type == 'masuk' && (stokLama + qty) > 0) {
       hppBaru = ((stokLama * hppLama) + (qty * hargaMasuk)) / (stokLama + qty);
     }
+
     await (update(products)..where((t) => t.id.equals(productId))).write(
       ProductsCompanion(stock: Value(stokBaru), buyPrice: Value(hppBaru))
     );
+
     await into(stockMutations).insert(StockMutationsCompanion.insert(
       id: 'MUT-${DateTime.now().millisecondsSinceEpoch}-$productId',
-      productId: productId, variantId: const Value(null), type: type, quantity: qty,
-      hppSnapshot: hppBaru, currentStockSnapshot: stokBaru, referenceNo: refNo,
-      notes: Value('POS $refNo'), date: Value(DateTime.now()),
+      productId: productId, 
+      variantId: const Value(null), 
+      type: type, 
+      quantity: qty,
+      hppSnapshot: hppBaru, 
+      currentStockSnapshot: stokBaru, 
+      referenceNo: refNo,
+      notes: Value('POS $refNo'), 
+      date: Value(DateTime.now()),
     ));
   }
 
-  // DIPAKAI POS - OFFLINE FIRST + PIUTANG
+  // ALUR TRANSAKSI POS TERKONEKSI LANGSUNG KE RECEIVABLES & SNAPSHOT HPP
   Future<void> prosesTransaksiPenyimpanan({
     required TransactionsCompanion dataTransaksi,
     required List<TransactionItemsCompanion> itemTransaksi,
   }) async {
     await transaction(() async {
+      // 1. Simpan Header Transaksi
       await into(transactions).insert(dataTransaksi);
+
+      // 2. Simpan Rincian Item Transaksi & Potong Stok
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
         await _mutasiDalamTransaksi(
-          productId: item.productId.value, type: 'keluar', qty: item.quantity.value,
-          hargaMasuk: 0, refNo: dataTransaksi.invoiceNo.value,
+          productId: item.productId.value, 
+          type: 'keluar', 
+          qty: item.quantity.value,
+          hargaMasuk: 0, 
+          refNo: dataTransaksi.invoiceNo.value,
         );
       }
-      // Jika ada hutang -> catat piutang pelanggan
+
+      // 3. Sinkronisasi Piutang ke Tabel Receivables (Menyambung dengan Dashboard & ReceivablesDAO)
       if (dataTransaksi.debt.value > 0 && dataTransaksi.customerId.value != null) {
-        final custId = dataTransaksi.customerId.value!;
-        await into(customerDebts).insert(CustomerDebtsCompanion.insert(
-          id: 'DEBT-${dataTransaksi.id.value}', transactionId: dataTransaksi.id.value,
-          customerId: custId, amount: dataTransaksi.debt.value,
-          status: const Value('belum_lunas'), dueDate: Value(DateTime.now().add(const Duration(days: 7))),
-        ));
+        final totalHarga = dataTransaksi.total.value;
+        final dp = dataTransaksi.paid.value;
+        final sisaPiutang = dataTransaksi.debt.value;
+
+        await into(receivables).insert(
+          ReceivablesCompanion.insert(
+            id: 'AR-${dataTransaksi.id.value}',
+            transactionId: dataTransaksi.id.value,
+            customerId: dataTransaksi.customerId.value!,
+            totalAmount: totalHarga,
+            paidAmount: Value(dp),
+            remainingAmount: sisaPiutang,
+            dueDate: DateTime.now().add(const Duration(days: 14)),
+            status: dp > 0 ? 'partial' : 'unpaid',
+          ),
+        );
       }
     });
   }
 
-  // PUBLIC WRAPPER BIAR DIPANGGIL DARI LUAR - AUTO SYNC HPP + STOK
   Future<List<ProductData>> getAllProducts() => select(products).get();
 
   Future<void> catatMutasiStok({
     required String productId,
-    required String type, // masuk, keluar, opname, retur
+    required String type, 
     required double qty,
     required double hargaBeliMasuk,
     required String refNo,
@@ -270,15 +308,14 @@ class LocalDatabase extends _$LocalDatabase {
       double hppBaru = hppLama;
 
       if (type == 'opname') {
-        stokBaru = qty; // opname = timpa langsung jumlah fisik
+        stokBaru = qty; 
       } else if (type == 'masuk' || type == 'retur') {
         stokBaru = stokLama + qty;
-        // RUMUS HPP MOVING AVERAGE - AUTO SYNC
         if (stokLama + qty > 0) {
           hppBaru = ((stokLama * hppLama) + (qty * hargaBeliMasuk)) / (stokLama + qty);
         }
       } else {
-        stokBaru = stokLama - qty; // keluar
+        stokBaru = stokLama - qty; 
       }
 
       await (update(products)..where((t) => t.id.equals(productId))).write(
