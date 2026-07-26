@@ -1,4 +1,3 @@
-// lib/features/pos/widgets/pos_payment_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,7 +6,9 @@ import 'package:intl/intl.dart';
 import '../pos_cart_provider.dart';
 
 class PosPaymentDialog extends ConsumerStatefulWidget {
-  const PosPaymentDialog({super.key});
+  final Function(PosCartState cartSnapshot)? onSuccess;
+
+  const PosPaymentDialog({super.key, this.onSuccess});
 
   @override
   ConsumerState<PosPaymentDialog> createState() => _PosPaymentDialogState();
@@ -191,7 +192,6 @@ class _PosPaymentDialogState extends ConsumerState<PosPaymentDialog> {
                 trailing: const Icon(Icons.person_search),
                 onTap: () {
                   // Simulasi Pilihan Customer
-                  // Hubungkan dengan Dialog Pencarian Pelanggan Anda
                 },
               ),
               const SizedBox(height: 12),
@@ -253,7 +253,10 @@ class _PosPaymentDialogState extends ConsumerState<PosPaymentDialog> {
                     return;
                   }
 
-                  // Proses Checkout via PosCartNotifier
+                  // 1. Simpan snapshot data keranjang sebelum dihapus oleh checkout()
+                  final cartSnapshot = ref.read(posCartProvider);
+
+                  // 2. Eksekusi Checkout via PosCartNotifier
                   final success = await cartNotifier.checkout(
                     salesId: 'SALES-01',
                     shiftId: 'SHIFT-01',
@@ -262,12 +265,8 @@ class _PosPaymentDialogState extends ConsumerState<PosPaymentDialog> {
                   if (context.mounted) {
                     if (success) {
                       Navigator.pop(context); // Tutup dialog
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Transaksi Berhasil Disimpan & Sinkronisasi Dijalankan!'),
-                          backgroundColor: Color(0xFF00A65A),
-                        ),
-                      );
+                      // 3. Panggil callback onSuccess jika dikirim dari pos_page / pos_cart_widget
+                      widget.onSuccess?.call(cartSnapshot);
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Gagal menyimpan transaksi'), backgroundColor: Colors.red),
