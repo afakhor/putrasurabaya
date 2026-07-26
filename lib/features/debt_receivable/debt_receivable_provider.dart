@@ -1,6 +1,6 @@
 // lib/features/debt_receivable/debt_receivable_provider.dart
 
-import 'package0:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/database/local_database.dart';
 import '../../core/database/daos/receivables_dao.dart'; // <--- IMPORT DI SINI
 
