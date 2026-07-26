@@ -1,51 +1,74 @@
-// lib/core/database/tables/financial_tables.dart
 import 'package:drift/drift.dart';
 
-/// Tabel Hutang Ke Supplier (Accounts Payable / AP)
-class Payables extends Table {
-  TextColumn get id => text()();
-  TextColumn get purchaseRef => text()(); // No Nota Pembelian
-  TextColumn get supplierId => text()();
-  RealColumn get totalAmount => real()();
-  RealColumn get paidAmount => real().withDefault(const Constant(0))();
-  RealColumn get remainingAmount => real()();
-  DateTimeColumn get dueDate => dateTime()(); // Tanggal Jatuh Tempo
-  TextColumn get status => text()(); // 'unpaid', 'partial', 'paid'
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+/// ==========================================
+/// 1. MODUL PIUTANG CUSTOMER (ACCOUNTS RECEIVABLE / AR)
+/// ==========================================
 
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
-/// Tabel Piutang Customer (Accounts Receivable / AR)
+/// Tabel Utama Piutang Customer
 class Receivables extends Table {
-  TextColumn get id => text()();
+  TextColumn get id => text()(); // Contoh: RC-TRX-123 / RC-001
   TextColumn get transactionId => text()(); // ID Penjualan Kasir
   TextColumn get customerId => text()();
   RealColumn get totalAmount => real()();
-  RealColumn get paidAmount => real().withDefault(const Constant(0))();
+  RealColumn get paidAmount => real().withDefault(const Constant(0.0))();
   RealColumn get remainingAmount => real()();
+  TextColumn get status => text()(); // 'BELUM_LUNAS', 'DICICIL', 'LUNAS' (atau 'unpaid', 'partial', 'paid')
   DateTimeColumn get dueDate => dateTime()(); // Tanggal Jatuh Tempo
-  TextColumn get status => text()(); // 'unpaid', 'partial', 'paid'
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
-/// Tabel Riwayat Angsuran & Pelunasan Hutang/Piutang
-class DebtPayments extends Table {
-  TextColumn get id => text()();
-  TextColumn get refId => text()(); // FK ke Payables.id atau Receivables.id
-  TextColumn get type => text()(); // 'payable_pay' (Bayar Hutang) atau 'receivable_collect' (Terima Piutang)
+/// Tabel Riwayat Pembayaran / Cicilan Piutang Customer
+class ReceivablePayments extends Table {
+  TextColumn get id => text()(); // Contoh: PAY-RC-123
+  TextColumn get receivableId => text().references(Receivables, #id)(); // Relasi FK ke Receivables
   RealColumn get amount => real()();
-  TextColumn get paymentMethod => text()(); // 'cash', 'transfer'
-  TextColumn get notes => text().nullable()();
+  TextColumn get paymentMethod => text()(); // 'cash', 'transfer', 'qris'
   DateTimeColumn get paymentDate => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get notes => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
 }
+
+/// ==========================================
+/// 2. MODUL HUTANG SUPPLIER (ACCOUNTS PAYABLE / AP)
+/// ==========================================
+
+/// Tabel Utama Hutang Ke Supplier
+class Payables extends Table {
+  TextColumn get id => text()(); // Contoh: AP-001
+  TextColumn get purchaseRef => text()(); // No Nota / Faktur Pembelian
+  TextColumn get supplierId => text()();
+  RealColumn get totalAmount => real()();
+  RealColumn get paidAmount => real().withDefault(const Constant(0.0))();
+  RealColumn get remainingAmount => real()();
+  DateTimeColumn get dueDate => dateTime()(); // Tanggal Jatuh Tempo
+  TextColumn get status => text()(); // 'BELUM_LUNAS', 'DICICIL', 'LUNAS' (atau 'unpaid', 'partial', 'paid')
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Tabel Riwayat Pembayaran / Angsuran Hutang Supplier
+class PayablePayments extends Table {
+  TextColumn get id => text()(); // Contoh: PAY-AP-123
+  TextColumn get payableId => text().references(Payables, #id)(); // Relasi FK ke Payables
+  RealColumn get amount => real()();
+  TextColumn get paymentMethod => text()(); // 'cash', 'transfer'
+  DateTimeColumn get paymentDate => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get notes => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// ==========================================
+/// 3. MODUL BEBAN USAHA & OPERASIONAL
+/// ==========================================
 
 /// Tabel Operasional / Beban Usaha (Gaji, Listrik, Sewa, dll)
 class Expenses extends Table {
