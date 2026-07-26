@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
+
 import '../local_database.dart';
+import '../tables/finance_table.dart'; // <--- TAMBAHKAN IMPORT INI
 
 part 'receivables_dao.g.dart';
 
