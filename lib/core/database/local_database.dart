@@ -2,11 +2,19 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+// Import DAOs
 import 'daos/dashboard_dao.dart';
+import 'daos/payables_dao.dart';
 import 'daos/receivables_dao.dart';
+
+// Import Tables
 import 'tables/finance_table.dart';
 
 part 'local_database.g.dart';
+
+// ==========================================
+// 1. TABEL PENGGUNA & POS KASIR
+// ==========================================
 
 @DataClassName('UserData')
 class Users extends Table {
@@ -33,6 +41,10 @@ class ShiftKasir extends Table {
   TextColumn get status => text().withDefault(const Constant('open'))(); // open / closed
   @override Set<Column> get primaryKey => {id};
 }
+
+// ==========================================
+// 2. TABEL INVENTORY & PRODUK
+// ==========================================
 
 @DataClassName('ProductData')
 class Products extends Table {
@@ -136,6 +148,10 @@ class StockMutations extends Table {
   @override Set<Column> get primaryKey => {id};
 }
 
+// ==========================================
+// 3. TABEL PELANGGAN & TRANSAKSI
+// ==========================================
+
 @DataClassName('CustomerData')
 class Customers extends Table {
   TextColumn get id => text()();
@@ -177,16 +193,20 @@ class TransactionItems extends Table {
   @override Set<Column> get primaryKey => {id};
 }
 
+// ==========================================
+// 4. KONFIGURASI DATABASE UTAMA & MIGRATION
+// ==========================================
+
 @DriftDatabase(
   tables: [
     Users, ShiftKasir, Products, ProductAssets, ProductUnits, ProductVariants, 
     ProductPromos, Suppliers, StockMutations, Transactions, TransactionItems,
     Customers,
-    // TABEL KEUANGAN & HUTANG PIUTANG DARI FINANCE_TABLE.DART
+    // TABEL KEUANGAN & HUTANG PIUTANG
     Payables, Receivables, DebtPayments, Expenses
   ],
   daos: [
-    DashboardDao, ReceivablesDao
+    DashboardDao, ReceivablesDao, PayablesDao
   ],
 )
 class LocalDatabase extends _$LocalDatabase { 
@@ -209,7 +229,11 @@ class LocalDatabase extends _$LocalDatabase {
     },
   );
 
-  // HPP Moving Average
+  // ===========================================================================
+  // HELPER METODE MUTASI HPP & TRANSAKSI POS
+  // ===========================================================================
+
+  // HPP Moving Average Internal Helper
   Future<void> _mutasiDalamTransaksi({
     required String productId, 
     required String type, 
@@ -228,24 +252,26 @@ class LocalDatabase extends _$LocalDatabase {
     }
 
     await (update(products)..where((t) => t.id.equals(productId))).write(
-      ProductsCompanion(stock: Value(stokBaru), buyPrice: Value(hppBaru))
+      ProductsCompanion(stock: Value(stokBaru), buyPrice: Value(hppBaru)),
     );
 
-    await into(stockMutations).insert(StockMutationsCompanion.insert(
-      id: 'MUT-${DateTime.now().millisecondsSinceEpoch}-$productId',
-      productId: productId, 
-      variantId: const Value(null), 
-      type: type, 
-      quantity: qty,
-      hppSnapshot: hppBaru, 
-      currentStockSnapshot: stokBaru, 
-      referenceNo: refNo,
-      notes: Value('POS $refNo'), 
-      date: Value(DateTime.now()),
-    ));
+    await into(stockMutations).insert(
+      StockMutationsCompanion.insert(
+        id: 'MUT-${DateTime.now().millisecondsSinceEpoch}-$productId',
+        productId: productId, 
+        variantId: const Value(null), 
+        type: type, 
+        quantity: qty,
+        hppSnapshot: hppBaru, 
+        currentStockSnapshot: stokBaru, 
+        referenceNo: refNo,
+        notes: Value('POS $refNo'), 
+        date: Value(DateTime.now()),
+      ),
+    );
   }
 
-  // ALUR TRANSAKSI POS TERKONEKSI LANGSUNG KE RECEIVABLES & SNAPSHOT HPP
+  /// Alur Transaksi Kasir POS (Atomic Transaction)
   Future<void> prosesTransaksiPenyimpanan({
     required TransactionsCompanion dataTransaksi,
     required List<TransactionItemsCompanion> itemTransaksi,
@@ -266,30 +292,57 @@ class LocalDatabase extends _$LocalDatabase {
         );
       }
 
-      // 3. Sinkronisasi Piutang ke Tabel Receivables (Menyambung dengan Dashboard & ReceivablesDAO)
+      // 3. Sinkronisasi Piutang ke Receivables & Update Total Debt Customer
       if (dataTransaksi.debt.value > 0 && dataTransaksi.customerId.value != null) {
         final totalHarga = dataTransaksi.total.value;
         final dp = dataTransaksi.paid.value;
         final sisaPiutang = dataTransaksi.debt.value;
+        final custId = dataTransaksi.customerId.value!;
+        final receivableId = 'RC-${dataTransaksi.id.value}';
 
+        // 3a. Masukkan Data Piutang Baru
         await into(receivables).insert(
           ReceivablesCompanion.insert(
-            id: 'AR-${dataTransaksi.id.value}',
+            id: receivableId,
             transactionId: dataTransaksi.id.value,
-            customerId: dataTransaksi.customerId.value!,
+            customerId: custId,
             totalAmount: totalHarga,
             paidAmount: Value(dp),
             remainingAmount: sisaPiutang,
             dueDate: DateTime.now().add(const Duration(days: 14)),
-            status: dp > 0 ? 'partial' : 'unpaid',
+            status: Value(dp > 0 ? 'partial' : 'unpaid'),
           ),
         );
+
+        // 3b. Tambahkan Total Piutang Pelanggan di Tabel Customers
+        final customer = await (select(customers)..where((t) => t.id.equals(custId))).getSingleOrNull();
+        if (customer != null) {
+          final newTotalDebt = customer.totalDebt + sisaPiutang;
+          await (update(customers)..where((t) => t.id.equals(custId))).write(
+            CustomersCompanion(totalDebt: Value(newTotalDebt)),
+          );
+        }
+
+        // 3c. Jika ada DP saat transaksi tempo, catat ke DebtPayments
+        if (dp > 0) {
+          await into(debtPayments).insert(
+            DebtPaymentsCompanion.insert(
+              id: 'PAY-AR-${DateTime.now().millisecondsSinceEpoch}',
+              refId: receivableId,
+              type: 'receivable_collect',
+              amount: dp,
+              paymentMethod: dataTransaksi.paymentMethod.value,
+              notes: const Value('Uang Muka / DP Penjualan Tempo Kasir'),
+            ),
+          );
+        }
       }
     });
   }
 
   Future<List<ProductData>> getAllProducts() => select(products).get();
 
+  /// Pencatatan Mutasi Stok & Penyesuaian HPP Manual
   Future<void> catatMutasiStok({
     required String productId,
     required String type, 
@@ -319,23 +372,26 @@ class LocalDatabase extends _$LocalDatabase {
       }
 
       await (update(products)..where((t) => t.id.equals(productId))).write(
-        ProductsCompanion(stock: Value(stokBaru), buyPrice: Value(hppBaru))
+        ProductsCompanion(stock: Value(stokBaru), buyPrice: Value(hppBaru)),
       );
 
-      await into(stockMutations).insert(StockMutationsCompanion.insert(
-        id: 'MUT-${DateTime.now().millisecondsSinceEpoch}',
-        productId: productId,
-        variantId: Value(variantId),
-        type: type,
-        quantity: qty,
-        hppSnapshot: hppBaru,
-        currentStockSnapshot: stokBaru,
-        referenceNo: refNo,
-        notes: Value(catatan),
-        date: Value(DateTime.now()),
-      ));
+      await into(stockMutations).insert(
+        StockMutationsCompanion.insert(
+          id: 'MUT-${DateTime.now().millisecondsSinceEpoch}',
+          productId: productId,
+          variantId: Value(variantId),
+          type: type,
+          quantity: qty,
+          hppSnapshot: hppBaru,
+          currentStockSnapshot: stokBaru,
+          referenceNo: refNo,
+          notes: Value(catatan),
+          date: Value(DateTime.now()),
+        ),
+      );
     });
   }
 }
 
+// Provider Global Riverpod
 final localDatabaseProvider = Provider<LocalDatabase>((ref) => LocalDatabase());
