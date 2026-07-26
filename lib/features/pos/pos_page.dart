@@ -1,6 +1,5 @@
 // lib/features/pos/pos_page.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +9,9 @@ import '../../core/utils/permission_helper.dart';
 import '../../core/database/local_database.dart';
 import '../../main.dart'; // tempat productsStreamProvider dipublish
 import 'pos_cart_provider.dart';
+
+// Import Widget Modular
+import 'widgets/pos_cart_widget.dart';
 
 class PosPage extends ConsumerStatefulWidget {
   const PosPage({super.key});
@@ -62,9 +64,6 @@ class _PosPageState extends ConsumerState<PosPage> {
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsStreamProvider);
     final db = ref.watch(localDatabaseProvider);
-    
-    // 1. Membaca State Keranjang dari posCartProvider
-    final cartState = ref.watch(posCartProvider);
     final cartNotifier = ref.read(posCartProvider.notifier);
 
     return Scaffold(
@@ -88,7 +87,7 @@ class _PosPageState extends ConsumerState<PosPage> {
         builder: (context, constraints) {
           bool isLandscape = constraints.maxWidth > 600;
 
-          // GRID PRODUK & SEARCH BAR
+          // 1. GRID PRODUK & SEARCH BAR
           Widget productCatalog = Column(
             children: [
               Padding(
@@ -140,104 +139,16 @@ class _PosPageState extends ConsumerState<PosPage> {
             ],
           );
 
-          // PANEL KERANJANG BELANJA
-          Widget cartSection = Container(
-            color: Colors.grey[50],
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  color: Colors.blueGrey[800],
-                  width: double.infinity,
-                  child: Text(
-                    'KERANJANG BELANJA (${cartState.items.length})',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  child: cartState.items.isEmpty
-                      ? const Center(child: Text('Keranjang masih kosong'))
-                      : ListView.separated(
-                          itemCount: cartState.items.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final item = cartState.items[index];
-                            return ListTile(
-                              title: Text(item.product.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                              subtitle: Text('${_currencyFormatter.format(item.price)} x ${item.quantity} ${item.unit}'),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    _currencyFormatter.format(item.subtotal),
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.remove_circle_outline, color: Colors.orange, size: 20),
-                                    onPressed: () => cartNotifier.updateQuantity(item.product.id, item.quantity - 1),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.add_circle_outline, color: Colors.green, size: 20),
-                                    // 2. Menambah Produk saat Item Ditekan
-                                    onPressed: () => cartNotifier.addProduct(item.product),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                                    onPressed: () => cartNotifier.removeProduct(item.product.id),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Subtotal', style: TextStyle(fontSize: 14)),
-                          Text(_currencyFormatter.format(cartState.subtotal), style: const TextStyle(fontSize: 14)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('TOTAL BAYAR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                          Text(
-                            _currencyFormatter.format(cartState.total),
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF00A65A)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00A65A),
-                            foregroundColor: Colors.white,
-                          ),
-                          onPressed: cartState.items.isEmpty ? null : () => _showCheckoutModal(context, ref),
-                          child: const Text('BAYAR / CHECKOUT', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          // 2. WIDGET KERANJANG BELANJA MODULAR
+          Widget cartSection = PosCartWidget(
+            onCheckoutSuccess: (cartSnapshot) {
+              // Menjalankan Otomatisasi Cetak Struk & Dialog Sukses
+              _cetakStrukAutomatis(cartSnapshot);
+              _showSuccessAndPrintDialog(context, cartSnapshot);
+            },
           );
 
-          // LAYOUT SPLIT (LANDSCAPE VS PORTRAIT)
+          // 3. LAYOUT SPLIT (LANDSCAPE VS PORTRAIT)
           if (isLandscape) {
             return Row(
               children: [
@@ -286,7 +197,6 @@ class _PosPageState extends ConsumerState<PosPage> {
         return Card(
           elevation: 2,
           child: InkWell(
-            // 2. Menambah Produk saat Item Ditekan
             onTap: () => cartNotifier.addProduct(product),
             child: Padding(
               padding: const EdgeInsets.all(8.0),
@@ -322,185 +232,6 @@ class _PosPageState extends ConsumerState<PosPage> {
               ),
             ),
           ),
-        );
-      },
-    );
-  }
-
-  /// Dialog Form Pembayaran (Tunai, QRIS, Tempo)
-  void _showCheckoutModal(BuildContext context, WidgetRef ref) {
-    final cartState = ref.read(posCartProvider);
-    final cartNotifier = ref.read(posCartProvider.notifier);
-    
-    final cashController = TextEditingController(
-      text: cartState.paidAmount > 0 ? cartState.paidAmount.toStringAsFixed(0) : '',
-    );
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return Consumer(
-          builder: (context, ref, _) {
-            final state = ref.watch(posCartProvider);
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-                left: 16,
-                right: 16,
-                top: 16,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Metode Pembayaran', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        Text(
-                          'Total: ${_currencyFormatter.format(state.total)}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF00A65A)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'cash', label: Text('Tunai')),
-                        ButtonSegment(value: 'qris', label: Text('QRIS')),
-                        ButtonSegment(value: 'tempo', label: Text('Tempo')),
-                      ],
-                      selected: {state.paymentMethod},
-                      onSelectionChanged: (set) => cartNotifier.setPaymentMethod(set.first),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // OPSI TUNAI
-                    if (state.paymentMethod == 'cash') ...[
-                      TextField(
-                        controller: cashController,
-                        keyboardType: TextInputType.number,
-                        autofocus: true,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        decoration: const InputDecoration(
-                          labelText: 'Uang Diterima (Rp)',
-                          prefixText: 'Rp ',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (val) {
-                          final n = double.tryParse(val) ?? 0;
-                          // 3. Mengubah Nominal Pembayaran
-                          cartNotifier.setPaidAmount(n);
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: state.paidAmount >= state.total ? Colors.green.shade50 : Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          state.paidAmount >= state.total
-                              ? 'Kembali: ${_currencyFormatter.format(state.change)}'
-                              : 'Kurang: ${_currencyFormatter.format(state.total - state.paidAmount)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: state.paidAmount >= state.total ? Colors.green.shade800 : Colors.red.shade800,
-                          ),
-                        ),
-                      ),
-                    ],
-
-                    // OPSI TEMPO / KREDIT
-                    if (state.paymentMethod == 'tempo') ...[
-                      ListTile(
-                        title: Text(
-                          state.selectedCustomer == null 
-                              ? 'Pilih Customer (Wajib)' 
-                              : 'Customer: ${state.selectedCustomer!.name}'
-                        ),
-                        trailing: const Icon(Icons.person_add),
-                        tileColor: Colors.amber[50],
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        onTap: () {
-                          // Dummy set customer (Dapat dihubungkan dengan dialog/list customer)
-                          cartNotifier.setCustomer(const CustomerData(
-                            id: 'CUST-001',
-                            name: 'Pelanggan Umum',
-                            status: 'aktif',
-                          ));
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: cashController,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        decoration: const InputDecoration(
-                          labelText: 'Uang Muka / DP (Rp)',
-                          prefixText: 'Rp ',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (val) {
-                          final n = double.tryParse(val) ?? 0;
-                          // 3. Mengubah Nominal Pembayaran
-                          cartNotifier.setPaidAmount(n);
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Sisa Piutang: ${_currencyFormatter.format(state.debt)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
-                      ),
-                    ],
-
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00A65A),
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: () async {
-                          // Simpan Snapshot state keranjang untuk dicetak
-                          final snapshotCart = state;
-
-                          // 4. Memproses Tombol Bayar / Checkout via PosCartNotifier
-                          final success = await ref.read(posCartProvider.notifier).checkout(
-                            salesId: 'SALES-01',
-                            shiftId: 'SHIFT-01',
-                          );
-
-                          if (context.mounted) {
-                            if (success) {
-                              Navigator.pop(context);
-                              _cetakStrukAutomatis(snapshotCart);
-                              _showSuccessAndPrintDialog(context, snapshotCart);
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Gagal melakukan checkout transaksi'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          }
-                        },
-                        child: const Text('PROSES & SIMPAN TRANSAKSI', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
-            );
-          },
         );
       },
     );
