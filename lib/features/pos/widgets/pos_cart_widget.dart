@@ -1,4 +1,3 @@
-// lib/features/pos/widgets/pos_cart_widget.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -7,7 +6,9 @@ import '../pos_cart_provider.dart';
 import 'pos_payment_dialog.dart';
 
 class PosCartWidget extends ConsumerWidget {
-  const PosCartWidget({super.key});
+  final Function(PosCartState cartSnapshot)? onCheckoutSuccess;
+
+  const PosCartWidget({super.key, this.onCheckoutSuccess});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -172,7 +173,7 @@ class PosCartWidget extends ConsumerWidget {
                               shape: const RoundedRectangleBorder(
                                 borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                               ),
-                              builder: (_) => const PosPaymentDialog(),
+                              builder: (_) => PosPaymentDialog(onSuccess: onCheckoutSuccess),
                             );
                           },
                   ),
