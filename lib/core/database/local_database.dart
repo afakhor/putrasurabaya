@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'daos/dashboard_dao.dart';
 import 'daos/payables_dao.dart';
 import 'daos/receivables_dao.dart';
+import 'daos/transaction_dao.dart'; // <--- TransactionDao berhasil ditambahkan
 
 // Import Tables
 import 'tables/finance_table.dart';
@@ -206,7 +207,10 @@ class TransactionItems extends Table {
     Payables, Receivables, DebtPayments, Expenses
   ],
   daos: [
-    DashboardDao, ReceivablesDao, PayablesDao
+    DashboardDao, 
+    ReceivablesDao, 
+    PayablesDao, 
+    TransactionDao, // <--- Registered DAOs
   ],
 )
 class LocalDatabase extends _$LocalDatabase { 
