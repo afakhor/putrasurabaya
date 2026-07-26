@@ -13,6 +13,7 @@ dependencies:
   flutter_riverpod: ^2.5.1
   firebase_core: ^2.32.0
   cloud_firestore: ^4.17.5
+  rxdart: ^0.28.0
 
   # PASANGAN KLOP - SUDAH TEST RESOLVE
   drift: 2.21.0
