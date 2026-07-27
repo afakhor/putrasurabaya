@@ -5,8 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../database/local_database.dart';
-import '../database/daos/transaction_dao.dart';
+import 'package:ud_putra_kasir/core/database/local_database.dart';
+import 'package:ud_putra_kasir/core/database/daos/transaction_dao.dart';
 
 class SyncService {
   final Ref _ref;
