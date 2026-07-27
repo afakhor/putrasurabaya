@@ -140,13 +140,19 @@ class _PosPageState extends ConsumerState<PosPage> {
           );
 
           // 2. WIDGET KERANJANG BELANJA MODULAR
-          Widget cartSection = PosCartWidget(
-            onCheckoutSuccess: (cartSnapshot) {
-              // Menjalankan Otomatisasi Cetak Struk & Dialog Sukses
-              _cetakStrukAutomatis(cartSnapshot);
-              _showSuccessAndPrintDialog(context, cartSnapshot);
-            },
-          );
+Widget cartSection = PosCartWidget(
+  onCheckoutSuccess: (cartSnapshot) {
+    // 1. Pemicu Sinkronisasi (Background)
+    // Anda perlu akses 'ref' di sini. Karena PosPage adalah ConsumerStatefulWidget,
+    // kita bisa langsung memanggil ref.
+    ref.read(syncServiceProvider).performSync(); 
+
+    // 2. Menjalankan Otomatisasi Cetak Struk & Dialog Sukses
+    _cetakStrukAutomatis(cartSnapshot);
+    _showSuccessAndPrintDialog(context, cartSnapshot);
+  },
+);
+
 
           // 3. LAYOUT SPLIT (LANDSCAPE VS PORTRAIT)
           if (isLandscape) {
