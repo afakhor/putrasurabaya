@@ -3,14 +3,14 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Import DAOs
-import '/../daos/dashboard_dao.dart';
-import '/../daos/payables_dao.dart';
-import '/../daos/receivables_dao.dart';
-import '/../daos/transaction_dao.dart';
+import 'dashboard_dao.dart';
+import 'daos/payables_dao.dart';
+import 'daos/receivables_dao.dart';
+import 'transaction_dao.dart';
 
 // Import Tables
-import '/../tables/finance_table.dart';
-import '/../tables/supplier_table.dart';
+import 'tables/finance_table.dart';
+import 'tables/supplier_table.dart';
 
 part 'local_database.g.dart';
 
