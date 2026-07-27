@@ -50,9 +50,9 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
         .watch();
   }
 
-  // ===========================================================================
+  // ================================
   // 2. TRANSAKSI (MUTASI HUTANG & PEMBAYARAN)
-  // ===========================================================================
+  // =============================
 
   Future<void> catatPembelianTempo({
     required String purchaseRef,
