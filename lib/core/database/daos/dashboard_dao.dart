@@ -30,7 +30,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
     final payablesCount = payables.id.count();
     final payablesStream = (selectOnly(payables)
           ..addColumns([payablesSum, payablesCount])
-          ..where(payables.remainingAmount.isGreaterThan(0.0))) // Fix: isGreaterThan
+          ..where(payables.remainingAmount.isBiggerThanValue(0.0)))
         .watchSingle()
         .map((row) => {
               'total': row.read(payablesSum) ?? 0.0,
@@ -42,7 +42,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
     final receivablesCount = receivables.id.count();
     final receivablesStream = (selectOnly(receivables)
           ..addColumns([receivablesSum, receivablesCount])
-          ..where(receivables.remainingAmount.isGreaterThan(0.0))) // Fix: isGreaterThan
+          ..where(receivables.remainingAmount.isBiggerThanValue(0.0)))
         .watchSingle()
         .map((row) => {
               'total': row.read(receivablesSum) ?? 0.0,
@@ -88,7 +88,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
     final productCount = products.id.count();
     final lowStockCountStream = (selectOnly(products)
           ..addColumns([productCount])
-          ..where(products.stock.isLessThanOrEqualTo(products.minStock) &
+          ..where(products.stock.isSmallerOrEqual(products.minStock) &
               products.statusActive.equals('aktif')))
         .watchSingle()
         .map((row) => row.read(productCount) ?? 0);
@@ -126,7 +126,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
   Future<List<ProductData>> getLowStockProducts() {
     return (select(products)
           ..where((tbl) =>
-              tbl.stock.isLessThanOrEqualTo(tbl.minStock) &
+              tbl.stock.isSmallerOrEqual(tbl.minStock) &
               tbl.statusActive.equals('aktif'))
           ..orderBy([
             (tbl) => OrderingTerm(expression: tbl.stock, mode: OrderingMode.asc)
