@@ -10,6 +10,7 @@ import '../../core/database/local_database.dart';
 import '../../main.dart'; // tempat productsStreamProvider dipublish
 import 'pos_cart_provider.dart';
 
+
 // Import Widget Modular
 import 'widgets/pos_cart_widget.dart';
 
@@ -70,11 +71,14 @@ class _PosPageState extends ConsumerState<PosPage> {
       appBar: AppBar(
         title: const Text('Kasir / POS - UD. Putra Surabaya'),
         actions: [
-          Icon(
-            _isConnected ? Icons.print : Icons.print_disabled,
-            color: _isConnected ? Colors.greenAccent : Colors.white54,
-            tooltip: _isConnected ? 'Printer Terhubung' : 'Printer Terputus',
-          ),
+          Tooltip(
+  message: _isConnected ? 'Printer Terhubung' : 'Printer Terputus',
+  child: Icon(
+    _isConnected ? Icons.print : Icons.print_disabled,
+    color: _isConnected ? Colors.greenAccent : Colors.white54,
+  ),
+),
+
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.refresh),
