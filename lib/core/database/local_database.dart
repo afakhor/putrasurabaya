@@ -15,7 +15,7 @@ import 'package:ud_putra_kasir/core/database/daos/dashboard_dao.dart';
 import 'package:ud_putra_kasir/core/database/daos/product_dao.dart';
 import 'package:ud_putra_kasir/core/database/daos/receivables_dao.dart';
 import 'package:ud_putra_kasir/core/database/daos/transaction_dao.dart';
-import 'package:ud_putra_kasir/core/database/payable/payable_dao.dart';
+import 'package:ud_putra_kasir/core/database/daos/payables_dao.dart';
 
 // Import Constant
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
