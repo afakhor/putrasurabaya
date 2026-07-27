@@ -1,4 +1,3 @@
-// lib/core/services/sync_service.dart
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -12,8 +11,9 @@ import '../database/daos/transaction_dao.dart';
 class SyncService {
   final Ref _ref;
   final _firestore = FirebaseFirestore.instance;
+  
   StreamSubscription<List<ConnectivityResult>>? _connSub;
-  StreamSubscription? _productSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _productSub;
   bool _isSyncing = false;
 
   SyncService(this._ref);
@@ -22,14 +22,16 @@ class SyncService {
   TransactionDao get _txDao => _ref.read(transactionDaoProvider);
 
   /// Menjalankan listener sinkronisasi dua arah
-  void startListening() {
-    debugPrint('🔄 SyncService: Menerima koneksi sinkronisasi dua arah');
+  Future<void> startListening() async {
+    debugPrint('🔄 SyncService: Memulai sinkronisasi...');
     _connSub?.cancel();
     _productSub?.cancel();
 
-    // 1. CLOUD -> LOKAL (Produk Master dari Owner/Cloud)
+    // 1. CLOUD -> LOKAL (Produk Master)
+    // Menggunakan snapshot agar jika Owner ubah harga di Cloud, Kasir langsung update
     _productSub = _firestore.collection('products').snapshots().listen((snap) async {
       if (snap.docs.isEmpty) return;
+      
       await _db.batch((b) {
         for (var doc in snap.docs) {
           final d = doc.data();
@@ -38,49 +40,61 @@ class SyncService {
             ProductsCompanion(
               id: Value(doc.id),
               name: Value(d['name'] ?? ''),
-              barcode: Value(d['barcode']),
+              barcode: Value(Value(d['barcode'] ?? '')), // Null safety
               buyPrice: Value((d['buyPrice'] ?? 0).toDouble()),
               sellPriceGeneral: Value((d['sellPrice'] ?? d['sellPriceGeneral'] ?? 0).toDouble()),
               stock: Value((d['stock'] ?? 0).toDouble()),
               categoryId: Value(d['category'] ?? d['categoryId'] ?? 'Umum'),
               statusActive: const Value('aktif'),
             ),
-            mode: InsertMode.insertOrReplace, // Update jika sudah ada, insert jika baru
+            mode: InsertMode.insertOrReplace,
           );
         }
       });
-      debugPrint('📦 ${snap.docs.length} produk disinkronkan dari cloud ke lokal');
+      debugPrint('📦 ${snap.docs.length} produk disinkronkan dari Cloud.');
     });
 
-    // 2. LOKAL -> CLOUD (Antrean Transaksi Kasir saat Online)
+    // 2. LOKAL -> CLOUD (Antrean Transaksi)
+    // Cek koneksi saat startup
+    final initialResult = await Connectivity().checkConnectivity();
+    _handleConnectivityChange(initialResult);
+
+    // Listener perubahan koneksi
     _connSub = Connectivity().onConnectivityChanged.listen((results) {
-      final online = results.any(
-        (r) => r == ConnectivityResult.mobile || r == ConnectivityResult.wifi || r == ConnectivityResult.ethernet,
-      );
-      if (online) {
-        syncLocalToCloud();
-      }
+      _handleConnectivityChange(results);
     });
   }
 
-  /// Mengunggah transaksi lokal yang tersimpan dalam antrean (isSynced = false) ke Firestore
+  void _handleConnectivityChange(List<ConnectivityResult> results) {
+    final online = results.any((r) => 
+        r == ConnectivityResult.mobile || 
+        r == ConnectivityResult.wifi || 
+        r == ConnectivityResult.ethernet);
+    
+    if (online) {
+      debugPrint('🌐 Internet terdeteksi, memicu sinkronisasi transaksi...');
+      syncLocalToCloud();
+    }
+  }
+
+  /// Mengunggah transaksi lokal yang belum terkirim
   Future<void> syncLocalToCloud() async {
     if (_isSyncing) return;
     _isSyncing = true;
 
     try {
-      // 1. Ambil antrean transaksi belum terkirim via DAO
       final unsynced = await _txDao.getUnsyncedTransactions();
-      if (unsynced.isEmpty) return;
+      if (unsynced.isEmpty) {
+        _isSyncing = false;
+        return;
+      }
 
-      debugPrint('🚀 Memproses antrean ${unsynced.length} transaksi ke cloud...');
+      debugPrint('🚀 Memproses ${unsynced.length} transaksi ke Cloud...');
 
       for (var tx in unsynced) {
         try {
-          // 2. Ambil detail item rincian transaksi via DAO
           final items = await _txDao.getItemsForTransaction(tx.id);
 
-          // 3. Set dokumen transaksi ke Firestore
           await _firestore.collection('transactions').doc(tx.id).set({
             'invoiceNo': tx.invoiceNo,
             'salesId': tx.salesId,
@@ -105,11 +119,10 @@ class SyncService {
             }).toList(),
           }, SetOptions(merge: true));
 
-          // 4. Perbarui status lokal menjadi isSynced = true via DAO
           await _txDao.markAsSynced(tx.id);
-          debugPrint('✅ Transaksi ${tx.invoiceNo} berhasil diunggah');
+          debugPrint('✅ Sukses: ${tx.invoiceNo}');
         } catch (e) {
-          debugPrint('⚠️ Gagal sinkronisasi transaksi ${tx.invoiceNo}: $e');
+          debugPrint('⚠️ Gagal kirim ${tx.invoiceNo}: $e');
         }
       }
     } finally {
@@ -117,12 +130,10 @@ class SyncService {
     }
   }
 
-  /// Membatalkan listener saat service di-dispose
   void dispose() {
     _connSub?.cancel();
     _productSub?.cancel();
   }
 }
 
-/// Provider Global Riverpod untuk SyncService
 final syncServiceProvider = Provider<SyncService>((ref) => SyncService(ref));
