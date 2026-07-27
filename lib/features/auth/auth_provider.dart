@@ -205,12 +205,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(clearApiKey: true);
   }
 
+  /// Logout Sesi & Bersihkan State Otentikasi
   void logout() {
-    state = state.copyWith(clearUser: true);
+    state = const AuthState();
   }
 }
 
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+/// Provider Global untuk AuthState
+final authNotifierProvider =
+    StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final db = ref.watch(localDatabaseProvider);
   return AuthNotifier(db);
 });
+
+/// Alias Provider untuk kompatibilitas panggilan `ref.watch(authProvider)`
+final authProvider = authNotifierProvider;
