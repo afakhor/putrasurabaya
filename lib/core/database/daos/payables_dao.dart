@@ -13,9 +13,9 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
     with _$PayablesDaoMixin {
   PayablesDao(LocalDatabase db) : super(db);
 
-  // ===========================================================================
+  // =======================================
   // 1. QUERY & STREAM DAFTAR HUTANG
-  // ===========================================================================
+  // ======================================
 
   Stream<List<PayableData>> watchActivePayables() {
     return (select(payables)
