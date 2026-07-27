@@ -50,7 +50,11 @@ class _MyAppState extends ConsumerState<MyApp> {
     // Jalankan sinkronisasi awal saat aplikasi dibuka
     // Pastikan nama method sesuai dengan yang ada di SyncService (syncLocalToCloud)
     Future.microtask(() async {
-      await ref.read(syncServiceProvider).syncLocalToCloud();
+      try {
+        await ref.read(syncServiceProvider).syncLocalToCloud();
+      } catch (e) {
+        debugPrint('⚠️ Sinkronisasi awal gagal: $e');
+      }
     });
   }
 
