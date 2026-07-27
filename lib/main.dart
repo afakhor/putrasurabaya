@@ -84,7 +84,7 @@ class MainNavigationScreen extends ConsumerWidget {
     final bool isHome = selectedIndex == 0;
 
     final List<Widget> pages = [
-      const POSPage(),
+      const PosPage(),
       const StockMutationPage(),
       const ProductPage(),
       const Center(child: Text('Laporan Keuangan (Owner Only)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
