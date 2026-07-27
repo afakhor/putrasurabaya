@@ -1,14 +1,10 @@
 import 'package:drift/drift.dart';
 
-// Import LocalDatabase
-import 'package:ud_putra_kasir/core/database/local_database.dart';
-
-// Import File Tabel Spesifik
-import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
-import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
-
-// IMPORT KONSTANTA BARU ANDA
-import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
+// Gunakan relative import agar konsisten dengan DAO lainnya
+import '../local_database.dart';
+import '../tables/finance_table.dart';  // Berisi Payables, DebtPayments
+import '../tables/supplier_table.dart'; // Berisi Suppliers
+import '../constant/constant_debt_status.dart';
 
 part 'payables_dao.g.dart';
 
@@ -21,9 +17,9 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
   // 1. QUERY & STREAM DAFTAR HUTANG
   // ===========================================================================
 
+  /// Stream seluruh hutang aktif (belum lunas)
   Stream<List<PayableData>> watchActivePayables() {
     return (select(payables)
-          // Menggunakan list konstanta agar data lama ('LUNAS') tetap terbaca
           ..where((tbl) => tbl.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
           ..orderBy([
             (tbl) => OrderingTerm(expression: tbl.dueDate, mode: OrderingMode.asc)
@@ -33,6 +29,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
 
   Stream<List<PayableData>> watchUnpaidPayables() => watchActivePayables();
 
+  /// Stream hutang jatuh tempo / overdue
   Stream<List<PayableData>> watchOverduePayables({DateTime? dateLimit}) {
     final limit = dateLimit ?? DateTime.now();
     return (select(payables)
@@ -45,7 +42,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
         .watch();
   }
 
-
+  /// Stream hutang per supplier
   Stream<List<PayableData>> watchPayablesBySupplier(String supplierId) {
     return (select(payables)
           ..where((tbl) => tbl.supplierId.equals(supplierId))
@@ -68,10 +65,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
     required DateTime dueDate,
   }) async {
     final sisaHutang = totalAmount - dpAmount;
-    
-    // MENGGUNAKAN LOGIKA DARI CONSTANT
     final status = DebtStatus.tentukanStatus(sisaHutang, dpAmount);
-    
     final payableId = 'AP-${DateTime.now().millisecondsSinceEpoch}';
 
     await transaction(() async {
@@ -84,7 +78,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
           paidAmount: Value(dpAmount),
           remainingAmount: sisaHutang < 0 ? 0.0 : sisaHutang,
           dueDate: dueDate,
-          status: Value(status), 
+          status: Value(status),
         ),
       );
 
@@ -102,7 +96,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
       }
     });
   }
-
 
   Future<void> catatHutang({
     required String purchaseRef,
@@ -128,7 +121,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
     if (nominalBayar <= 0) {
       throw Exception('Nominal pembayaran tidak valid (harus > 0)');
     }
-    
+
     return transaction(() async {
       final item = await (select(payables)
             ..where((tbl) => tbl.id.equals(payableId)))
@@ -137,12 +130,12 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
       if (item == null) throw Exception('Data hutang supplier tidak ditemukan');
       if (item.remainingAmount <= 0) throw Exception('Hutang ini sudah lunas');
 
-      final actualBayar = nominalBayar > item.remainingAmount ? item.remainingAmount : nominalBayar;
+      final actualBayar =
+          nominalBayar > item.remainingAmount ? item.remainingAmount : nominalBayar;
 
       final newPaid = item.paidAmount + actualBayar;
       final newRemaining = item.totalAmount - newPaid;
-      
-      // MENGGUNAKAN LOGIKA DARI CONSTANT
+
       final newStatus = DebtStatus.tentukanStatus(newRemaining, actualBayar);
 
       final updatedRows = await (update(payables)
