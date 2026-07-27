@@ -1,7 +1,9 @@
 import 'package:drift/drift.dart';
 
 import '../local_database.dart';
-import '../tables/finance_table.dart'; // <--- TAMBAHKAN IMPORT INI
+import '../tables/finance_table.dart';
+// IMPORT KONSTANTA BARU
+import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 
 part 'receivables_dao.g.dart';
 
@@ -30,7 +32,8 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     final query = select(receivables).join([
       leftOuterJoin(customers, customers.id.equalsExp(receivables.customerId)),
     ])
-      ..where(receivables.status.isNotIn(['paid', 'LUNAS']))
+      // Filter menggunakan konstanta
+      ..where(receivables.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
       ..orderBy([OrderingTerm.asc(receivables.dueDate)]);
 
     return query.watch().map((rows) {
@@ -62,8 +65,9 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     final query = select(receivables).join([
       leftOuterJoin(customers, customers.id.equalsExp(receivables.customerId)),
     ])
-      ..where(receivables.dueDate.isLessThanOrEqualToValue(limit) &
-          receivables.status.isNotIn(['paid', 'LUNAS']))
+      // Fix syntax isLessThanOrEqualTo & Gunakan konstanta
+      ..where(receivables.dueDate.isLessThanOrEqualTo(limit) &
+          receivables.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
       ..orderBy([OrderingTerm.asc(receivables.dueDate)]);
 
     return query.watch().map((rows) {
@@ -80,7 +84,6 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
   // 2. TRANSAKSI (MUTASI PIUTANG & PEMBAYARAN)
   // ===========================================================================
 
-  /// Catat Piutang Baru (Biasanya dipanggil dari modul Kasir / Checkout)
   Future<void> catatPiutangBaru({
     required String transactionId,
     required String customerId,
@@ -89,12 +92,11 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     required DateTime dueDate,
   }) async {
     final sisaPiutang = totalAmount - dpAmount;
-    final status =
-        sisaPiutang <= 0 ? 'paid' : (dpAmount > 0 ? 'partial' : 'unpaid');
+    // Logika tunggal via konstanta
+    final status = DebtStatus.tentukanStatus(sisaPiutang, dpAmount);
     final receivableId = 'RC-${DateTime.now().millisecondsSinceEpoch}';
 
     await transaction(() async {
-      // 1. Catat ke tabel Receivables
       await into(receivables).insert(
         ReceivablesCompanion.insert(
           id: receivableId,
@@ -108,7 +110,6 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
         ),
       );
 
-      // 2. Update Total Utang Pelanggan di tabel Customers
       final customer = await (select(customers)
             ..where((tbl) => tbl.id.equals(customerId)))
           .getSingleOrNull();
@@ -121,7 +122,6 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
         );
       }
 
-      // 3. Jika ada DP, catat ke DebtPayments (Arus Kas Masuk)
       if (dpAmount > 0) {
         await into(debtPayments).insert(
           DebtPaymentsCompanion.insert(
@@ -137,7 +137,6 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     });
   }
 
-  /// Pembayaran cicilan / pelunasan piutang pelanggan
   Future<bool> bayarAngsuranPiutang({
     required String receivableId,
     required double nominalBayar,
@@ -145,28 +144,23 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     String? notes,
   }) async {
     return transaction(() async {
-      // 1. Ambil data piutang saat ini
       final item = await (select(receivables)
             ..where((tbl) => tbl.id.equals(receivableId)))
           .getSingleOrNull();
 
-      if (item == null) {
-        throw Exception('Data piutang tidak ditemukan');
-      }
-      if (item.remainingAmount <= 0) {
-        throw Exception('Piutang ini sudah lunas');
-      }
+      if (item == null) throw Exception('Data piutang tidak ditemukan');
+      if (item.remainingAmount <= 0) throw Exception('Piutang ini sudah lunas');
 
-      // Proteksi agar bayar tidak melebihi sisa hutang (mencegah minus)
       final actualBayar = nominalBayar > item.remainingAmount
           ? item.remainingAmount
           : nominalBayar;
 
       final newPaid = item.paidAmount + actualBayar;
       final newRemaining = item.totalAmount - newPaid;
-      final newStatus = newRemaining <= 0 ? 'paid' : 'partial';
+      
+      // Logika tunggal via konstanta
+      final newStatus = DebtStatus.tentukanStatus(newRemaining, actualBayar);
 
-      // 2. Update tabel Receivables
       final updatedRows = await (update(receivables)
             ..where((tbl) => tbl.id.equals(receivableId)))
           .write(
@@ -177,7 +171,6 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
         ),
       );
 
-      // 3. Potong saldo utang pelanggan di tabel Customers
       final customer = await (select(customers)
             ..where((tbl) => tbl.id.equals(item.customerId)))
           .getSingleOrNull();
@@ -191,7 +184,6 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
         );
       }
 
-      // 4. Catat riwayat kas masuk di tabel DebtPayments
       await into(debtPayments).insert(
         DebtPaymentsCompanion.insert(
           id: 'PAY-AR-${DateTime.now().millisecondsSinceEpoch}',
@@ -200,7 +192,7 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
           amount: actualBayar,
           paymentMethod: paymentMethod,
           notes: Value(notes ??
-              (newRemaining <= 0
+              (newStatus == DebtStatus.paid
                   ? 'Pelunasan Piutang Pelanggan'
                   : 'Angsuran Piutang Pelanggan')),
         ),
@@ -210,11 +202,6 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     });
   }
 
-  // ===========================================================================
-  // 3. RIWAYAT PEMBAYARAN
-  // ===========================================================================
-
-  /// Ambil riwayat pembayaran spesifik untuk 1 nota piutang
   Future<List<DebtPaymentData>> getPaymentHistory(String receivableId) {
     return (select(debtPayments)
           ..where((tbl) =>
