@@ -2,23 +2,23 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Import Seluruh File Tabel
-import 'tables/user_table.dart';
-import 'tables/product_table.dart';
-import 'tables/customer_table.dart';
-import 'tables/transaction_table.dart';
-import 'tables/finance_table.dart';
-import 'tables/supplier_table.dart';
+// Import Tabel
+import 'package:ud_putra_kasir/core/database/tables/user_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/customer_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
 
-// Import Seluruh DAOs
-import 'daos/dashboard_dao.dart';
-import 'daos/product_dao.dart';
-import 'daos/receivables_dao.dart';
-import 'daos/transaction_dao.dart';
-import 'payable/payables_dao.dart';
+// Import DAOs
+import 'package:ud_putra_kasir/core/database/daos/dashboard_dao.dart';
+import 'package:ud_putra_kasir/core/database/daos/product_dao.dart';
+import 'package:ud_putra_kasir/core/database/daos/receivables_dao.dart';
+import 'package:ud_putra_kasir/core/database/daos/transaction_dao.dart';
+import 'package:ud_putra_kasir/core/database/daos/payables_dao.dart';
 
 // Import Constant
-import 'constant/constant_debt_status.dart';
+import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 
 part 'local_database.g.dart';
 
