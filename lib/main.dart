@@ -19,8 +19,22 @@ final currentUserProvider = Provider<Map<String, dynamic>?>((ref) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 1. Inisialisasi Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const ProviderScope(child: MyApp()));
+  
+  // 2. Buat ProviderContainer manual
+  final container = ProviderContainer();
+  
+  // 3. Jalankan listener sinkronisasi sebelum UI muncul
+  container.read(syncServiceProvider).startListening();
+  
+  // 4. Jalankan aplikasi menggunakan UncontrolledProviderScope
+  // Ini menghubungkan container manual kita ke seluruh aplikasi
+  runApp(UncontrolledProviderScope(
+    container: container, 
+    child: const MyApp()
+  ));
 }
 
 class MyApp extends ConsumerStatefulWidget {
@@ -33,18 +47,27 @@ class _MyAppState extends ConsumerState<MyApp> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(syncServiceProvider).startListening());
+    // Jalankan sinkronisasi awal saat aplikasi dibuka
+    // Pastikan nama method sesuai dengan yang ada di SyncService (syncLocalToCloud)
+    Future.microtask(() async {
+      await ref.read(syncServiceProvider).syncLocalToCloud();
+    });
   }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'UD. Putra Kasir',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00A65A)), useMaterial3: true),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00A65A)), 
+        useMaterial3: true
+      ),
       home: const MainNavigationScreen(),
     );
   }
 }
+
 
 final navbarIndexProvider = StateProvider<int>((ref) => 0);
 
