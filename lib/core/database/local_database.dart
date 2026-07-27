@@ -6,16 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/tables/user_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/customer_table.dart';
-import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart';
+import 'package0:ud_putra_kasir/core/database/tables/transaction_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
 
 // Import DAOs
 import 'package:ud_putra_kasir/core/database/daos/dashboard_dao.dart';
 import 'package:ud_putra_kasir/core/database/daos/product_dao.dart';
-import 'package:ud_putra_kasir/core/database/daos/receivables_dao.dart';
+import 'package0:ud_putra_kasir/core/database/daos/receivables_dao.dart';
 import 'package:ud_putra_kasir/core/database/daos/transaction_dao.dart';
-import 'package:ud_putra_kasir/core/database/daos/payables_dao.dart';
+import 'package:ud_putra_kasir/core/database/payable/payable_dao.dart';
 
 // Import Constant
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
@@ -50,10 +50,10 @@ part 'local_database.g.dart';
   ],
 )
 class LocalDatabase extends _$LocalDatabase { 
-  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v7'));
+  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v8'));
 
   @override
-  int get schemaVersion => 7; 
+  int get schemaVersion => 8; // Naiknya schema version dari 7 ke 8
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -65,6 +65,10 @@ class LocalDatabase extends _$LocalDatabase {
         await m.createTable(receivables);
         await m.createTable(debtPayments);
         await m.createTable(expenses);
+      }
+      if (from < 8) {
+        // Migrasi aman: Menambahkan kolom apiKey tanpa menghapus data user yang ada
+        await m.addColumn(users, users.apiKey);
       }
     },
   );
