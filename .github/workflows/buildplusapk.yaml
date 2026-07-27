@@ -42,6 +42,17 @@ jobs:
           flutter clean
           rm -rf .dart_tool/ build/
           flutter pub get
+# === DITAMBAHKAN: Otomatis buat build.yaml untuk cegah drift/analyzer crash ===
+      - name: Create build.yaml for Drift
+        run: |
+          cat << 'EOF' > build.yaml
+          targets:
+            $default:
+              builders:
+                drift_dev:
+                  generate_for:
+                    - lib/core/database/**
+          EOF
 
       - name: Generate Database Code
         run: |
