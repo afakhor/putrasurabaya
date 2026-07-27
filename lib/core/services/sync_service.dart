@@ -11,7 +11,7 @@ import '../database/daos/transaction_dao.dart';
 class SyncService {
   final Ref _ref;
   final _firestore = FirebaseFirestore.instance;
-  
+
   StreamSubscription<List<ConnectivityResult>>? _connSub;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _productSub;
   bool _isSyncing = false;
@@ -28,10 +28,9 @@ class SyncService {
     _productSub?.cancel();
 
     // 1. CLOUD -> LOKAL (Produk Master)
-    // Menggunakan snapshot agar jika Owner ubah harga di Cloud, Kasir langsung update
     _productSub = _firestore.collection('products').snapshots().listen((snap) async {
       if (snap.docs.isEmpty) return;
-      
+
       await _db.batch((b) {
         for (var doc in snap.docs) {
           final d = doc.data();
@@ -40,7 +39,7 @@ class SyncService {
             ProductsCompanion(
               id: Value(doc.id),
               name: Value(d['name'] ?? ''),
-              barcode: Value(Value(d['barcode'] ?? '')), // Null safety
+              barcode: Value(d['barcode'] ?? ''), 
               buyPrice: Value((d['buyPrice'] ?? 0).toDouble()),
               sellPriceGeneral: Value((d['sellPrice'] ?? d['sellPriceGeneral'] ?? 0).toDouble()),
               stock: Value((d['stock'] ?? 0).toDouble()),
@@ -55,30 +54,30 @@ class SyncService {
     });
 
     // 2. LOKAL -> CLOUD (Antrean Transaksi)
-    // Cek koneksi saat startup
-    final initialResult = await Connectivity().checkConnectivity();
-    _handleConnectivityChange(initialResult);
-
-    // Listener perubahan koneksi
     _connSub = Connectivity().onConnectivityChanged.listen((results) {
-      _handleConnectivityChange(results);
+      if (results.any((r) => r != ConnectivityResult.none)) {
+        debugPrint('🌐 Internet terdeteksi, memicu sinkronisasi...');
+        syncLocalToCloud();
+      }
     });
   }
 
-  void _handleConnectivityChange(List<ConnectivityResult> results) {
-    final online = results.any((r) => 
-        r == ConnectivityResult.mobile || 
-        r == ConnectivityResult.wifi || 
-        r == ConnectivityResult.ethernet);
-    
-    if (online) {
-      debugPrint('🌐 Internet terdeteksi, memicu sinkronisasi transaksi...');
-      syncLocalToCloud();
-    }
+  /// Wrapper untuk dipanggil dari UI (seperti di PosPage)
+  Future<void> performSync() async {
+    await syncLocalToCloud().then((_) {
+      debugPrint('✅ Sinkronisasi Berhasil dipicu dari UI.');
+    });
   }
 
   /// Mengunggah transaksi lokal yang belum terkirim
   Future<void> syncLocalToCloud() async {
+    // 1. Pengecekan Koneksi
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      debugPrint('🚫 Sinkronisasi dibatalkan: Tidak ada koneksi internet.');
+      return;
+    }
+
     if (_isSyncing) return;
     _isSyncing = true;
 
@@ -125,6 +124,8 @@ class SyncService {
           debugPrint('⚠️ Gagal kirim ${tx.invoiceNo}: $e');
         }
       }
+    } catch (e) {
+      debugPrint('❌ Error fatal saat sinkronisasi: $e');
     } finally {
       _isSyncing = false;
     }
