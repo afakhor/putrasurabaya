@@ -29,16 +29,14 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
   }
 
   Stream<List<PayableData>> watchUnpaidPayables() => watchActivePayables();
-
   Stream<List<PayableData>> watchOverduePayables({DateTime? dateLimit}) {
     final limit = dateLimit ?? DateTime.now();
     return (select(payables)
           ..where((tbl) =>
-              tbl.dueDate.isLessThanOrEqualToValue(limit) &
+              tbl.dueDate.isLessThanOrEqualTo(limit) & // Fix: isLessThanOrEqualTo
               tbl.status.isNotIn(['paid', 'LUNAS']))
           ..orderBy([
-            (tbl) =>
-                OrderingTerm(expression: tbl.dueDate, mode: OrderingMode.asc)
+            (tbl) => OrderingTerm(expression: tbl.dueDate, mode: OrderingMode.asc)
           ]))
         .watch();
   }
