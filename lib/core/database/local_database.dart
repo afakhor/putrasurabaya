@@ -9,8 +9,8 @@ import 'daos/receivables_dao.dart';
 import 'daos/transaction_dao.dart';
 
 // Import Tables
-import 'daos/tables/finance_table.dart';
-import 'daos/tables/supplier_table.dart';
+import 'tables/finance_table.dart';
+import 'tables/supplier_table.dart';
 
 part 'local_database.g.dart';
 
