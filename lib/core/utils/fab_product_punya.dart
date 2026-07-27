@@ -2,9 +2,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' hide Column;
-import '../database/local_database.dart';
-import '../../features/product/product_form_provider.dart';
-import '../../features/product/product_form_dialogs.dart';
+
+import 'package:ud_putra_kasir/core/database/local_database.dart';
+import 'package:ud_putra_kasir/features/product/product_form_provider.dart';
+import 'package:ud_putra_kasir/features/product/product_form_dialogs.dart';
+
 
 class FabSubItem {
   final IconData icon;
