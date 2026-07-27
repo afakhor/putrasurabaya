@@ -6,14 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/tables/user_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/customer_table.dart';
-import 'package0:ud_putra_kasir/core/database/tables/transaction_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
 
 // Import DAOs
 import 'package:ud_putra_kasir/core/database/daos/dashboard_dao.dart';
 import 'package:ud_putra_kasir/core/database/daos/product_dao.dart';
-import 'package0:ud_putra_kasir/core/database/daos/receivables_dao.dart';
+import 'package:ud_putra_kasir/core/database/daos/receivables_dao.dart';
 import 'package:ud_putra_kasir/core/database/daos/transaction_dao.dart';
 import 'package:ud_putra_kasir/core/database/payable/payable_dao.dart';
 
