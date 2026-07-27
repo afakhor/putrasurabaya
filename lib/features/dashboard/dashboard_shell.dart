@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../auth/auth_page.dart';
-import '../auth/auth_provider.dart';
+
+import 'package:ud_putra_kasir/features/auth/auth_page.dart';
+import 'package:ud_putra_kasir/features/auth/auth_provider.dart';
 
 /// Item Navigasi Internal dengan Batas Hak Akses
 class NavItem {
