@@ -12,6 +12,12 @@ final filterCategoryProvider = StateProvider<String?>((ref) => null);
 final filterStockStatusProvider = StateProvider<String?>((ref) => null);
 final sortByProvider = StateProvider<String>((ref) => 'name_asc');
 
+/// Provider Realtime Stream untuk produk (dapat di-watch di ProductPage, POS Page, dll)
+final productsStreamProvider = StreamProvider.autoDispose<List<ProductData>>((ref) {
+  final db = ref.watch(localDatabaseProvider);
+  return db.select(db.products).watch();
+});
+
 class CatalogSummary {
   final int totalSKU;
   final double totalAssetValue;
@@ -208,21 +214,24 @@ class _ProductPageState extends ConsumerState<ProductPage> {
 
   @override
   Widget build(BuildContext context) {
-    final db = ref.watch(localDatabaseProvider);
     final query = ref.watch(searchQueryProvider);
     final catFilter = ref.watch(filterCategoryProvider);
     final stockFilter = ref.watch(filterStockStatusProvider);
     final sortRule = ref.watch(sortByProvider);
 
+    // Watch StreamProvider untuk mendengarkan perubahan tabel produk secara realtime
+    final productsAsync = ref.watch(productsStreamProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F9),
-      body: StreamBuilder<List<ProductData>>(
-        stream: db.select(db.products).watch(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF00A65A)));
-          }
-          final rawProducts = snapshot.data!;
+      body: productsAsync.when(
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: Color(0xFF00A65A)),
+        ),
+        error: (err, stack) => Center(
+          child: Text('Gagal memuat data barang: $err'),
+        ),
+        data: (rawProducts) {
           double totalHppAsset = 0;
           int lowStock = 0;
           int nonAktif = 0;
@@ -268,7 +277,14 @@ class _ProductPageState extends ConsumerState<ProductPage> {
           return Column(
             children: [
               _buildTopActionBar(context, categories.toList()),
-              _buildSummaryRow(summary: CatalogSummary(totalSKU: rawProducts.length, totalAssetValue: totalHppAsset, lowStockCount: lowStock, inactiveCount: nonAktif)),
+              _buildSummaryRow(
+                summary: CatalogSummary(
+                  totalSKU: rawProducts.length,
+                  totalAssetValue: totalHppAsset,
+                  lowStockCount: lowStock,
+                  inactiveCount: nonAktif,
+                ),
+              ),
               Expanded(
                 child: filteredList.isEmpty
                     ? const Center(child: Text('Data barang tidak ditemukan.'))
@@ -277,7 +293,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                         itemCount: filteredList.length,
                         itemBuilder: (c, idx) => _buildProductRowCard(filteredList[idx]),
                       ),
-              )
+              ),
             ],
           );
         },
