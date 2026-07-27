@@ -1,9 +1,9 @@
 import 'package:drift/drift.dart';
 
-// Gunakan relative import agar konsisten dengan DAO lainnya
+// GUNAKAN RELATIVE IMPORT UNTUK SEMUA FILE INTERNAL DATABASE
 import '../local_database.dart';
-import '../tables/finance_table.dart';  // Berisi Payables, DebtPayments
-import '../tables/supplier_table.dart'; // Berisi Suppliers
+import '../tables/finance_table.dart';
+import '../tables/supplier_table.dart';
 import '../constant/constant_debt_status.dart';
 
 part 'payables_dao.g.dart';
@@ -17,7 +17,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
   // 1. QUERY & STREAM DAFTAR HUTANG
   // ===========================================================================
 
-  /// Stream seluruh hutang aktif (belum lunas)
   Stream<List<PayableData>> watchActivePayables() {
     return (select(payables)
           ..where((tbl) => tbl.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
@@ -29,7 +28,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
 
   Stream<List<PayableData>> watchUnpaidPayables() => watchActivePayables();
 
-  /// Stream hutang jatuh tempo / overdue
   Stream<List<PayableData>> watchOverduePayables({DateTime? dateLimit}) {
     final limit = dateLimit ?? DateTime.now();
     return (select(payables)
@@ -42,7 +40,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
         .watch();
   }
 
-  /// Stream hutang per supplier
   Stream<List<PayableData>> watchPayablesBySupplier(String supplierId) {
     return (select(payables)
           ..where((tbl) => tbl.supplierId.equals(supplierId))
@@ -78,7 +75,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
           paidAmount: Value(dpAmount),
           remainingAmount: sisaHutang < 0 ? 0.0 : sisaHutang,
           dueDate: dueDate,
-          status: Value(status),
+          status: Value(status), 
         ),
       );
 
@@ -130,8 +127,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
       if (item == null) throw Exception('Data hutang supplier tidak ditemukan');
       if (item.remainingAmount <= 0) throw Exception('Hutang ini sudah lunas');
 
-      final actualBayar =
-          nominalBayar > item.remainingAmount ? item.remainingAmount : nominalBayar;
+      final actualBayar = nominalBayar > item.remainingAmount ? item.remainingAmount : nominalBayar;
 
       final newPaid = item.paidAmount + actualBayar;
       final newRemaining = item.totalAmount - newPaid;
