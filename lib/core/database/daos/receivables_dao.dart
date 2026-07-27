@@ -1,12 +1,9 @@
 import 'package:drift/drift.dart';
 
-import '../local_database.dart';
-
-// --- IMPORT SEMUA FILE TABEL DENGAN LENGKAP ---
-import '../tables/finance_table.dart';  // Berisi Receivables, DebtPayments
-import '../tables/customer_table.dart'; // Berisi Customers (Sesuaikan nama file jika berbeda)
-
-// Import Konstanta
+// Gunakan Package Import secara konsisten untuk semua dependency internal
+import 'package:ud_putra_kasir/core/database/local_database.dart';
+import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/customer_table.dart';
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 
 part 'receivables_dao.g.dart';
@@ -36,7 +33,6 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     final query = select(receivables).join([
       leftOuterJoin(customers, customers.id.equalsExp(receivables.customerId)),
     ])
-      // Filter menggunakan konstanta
       ..where(receivables.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
       ..orderBy([OrderingTerm.asc(receivables.dueDate)]);
 
@@ -87,6 +83,7 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
   // 2. TRANSAKSI (MUTASI PIUTANG & PEMBAYARAN)
   // ===========================================================================
 
+  /// Pencatatan Piutang Baru dari Transaksi Kasir
   Future<void> catatPiutangBaru({
     required String transactionId,
     required String customerId,
@@ -99,6 +96,7 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     final receivableId = 'RC-${DateTime.now().millisecondsSinceEpoch}';
 
     await transaction(() async {
+      // 1. Simpan ke tabel Receivables
       await into(receivables).insert(
         ReceivablesCompanion.insert(
           id: receivableId,
@@ -112,18 +110,20 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
         ),
       );
 
+      // 2. Tambahkan akumulasi hutang pada data Pelanggan
       final customer = await (select(customers)
             ..where((tbl) => tbl.id.equals(customerId)))
           .getSingleOrNull();
 
       if (customer != null) {
-        final newDebt = customer.totalDebt + sisaPiutang;
+        final newDebt = customer.totalDebt + (sisaPiutang < 0 ? 0.0 : sisaPiutang);
         await (update(customers)..where((tbl) => tbl.id.equals(customerId)))
             .write(
           CustomersCompanion(totalDebt: Value(newDebt)),
         );
       }
 
+      // 3. Catat DP jika ada
       if (dpAmount > 0) {
         await into(debtPayments).insert(
           DebtPaymentsCompanion.insert(
@@ -139,13 +139,19 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     });
   }
 
+  /// Pembayaran Cicilan / Pelunasan Piutang
   Future<bool> bayarAngsuranPiutang({
     required String receivableId,
     required double nominalBayar,
     required String paymentMethod,
     String? notes,
   }) async {
+    if (nominalBayar <= 0) {
+      throw Exception('Nominal pembayaran tidak valid (harus > 0)');
+    }
+
     return transaction(() async {
+      // 1. Ambil data piutang
       final item = await (select(receivables)
             ..where((tbl) => tbl.id.equals(receivableId)))
           .getSingleOrNull();
@@ -153,15 +159,16 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
       if (item == null) throw Exception('Data piutang tidak ditemukan');
       if (item.remainingAmount <= 0) throw Exception('Piutang ini sudah lunas');
 
+      // Proteksi jika pembayaran melebihi sisa piutang
       final actualBayar = nominalBayar > item.remainingAmount
           ? item.remainingAmount
           : nominalBayar;
 
       final newPaid = item.paidAmount + actualBayar;
       final newRemaining = item.totalAmount - newPaid;
-
       final newStatus = DebtStatus.tentukanStatus(newRemaining, actualBayar);
 
+      // 2. Update status & sisa piutang
       final updatedRows = await (update(receivables)
             ..where((tbl) => tbl.id.equals(receivableId)))
           .write(
@@ -172,6 +179,7 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
         ),
       );
 
+      // 3. Kurangi akumulasi hutang pada data Pelanggan
       final customer = await (select(customers)
             ..where((tbl) => tbl.id.equals(item.customerId)))
           .getSingleOrNull();
@@ -185,6 +193,7 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
         );
       }
 
+      // 4. Catat riwayat pembayaran
       await into(debtPayments).insert(
         DebtPaymentsCompanion.insert(
           id: 'PAY-AR-${DateTime.now().millisecondsSinceEpoch}',
@@ -203,6 +212,11 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     });
   }
 
+  // ===========================================================================
+  // 3. RIWAYAT PEMBAYARAN
+  // ===========================================================================
+
+  /// Mengambil riwayat pembayaran untuk 1 item piutang
   Future<List<DebtPaymentData>> getPaymentHistory(String receivableId) {
     return (select(debtPayments)
           ..where((tbl) =>
