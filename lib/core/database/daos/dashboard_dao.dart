@@ -25,31 +25,31 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
-    // 1. Stream Hutang (Payables)
+    // 1. Stream Hutang
     final payablesSum = payables.remainingAmount.sum();
     final payablesCount = payables.id.count();
     final payablesStream = (selectOnly(payables)
           ..addColumns([payablesSum, payablesCount])
-          ..where(payables.remainingAmount.isGreaterThanValue(0.0)))
+          ..where(payables.remainingAmount.isGreaterThan(0.0))) // Fix: isGreaterThan
         .watchSingle()
         .map((row) => {
               'total': row.read(payablesSum) ?? 0.0,
               'count': row.read(payablesCount) ?? 0,
             });
 
-    // 2. Stream Piutang (Receivables)
+    // 2. Stream Piutang
     final receivablesSum = receivables.remainingAmount.sum();
     final receivablesCount = receivables.id.count();
     final receivablesStream = (selectOnly(receivables)
           ..addColumns([receivablesSum, receivablesCount])
-          ..where(receivables.remainingAmount.isGreaterThanValue(0.0)))
+          ..where(receivables.remainingAmount.isGreaterThan(0.0))) // Fix: isGreaterThan
         .watchSingle()
         .map((row) => {
               'total': row.read(receivablesSum) ?? 0.0,
               'count': row.read(receivablesCount) ?? 0,
             });
 
-    // 3. Stream Omset Hari Ini
+    // 3. Stream Omset
     final totalOmset = transactions.total.sum();
     final totalCount = transactions.id.count();
     final todaySalesStream = (selectOnly(transactions)
@@ -61,14 +61,11 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
               'jumlahTransaksi': row.read(totalCount) ?? 0,
             });
 
-    // 4. Stream Estimasi Laba Kotor Hari Ini
-    final todayProfitStream = select(transactionItems).join([
-      innerJoin(
-        transactions,
-        transactions.id.equalsExp(transactionItems.transactionId),
-      ),
+    // 4. Stream Estimasi Laba (Fix: Chaining yang benar)
+    final todayProfitStream = (select(transactionItems).join([
+      innerJoin(transactions, transactions.id.equalsExp(transactionItems.transactionId)),
     ])
-      ..where(transactions.date.isBetweenValues(startOfDay, endOfDay))
+      ..where(transactions.date.isBetweenValues(startOfDay, endOfDay)))
       .watch()
       .map((rows) {
         double profit = 0.0;
@@ -79,7 +76,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
         return profit;
       });
 
-    // 5. Stream Pengeluaran Hari Ini
+    // 5. Stream Pengeluaran
     final totalExpense = expenses.amount.sum();
     final todayExpensesStream = (selectOnly(expenses)
           ..addColumns([totalExpense])
@@ -87,7 +84,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
         .watchSingle()
         .map((row) => row.read(totalExpense) ?? 0.0);
 
-    // 6. Stream Jumlah Produk Stok Menipis
+    // 6. Stream Stok Menipis
     final productCount = products.id.count();
     final lowStockCountStream = (selectOnly(products)
           ..addColumns([productCount])
