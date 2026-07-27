@@ -1,7 +1,7 @@
 // lib/features/finance/finance_report_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/utils/format_rupiah.dart';
+import 'package:ud_putra_kasir/core/utils/format_rupiah.dart';
 import 'finance_service.dart';
 
 class FinanceReportPage extends ConsumerStatefulWidget {
