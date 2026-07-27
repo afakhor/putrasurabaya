@@ -66,7 +66,7 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
       leftOuterJoin(customers, customers.id.equalsExp(receivables.customerId)),
     ])
       // Fix syntax isLessThanOrEqualTo & Gunakan konstanta
-      ..where(receivables.dueDate.isLessThanOrEqualTo(limit) &
+      ..where(receivables.dueDate.isSmallerOrEqualValue(limit) &
           receivables.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
       ..orderBy([OrderingTerm.asc(receivables.dueDate)]);
 
