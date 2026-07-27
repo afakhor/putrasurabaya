@@ -117,6 +117,9 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
     required String paymentMethod,
     String? notes,
   }) async {
+if (nominalBayar <= 0) {
+      throw Exception('Nominal pembayaran tidak valid (harus > 0)');
+    }
     return transaction(() async {
       final item = await (select(payables)
             ..where((tbl) => tbl.id.equals(payableId)))
