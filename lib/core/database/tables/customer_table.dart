@@ -5,13 +5,8 @@ class Customers extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get phone => text().nullable()();
-  TextColumn get address => text().nullable()();
-  
-  /// Menyimpan akumulasi total piutang/hutang pelanggan
-  RealColumn get totalDebt => real().withDefault(const Constant(0.0))();
-  
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  RealColumn get totalDebt => real().withDefault(const Constant(0))();
 
-  @override
+  @override 
   Set<Column> get primaryKey => {id};
 }
