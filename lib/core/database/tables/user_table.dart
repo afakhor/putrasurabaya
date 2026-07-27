@@ -4,7 +4,8 @@ import 'package:drift/drift.dart';
 class Users extends Table {
   TextColumn get id => text()(); 
   TextColumn get name => text()();
-  TextColumn get role => text()(); // owner, admin, salesman, kasir
+  TextColumn get role => text()(); // 'owner', 'admin', 'salesman'
+  TextColumn get apiKey => text().nullable()(); // API Key unik hasil generate Owner
   TextColumn get status => text().withDefault(const Constant('aktif'))(); 
   BoolColumn get canEditPrice => boolean().withDefault(const Constant(false))();
   BoolColumn get canDeleteTransaction => boolean().withDefault(const Constant(false))();
