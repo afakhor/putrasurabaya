@@ -4,16 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Import DAOs
 import 'daos/dashboard_dao.dart';
-import 'payable/payables_dao.dart';
+import 'daos/product_dao.dart';
 import 'daos/receivables_dao.dart';
 import 'daos/transaction_dao.dart';
+import 'payable/payables_dao.dart';
 
-// Import Tables
+// Import File Tabel External
 import 'tables/finance_table.dart';
 import 'tables/supplier_table.dart';
 
-// IMPORT KONSTANTA STATUS HUTANG PIUTANG
-import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
+// Import Konstanta Status Hutang Piutang (Menggunakan Relative Import)
+import 'constant/constant_debt_status.dart';
 
 part 'local_database.g.dart';
 
@@ -237,6 +238,7 @@ class TransactionItems extends Table {
   ],
   daos: [
     DashboardDao, 
+    ProductDao, // <--- BERHASIL DIDAFTARKAN
     ReceivablesDao, 
     PayablesDao, 
     TransactionDao,
@@ -358,7 +360,6 @@ class LocalDatabase extends _$LocalDatabase {
             CustomersCompanion(totalDebt: Value(newTotalDebt)),
           );
         }
-
         // 3c. Jika ada DP saat transaksi tempo, catat ke DebtPayments
         if (dp > 0) {
           await into(debtPayments).insert(
