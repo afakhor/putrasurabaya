@@ -1,8 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../local_database.dart';
-import '../tables/product_table.dart';
+import 'package:ud_putra_kasir/core/database/local_database.dart';
+import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
 
 part 'product_dao.g.dart';
 
