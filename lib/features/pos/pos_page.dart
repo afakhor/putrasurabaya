@@ -1,15 +1,13 @@
-// lib/features/pos/pos_page.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:intl/intl.dart';
-import 'package:drift/drift.dart' hide Column;
 
 import '../../core/utils/permission_helper.dart';
 import '../../core/database/local_database.dart';
-import '../../main.dart'; // tempat productsStreamProvider dipublish
+import '../products/product_page.dart'; // Tempat productsStreamProvider di-declare
 import 'pos_cart_provider.dart';
-
 
 // Import Widget Modular
 import 'widgets/pos_cart_widget.dart';
@@ -63,8 +61,8 @@ class _PosPageState extends ConsumerState<PosPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 1. Watch Stream Provider Produk Realtime
     final productsAsync = ref.watch(productsStreamProvider);
-    final db = ref.watch(localDatabaseProvider);
     final cartNotifier = ref.read(posCartProvider.notifier);
 
     return Scaffold(
@@ -72,13 +70,12 @@ class _PosPageState extends ConsumerState<PosPage> {
         title: const Text('Kasir / POS - UD. Putra Surabaya'),
         actions: [
           Tooltip(
-  message: _isConnected ? 'Printer Terhubung' : 'Printer Terputus',
-  child: Icon(
-    _isConnected ? Icons.print : Icons.print_disabled,
-    color: _isConnected ? Colors.greenAccent : Colors.white54,
-  ),
-),
-
+            message: _isConnected ? 'Printer Terhubung' : 'Printer Terputus',
+            child: Icon(
+              _isConnected ? Icons.print : Icons.print_disabled,
+              color: _isConnected ? Colors.greenAccent : Colors.white54,
+            ),
+          ),
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -119,44 +116,33 @@ class _PosPageState extends ConsumerState<PosPage> {
               ),
               Expanded(
                 child: productsAsync.when(
-                  data: (cloudData) {
-                    if (cloudData.isNotEmpty) {
-                      return _buildProductGrid(cloudData, isLandscape, cartNotifier);
+                  data: (products) {
+                    if (products.isEmpty) {
+                      return const Center(
+                        child: Text('Belum ada data produk di database.'),
+                      );
                     }
-                    // Fallback Offline: Ambil dari DB Drift Lokal
-                    return StreamBuilder<List<ProductData>>(
-                      stream: db.select(db.products).watch(),
-                      builder: (ctx, snap) {
-                        if (!snap.hasData || snap.data!.isEmpty) {
-                          return const Center(child: Text('Belum ada produk (offline)'));
-                        }
-                        return _buildProductGrid(snap.data!, isLandscape, cartNotifier);
-                      },
-                    );
+                    return _buildProductGrid(products, isLandscape, cartNotifier);
                   },
                   loading: () => const Center(
                     child: CircularProgressIndicator(color: Color(0xFF00A65A)),
                   ),
-                  error: (e, _) => Center(child: Text('Error Data: $e')),
+                  error: (e, stack) => Center(
+                    child: Text('Gagal memuat data produk: $e'),
+                  ),
                 ),
               ),
             ],
           );
 
           // 2. WIDGET KERANJANG BELANJA MODULAR
-Widget cartSection = PosCartWidget(
-  onCheckoutSuccess: (cartSnapshot) {
-    // 1. Pemicu Sinkronisasi (Background)
-    // Anda perlu akses 'ref' di sini. Karena PosPage adalah ConsumerStatefulWidget,
-    // kita bisa langsung memanggil ref.
-    ref.read(syncServiceProvider).performSync(); 
-
-    // 2. Menjalankan Otomatisasi Cetak Struk & Dialog Sukses
-    _cetakStrukAutomatis(cartSnapshot);
-    _showSuccessAndPrintDialog(context, cartSnapshot);
-  },
-);
-
+          Widget cartSection = PosCartWidget(
+            onCheckoutSuccess: (cartSnapshot) {
+              // Menjalankan Otomatisasi Cetak Struk & Dialog Sukses
+              _cetakStrukAutomatis(cartSnapshot);
+              _showSuccessAndPrintDialog(context, cartSnapshot);
+            },
+          );
 
           // 3. LAYOUT SPLIT (LANDSCAPE VS PORTRAIT)
           if (isLandscape) {
@@ -182,15 +168,20 @@ Widget cartSection = PosCartWidget(
   }
 
   /// Widget Grid Katalog Produk
-  Widget _buildProductGrid(List<ProductData> products, bool isLandscape, PosCartNotifier cartNotifier) {
+  Widget _buildProductGrid(
+    List<ProductData> products,
+    bool isLandscape,
+    PosCartNotifier cartNotifier,
+  ) {
     final filtered = products.where((p) {
       final nameMatch = p.name.toLowerCase().contains(_searchQuery);
       final barcodeMatch = p.barcode?.toLowerCase().contains(_searchQuery) ?? false;
-      return nameMatch || barcodeMatch;
+      final skuMatch = p.id.toLowerCase().contains(_searchQuery);
+      return nameMatch || barcodeMatch || skuMatch;
     }).toList();
 
     if (filtered.isEmpty) {
-      return const Center(child: Text('Produk tidak ditemukan'));
+      return const Center(child: Text('Produk tidak ditemukan.'));
     }
 
     return GridView.builder(
@@ -204,10 +195,13 @@ Widget cartSection = PosCartWidget(
       itemCount: filtered.length,
       itemBuilder: (ctx, i) {
         final product = filtered[i];
+        final isOutOfStock = product.stock <= 0;
+
         return Card(
           elevation: 2,
+          color: isOutOfStock ? Colors.grey.shade100 : Colors.white,
           child: InkWell(
-            onTap: () => cartNotifier.addProduct(product),
+            onTap: isOutOfStock ? null : () => cartNotifier.addProduct(product),
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: Column(
@@ -219,21 +213,36 @@ Widget cartSection = PosCartWidget(
                     textAlign: TextAlign.left,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isOutOfStock ? Colors.grey : Colors.black87,
+                    ),
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _currencyFormatter.format(product.sellPriceGeneral > 0 ? product.sellPriceGeneral : 0),
-                        style: const TextStyle(color: Color(0xFF00A65A), fontWeight: FontWeight.bold, fontSize: 13),
+                        _currencyFormatter.format(
+                          product.sellPriceGeneral > 0 ? product.sellPriceGeneral : 0,
+                        ),
+                        style: const TextStyle(
+                          color: Color(0xFF00A65A),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Stok: ${product.stock}',
+                        isOutOfStock ? 'Stok Habis' : 'Stok: ${product.stock.toStringAsFixed(0)}',
                         style: TextStyle(
                           fontSize: 11,
-                          color: product.stock < 5 ? Colors.red : Colors.grey[700],
+                          fontWeight: FontWeight.w600,
+                          color: isOutOfStock
+                              ? Colors.red
+                              : (product.stock <= product.minStock
+                                  ? Colors.orange
+                                  : Colors.grey[700]),
                         ),
                       ),
                     ],
@@ -258,7 +267,10 @@ Widget cartSection = PosCartWidget(
 
     for (var it in cartSnapshot.items) {
       s += '${it.product.name}\n';
-      s += _baris(' ${it.quantity.toStringAsFixed(0)} ${it.unit} x ${_currencyFormatter.format(it.price)}', _currencyFormatter.format(it.subtotal));
+      s += _baris(
+        ' ${it.quantity.toStringAsFixed(0)} ${it.unit} x ${_currencyFormatter.format(it.price)}',
+        _currencyFormatter.format(it.subtotal),
+      );
     }
 
     s += '--------------------------------\n';
@@ -288,9 +300,12 @@ Widget cartSection = PosCartWidget(
         content: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Transaksi Berhasil Disimpan!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('Transaksi Berhasil Disimpan!',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             SizedBox(height: 4),
-            Text('Data tersimpan secara offline & siap disinkronkan ke cloud.', style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+            Text('Data tersimpan secara lokal di database.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+                textAlign: TextAlign.center),
           ],
         ),
         actions: [
@@ -305,7 +320,10 @@ Widget cartSection = PosCartWidget(
             },
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00A65A),
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(context),
             child: const Text('Selesai'),
           ),
