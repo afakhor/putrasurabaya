@@ -1,10 +1,10 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../local_database.dart';
+import 'package:ud_putra_kasir/core/database/local_database.dart';
 
 // --- IMPORT TABEL TRANSAKSI ---
-import '../tables/transaction_table.dart'; // Berisi Transactions & TransactionItems
+import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart'; // Berisi Transactions & TransactionItems
 
 part 'transaction_dao.g.dart';
 
