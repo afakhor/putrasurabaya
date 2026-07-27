@@ -37,14 +37,15 @@ class PrinterService {
     final hasPermission = await checkAndRequestPermissions();
     if (!hasPermission) return [];
 
-    // 2. Verifikasi status izin pada library printer
+        // 2. Cek izin Bluetooth (nama properti yang benar: isPermissionBluetoothGranted)
     final bool isPermissionGranted =
-        await PrintBluetoothThermal.isPermissionGranted;
+        await PrintBluetoothThermal.isPermissionBluetoothGranted;
     if (!isPermissionGranted) return [];
 
-    // 3. Ambil daftar perangkat Bluetooth
-    return await PrintBluetoothThermal.pairedBluetoothBytes;
+    // 3. Ambil daftar perangkat Bluetooth (nama properti yang benar: pairedBluetooths)
+    return await PrintBluetoothThermal.pairedBluetooths;
   }
+
 
   /// Hubungkan ke printer berdasarkan Mac Address
   Future<bool> connect(String macAddress) async {
