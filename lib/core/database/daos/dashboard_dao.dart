@@ -1,13 +1,13 @@
 import 'package:drift/drift.dart';
 import 'package:rxdart/rxdart.dart';
 
-import '../local_database.dart';
+import 'package:ud_putra_kasir/core/database/local_database.dart';
 
 // --- IMPORT SEMUA FILE TABEL DENGAN LENGKAP ---
-import '../tables/finance_table.dart';     // Berisi Payables, Receivables, Expenses
-import '../tables/transaction_table.dart'; // Berisi Transactions, TransactionItems
-import '../tables/product_table.dart';     // Berisi Products
-import '../../../features/dashboard/models/dashboard_finance_summary.dart';
+import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';     // Berisi Payables, Receivables, Expenses
+import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart'; // Berisi Transactions, TransactionItems
+import 'package:ud_putra_kasir/core/database/tables/product_table.dart';     // Berisi Products
+import 'package:ud_putra_kasir/features/dashboard/models/dashboard_finance_summary.dart';
 
 part 'dashboard_dao.g.dart';
 
