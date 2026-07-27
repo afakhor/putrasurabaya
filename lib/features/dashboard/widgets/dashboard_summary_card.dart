@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-
-import '../providers/dashboard_providers.dart';
+import 'package:ud_putra_kasir/features/dashboard/providers/dashboard_providers.dart';
 
 class DashboardSummaryCards extends ConsumerWidget {
   const DashboardSummaryCards({super.key});
