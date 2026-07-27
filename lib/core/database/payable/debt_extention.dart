@@ -1,8 +1,10 @@
 import 'package:drift/drift.dart';
-import '../local_database.dart'; // Sesuaikan path ke local_database.dart Anda
+import '../local_database.dart'; 
+// IMPORT KONSTANTA
+import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 
 extension DebtExtension on LocalDatabase {
-  
+
   /// 1. Pembayaran Cicilan / Pelunasan Piutang dari Customer
   Future<void> bayarAngsuranPiutang({
     required String receivableId,
@@ -13,17 +15,19 @@ extension DebtExtension on LocalDatabase {
     await transaction(() async {
       // 1. Ambil Data Piutang Saat Ini
       final item = await (select(receivables)..where((tbl) => tbl.id.equals(receivableId))).getSingle();
-      
+
       final newPaid = item.paidAmount + jumlahBayar;
       final newRemaining = item.totalAmount - newPaid;
-      final newStatus = newRemaining <= 0 ? 'paid' : 'partial';
+      
+      // LOGIKA BARU: Menggunakan fungsi terpusat
+      final newStatus = DebtStatus.tentukanStatus(newRemaining, jumlahBayar);
 
       // 2. Update Status Piutang
       await (update(receivables)..where((tbl) => tbl.id.equals(receivableId))).write(
         ReceivablesCompanion(
           paidAmount: Value(newPaid),
           remainingAmount: Value(newRemaining < 0 ? 0 : newRemaining),
-          status: Value(newStatus),
+          status: Value(newStatus), // Dibungkus Value() untuk konsistensi
         ),
       );
 
@@ -35,7 +39,9 @@ extension DebtExtension on LocalDatabase {
           type: 'receivable_collect',
           amount: jumlahBayar,
           paymentMethod: paymentMethod,
-          notes: Value(catatan ?? 'Pelunasan / Cicilan Piutang Customer'),
+          notes: Value(catatan ?? (newStatus == DebtStatus.paid 
+              ? 'Pelunasan Piutang Pelanggan' 
+              : 'Cicilan Piutang Pelanggan')),
         ),
       );
     });
@@ -50,7 +56,9 @@ extension DebtExtension on LocalDatabase {
     required DateTime dueDate,
   }) async {
     final sisaHutang = totalAmount - dpAmount;
-    final status = sisaHutang <= 0 ? 'paid' : (dpAmount > 0 ? 'partial' : 'unpaid');
+    
+    // LOGIKA BARU: Menggunakan fungsi terpusat
+    final status = DebtStatus.tentukanStatus(sisaHutang, dpAmount);
 
     await into(payables).insert(
       PayablesCompanion.insert(
@@ -59,11 +67,10 @@ extension DebtExtension on LocalDatabase {
         supplierId: supplierId,
         totalAmount: totalAmount,
         paidAmount: Value(dpAmount),
-        remainingAmount: sisaHutang,
+        remainingAmount: sisaHutang < 0 ? 0.0 : sisaHutang,
         dueDate: dueDate,
-        status: status,
+        status: Value(status), // Wajib Value() agar sinkron dengan Companion
       ),
     );
   }
-
 }
