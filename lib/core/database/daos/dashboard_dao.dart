@@ -2,7 +2,11 @@ import 'package:drift/drift.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../local_database.dart';
-import '../tables/finance_table.dart'; // <--- TAMBAHKAN IMPORT INI
+
+// --- IMPORT SEMUA FILE TABEL DENGAN LENGKAP ---
+import '../tables/finance_table.dart';     // Berisi Payables, Receivables, Expenses
+import '../tables/transaction_table.dart'; // Berisi Transactions, TransactionItems
+import '../tables/product_table.dart';     // Berisi Products
 import '../../../features/dashboard/models/dashboard_finance_summary.dart';
 
 part 'dashboard_dao.g.dart';
@@ -61,20 +65,23 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
               'jumlahTransaksi': row.read(totalCount) ?? 0,
             });
 
-    // 4. Stream Estimasi Laba (Fix: Chaining yang benar)
+    // 4. Stream Estimasi Laba
     final todayProfitStream = (select(transactionItems).join([
-      innerJoin(transactions, transactions.id.equalsExp(transactionItems.transactionId)),
+      innerJoin(
+        transactions,
+        transactions.id.equalsExp(transactionItems.transactionId),
+      ),
     ])
-      ..where(transactions.date.isBetweenValues(startOfDay, endOfDay)))
-      .watch()
-      .map((rows) {
-        double profit = 0.0;
-        for (final row in rows) {
-          final item = row.readTable(transactionItems);
-          profit += ((item.price - item.buyPriceAtTransaction) * item.quantity);
-        }
-        return profit;
-      });
+          ..where(transactions.date.isBetweenValues(startOfDay, endOfDay)))
+        .watch()
+        .map((rows) {
+      double profit = 0.0;
+      for (final row in rows) {
+        final item = row.readTable(transactionItems);
+        profit += ((item.price - item.buyPriceAtTransaction) * item.quantity);
+      }
+      return profit;
+    });
 
     // 5. Stream Pengeluaran
     final totalExpense = expenses.amount.sum();
@@ -108,7 +115,8 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
       todayProfitStream,
       todayExpensesStream,
       lowStockCountStream,
-      (pData, rData, sData, profit, expense, lowStock) => DashboardFinanceSummary(
+      (pData, rData, sData, profit, expense, lowStock) =>
+          DashboardFinanceSummary(
         totalSisaHutang: (pData['total'] as num).toDouble(),
         jumlahHutangAktif: pData['count'] as int,
         totalSisaPiutang: (rData['total'] as num).toDouble(),
@@ -129,7 +137,10 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
               tbl.stock.isSmallerOrEqual(tbl.minStock) &
               tbl.statusActive.equals('aktif'))
           ..orderBy([
-            (tbl) => OrderingTerm(expression: tbl.stock, mode: OrderingMode.asc)
+            (tbl) => OrderingTerm(
+                  expression: tbl.stock,
+                  mode: OrderingMode.asc,
+                )
           ]))
         .get();
   }
