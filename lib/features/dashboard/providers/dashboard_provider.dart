@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/database/daos/dashboard_dao.dart';
-import '../../../core/database/local_database.dart';
-import '../models/dashboard_finance_summary.dart';
+
+import 'package:ud_putra_kasir/core/database/daos/dashboard_dao.dart';
+import 'package:ud_putra_kasir/core/database/local_database.dart';
+import 'package:ud_putra_kasir/features/dashboard/models/dashboard_finance_summary.dart';
+
 
 /// Provider DAO
 final dashboardDaoProvider = Provider<DashboardDao>((ref) {
