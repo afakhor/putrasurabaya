@@ -1,64 +1,39 @@
 import 'package:drift/drift.dart';
 
-/// Tabel Header Transaksi Penjualan (Nota Kasir)
+import 'product_table.dart';
+
 @DataClassName('TransactionData')
 class Transactions extends Table {
-  /// Unique ID Transaksi (Contoh: TRX-1722071234)
-  TextColumn get id => text()();
-
-  /// Tanggal dan Waktu Transaksi
-  DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
-
-  /// Total Belanja (Setelah diskon jika ada)
-  RealColumn get total => real().withDefault(const Constant(0.0))();
-
-  /// Uang yang Dibayarkan oleh Pembeli
-  RealColumn get paidAmount => real().withDefault(const Constant(0.0))();
-
-  /// Kembalian Transaksi Tunai
-  RealColumn get changeAmount => real().withDefault(const Constant(0.0))();
-
-  /// Metode Pembayaran (cash, transfer, tempo, dp)
-  TextColumn get paymentMethod => text().withDefault(const Constant('cash'))();
-
-  /// Optional ID Pelanggan (jika transaksi atas nama pelanggan/piutang)
+  TextColumn get id => text()(); 
+  TextColumn get invoiceNo => text()();
+  TextColumn get salesId => text().nullable()();
+  TextColumn get shiftId => text().nullable()();
   TextColumn get customerId => text().nullable()();
+  RealColumn get subtotal => real()();
+  RealColumn get discountTotal => real().withDefault(const Constant(0))();
+  RealColumn get taxTotal => real().withDefault(const Constant(0))();
+  RealColumn get total => real()();
+  RealColumn get paid => real().withDefault(const Constant(0))();
+  RealColumn get debt => real().withDefault(const Constant(0))();
+  RealColumn get change => real().withDefault(const Constant(0))();
+  TextColumn get paymentMethod => text().withDefault(const Constant('cash'))();
+  DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))(); 
 
-  /// Catatan Tambahan
-  TextColumn get notes => text().nullable()();
-
-  /// Status Sinkronisasi ke Server (false = lokal saja, true = sudah ter-upload)
-  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-
-  @override
+  @override 
   Set<Column> get primaryKey => {id};
 }
 
-/// Tabel Detail Produk yang Dibeli dalam Transaksi
 @DataClassName('TransactionItemData')
 class TransactionItems extends Table {
-  /// Unique ID Item Transaksi
-  TextColumn get id => text()();
-
-  /// Relasi ke ID Header Transaksi
-  TextColumn get transactionId => text()();
-
-  /// ID Produk
-  TextColumn get productId => text()();
-
-  /// Nama Produk saat transaksi (Disimpan agar riwayat tidak berubah meski nama produk diubah)
-  TextColumn get productName => text()();
-
-  /// Harga Jual per Unit saat transaksi
+  TextColumn get id => text()(); 
+  TextColumn get transactionId => text().references(Transactions, #id)(); 
+  TextColumn get productId => text().references(Products, #id)(); 
+  RealColumn get quantity => real()();
   RealColumn get price => real()();
+  RealColumn get buyPriceAtTransaction => real().withDefault(const Constant(0))(); 
+  TextColumn get unit => text()();
 
-  /// Harga Modal / Kulakan saat transaksi (Wajib ada untuk menghitung estimasi Laba Bersih)
-  RealColumn get buyPriceAtTransaction =>
-      real().withDefault(const Constant(0.0))();
-
-  /// Jumlah Barang
-  IntColumn get quantity => integer()();
-
-  @override
+  @override 
   Set<Column> get primaryKey => {id};
 }
