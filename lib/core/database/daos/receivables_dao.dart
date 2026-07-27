@@ -1,8 +1,12 @@
 import 'package:drift/drift.dart';
 
 import '../local_database.dart';
-import '../tables/finance_table.dart';
-// IMPORT KONSTANTA BARU
+
+// --- IMPORT SEMUA FILE TABEL DENGAN LENGKAP ---
+import '../tables/finance_table.dart';  // Berisi Receivables, DebtPayments
+import '../tables/customer_table.dart'; // Berisi Customers (Sesuaikan nama file jika berbeda)
+
+// Import Konstanta
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 
 part 'receivables_dao.g.dart';
@@ -65,7 +69,6 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     final query = select(receivables).join([
       leftOuterJoin(customers, customers.id.equalsExp(receivables.customerId)),
     ])
-      // Fix syntax isLessThanOrEqualTo & Gunakan konstanta
       ..where(receivables.dueDate.isSmallerOrEqualValue(limit) &
           receivables.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
       ..orderBy([OrderingTerm.asc(receivables.dueDate)]);
@@ -92,7 +95,6 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     required DateTime dueDate,
   }) async {
     final sisaPiutang = totalAmount - dpAmount;
-    // Logika tunggal via konstanta
     final status = DebtStatus.tentukanStatus(sisaPiutang, dpAmount);
     final receivableId = 'RC-${DateTime.now().millisecondsSinceEpoch}';
 
@@ -157,8 +159,7 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
 
       final newPaid = item.paidAmount + actualBayar;
       final newRemaining = item.totalAmount - newPaid;
-      
-      // Logika tunggal via konstanta
+
       final newStatus = DebtStatus.tentukanStatus(newRemaining, actualBayar);
 
       final updatedRows = await (update(receivables)
