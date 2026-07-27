@@ -12,6 +12,9 @@ import 'daos/transaction_dao.dart';
 import 'tables/finance_table.dart';
 import 'tables/supplier_table.dart';
 
+// IMPORT KONSTANTA STATUS HUTANG PIUTANG
+import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
+
 part 'local_database.g.dart';
 
 // ==========================================
@@ -26,7 +29,7 @@ class Users extends Table {
   TextColumn get status => text().withDefault(const Constant('aktif'))(); 
   BoolColumn get canEditPrice => boolean().withDefault(const Constant(false))();
   BoolColumn get canDeleteTransaction => boolean().withDefault(const Constant(false))();
-  
+
   @override 
   Set<Column> get primaryKey => {id};
 }
@@ -43,7 +46,7 @@ class ShiftKasir extends Table {
   RealColumn get cashDifference => real().nullable()();
   TextColumn get notes => text().nullable()();
   TextColumn get status => text().withDefault(const Constant('open'))(); // open / closed
-  
+
   @override 
   Set<Column> get primaryKey => {id};
 }
@@ -81,7 +84,7 @@ class Products extends Table {
   IntColumn get rewardPoints => integer().withDefault(const Constant(0))();
   DateTimeColumn get expiryDate => dateTime().nullable()();
   TextColumn get statusActive => text().withDefault(const Constant('aktif'))();
-  
+
   @override 
   Set<Column> get primaryKey => {id};
 }
@@ -93,7 +96,7 @@ class ProductAssets extends Table {
   TextColumn get imagePath => text()();
   BoolColumn get isPrimary => boolean().withDefault(const Constant(false))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
-  
+
   @override 
   Set<Column> get primaryKey => {id};
 }
@@ -107,7 +110,7 @@ class ProductUnits extends Table {
   RealColumn get buyPriceUnit => real()(); 
   RealColumn get sellPriceUnit => real()();
   TextColumn get barcode => text().nullable()();
-  
+
   @override 
   Set<Column> get primaryKey => {id};
 }
@@ -121,7 +124,7 @@ class ProductVariants extends Table {
   TextColumn get barcode => text().nullable()();
   RealColumn get stock => real().withDefault(const Constant(0))();
   RealColumn get sellPrice => real().withDefault(const Constant(0))();
-  
+
   @override 
   Set<Column> get primaryKey => {id};
 }
@@ -135,7 +138,7 @@ class ProductPromos extends Table {
   TextColumn get promoType => text().withDefault(const Constant('regular'))();
   DateTimeColumn get startDate => dateTime()();
   DateTimeColumn get endDate => dateTime()();
-  
+
   @override 
   Set<Column> get primaryKey => {id};
 }
@@ -152,7 +155,7 @@ class StockMutations extends Table {
   TextColumn get referenceNo => text()();
   DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
   TextColumn get notes => text().nullable()();
-  
+
   @override 
   Set<Column> get primaryKey => {id};
 }
@@ -167,7 +170,7 @@ class Customers extends Table {
   TextColumn get name => text()();
   TextColumn get phone => text().nullable()();
   RealColumn get totalDebt => real().withDefault(const Constant(0))();
-  
+
   @override 
   Set<Column> get primaryKey => {id};
 }
@@ -189,7 +192,7 @@ class Transactions extends Table {
   TextColumn get paymentMethod => text().withDefault(const Constant('cash'))();
   DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))(); 
-  
+
   @override 
   Set<Column> get primaryKey => {id};
 }
@@ -203,7 +206,7 @@ class TransactionItems extends Table {
   RealColumn get price => real()();
   RealColumn get buyPriceAtTransaction => real().withDefault(const Constant(0))(); 
   TextColumn get unit => text()();
-  
+
   @override 
   Set<Column> get primaryKey => {id};
 }
@@ -330,6 +333,9 @@ class LocalDatabase extends _$LocalDatabase {
         final custId = dataTransaksi.customerId.value!;
         final receivableId = 'RC-${dataTransaksi.id.value}';
 
+        // PENENTUAN STATUS MENGGUNAKAN KONSTANTA TERPUSAT
+        final statusPiutang = DebtStatus.tentukanStatus(sisaPiutang, dp);
+
         // 3a. Masukkan Data Piutang Baru
         await into(receivables).insert(
           ReceivablesCompanion.insert(
@@ -338,9 +344,9 @@ class LocalDatabase extends _$LocalDatabase {
             customerId: custId,
             totalAmount: totalHarga,
             paidAmount: Value(dp),
-            remainingAmount: sisaPiutang,
+            remainingAmount: sisaPiutang < 0 ? 0.0 : sisaPiutang,
             dueDate: DateTime.now().add(const Duration(days: 14)),
-            status: Value(dp > 0 ? 'partial' : 'unpaid'),
+            status: Value(statusPiutang),
           ),
         );
 
