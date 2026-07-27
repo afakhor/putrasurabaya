@@ -3,9 +3,12 @@ import 'package:drift/drift.dart';
 // Import LocalDatabase
 import 'package:ud_putra_kasir/core/database/local_database.dart';
 
-// Import File Tabel Spesifik (Menghindari Circular Import)
+// Import File Tabel Spesifik
 import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
+
+// IMPORT KONSTANTA BARU ANDA
+import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 
 part 'payables_dao.g.dart';
 
@@ -20,26 +23,28 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
 
   Stream<List<PayableData>> watchActivePayables() {
     return (select(payables)
-          ..where((tbl) => tbl.status.isNotIn(['paid', 'LUNAS']))
-          ..orderBy([
-            (tbl) =>
-                OrderingTerm(expression: tbl.dueDate, mode: OrderingMode.asc)
-          ]))
-        .watch();
-  }
-
-  Stream<List<PayableData>> watchUnpaidPayables() => watchActivePayables();
-  Stream<List<PayableData>> watchOverduePayables({DateTime? dateLimit}) {
-    final limit = dateLimit ?? DateTime.now();
-    return (select(payables)
-          ..where((tbl) =>
-              tbl.dueDate.isLessThanOrEqualTo(limit) & // Fix: isLessThanOrEqualTo
-              tbl.status.isNotIn(['paid', 'LUNAS']))
+          // Menggunakan list konstanta agar data lama ('LUNAS') tetap terbaca
+          ..where((tbl) => tbl.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
           ..orderBy([
             (tbl) => OrderingTerm(expression: tbl.dueDate, mode: OrderingMode.asc)
           ]))
         .watch();
   }
+
+  Stream<List<PayableData>> watchUnpaidPayables() => watchActivePayables();
+
+  Stream<List<PayableData>> watchOverduePayables({DateTime? dateLimit}) {
+    final limit = dateLimit ?? DateTime.now();
+    return (select(payables)
+          ..where((tbl) =>
+              tbl.dueDate.isLessThanOrEqualTo(limit) &
+              tbl.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
+          ..orderBy([
+            (tbl) => OrderingTerm(expression: tbl.dueDate, mode: OrderingMode.asc)
+          ]))
+        .watch();
+  }
+
 
   Stream<List<PayableData>> watchPayablesBySupplier(String supplierId) {
     return (select(payables)
@@ -63,8 +68,10 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
     required DateTime dueDate,
   }) async {
     final sisaHutang = totalAmount - dpAmount;
-    final status =
-        sisaHutang <= 0 ? 'paid' : (dpAmount > 0 ? 'partial' : 'unpaid');
+    
+    // MENGGUNAKAN LOGIKA DARI CONSTANT
+    final status = DebtStatus.tentukanStatus(sisaHutang, dpAmount);
+    
     final payableId = 'AP-${DateTime.now().millisecondsSinceEpoch}';
 
     await transaction(() async {
@@ -77,7 +84,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
           paidAmount: Value(dpAmount),
           remainingAmount: sisaHutang < 0 ? 0.0 : sisaHutang,
           dueDate: dueDate,
-          status: Value(status), // FIXED: Wajib dibungkus Value()
+          status: Value(status), 
         ),
       );
 
@@ -95,6 +102,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
       }
     });
   }
+
 
   Future<void> catatHutang({
     required String purchaseRef,
@@ -117,29 +125,25 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
     required String paymentMethod,
     String? notes,
   }) async {
-if (nominalBayar <= 0) {
+    if (nominalBayar <= 0) {
       throw Exception('Nominal pembayaran tidak valid (harus > 0)');
     }
+    
     return transaction(() async {
       final item = await (select(payables)
             ..where((tbl) => tbl.id.equals(payableId)))
           .getSingleOrNull();
 
-      if (item == null) {
-        throw Exception('Data hutang supplier tidak ditemukan');
-      }
+      if (item == null) throw Exception('Data hutang supplier tidak ditemukan');
+      if (item.remainingAmount <= 0) throw Exception('Hutang ini sudah lunas');
 
-      if (item.remainingAmount <= 0) {
-        throw Exception('Hutang ini sudah lunas');
-      }
-
-      final actualBayar = nominalBayar > item.remainingAmount
-          ? item.remainingAmount
-          : nominalBayar;
+      final actualBayar = nominalBayar > item.remainingAmount ? item.remainingAmount : nominalBayar;
 
       final newPaid = item.paidAmount + actualBayar;
       final newRemaining = item.totalAmount - newPaid;
-      final newStatus = newRemaining <= 0 ? 'paid' : 'partial';
+      
+      // MENGGUNAKAN LOGIKA DARI CONSTANT
+      final newStatus = DebtStatus.tentukanStatus(newRemaining, actualBayar);
 
       final updatedRows = await (update(payables)
             ..where((tbl) => tbl.id.equals(payableId)))
@@ -159,7 +163,7 @@ if (nominalBayar <= 0) {
           amount: actualBayar,
           paymentMethod: paymentMethod,
           notes: Value(notes ??
-              (newRemaining <= 0
+              (newStatus == DebtStatus.paid
                   ? 'Pelunasan Hutang Supplier'
                   : 'Angsuran Hutang Supplier')),
         ),
