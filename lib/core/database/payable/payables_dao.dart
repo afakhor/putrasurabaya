@@ -37,7 +37,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
     final limit = dateLimit ?? DateTime.now();
     return (select(payables)
           ..where((tbl) =>
-              tbl.dueDate.isLessThanOrEqualTo(limit) &
+              tbl.dueDate.isSmallerOrEqualValue(limit) &
               tbl.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
           ..orderBy([
             (tbl) => OrderingTerm(expression: tbl.dueDate, mode: OrderingMode.asc)
