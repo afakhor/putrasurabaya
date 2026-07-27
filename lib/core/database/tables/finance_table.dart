@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 // ==========================================
 // 1. MODUL PIUTANG CUSTOMER (AR)
 // ==========================================
+@DataClassName('ReceivableData')
 class Receivables extends Table {
   TextColumn get id => text()(); 
   TextColumn get transactionId => text()(); 
@@ -21,6 +22,7 @@ class Receivables extends Table {
 // ==========================================
 // 2. MODUL HUTANG SUPPLIER (AP)
 // ==========================================
+@DataClassName('PayableData')
 class Payables extends Table {
   TextColumn get id => text()(); 
   TextColumn get purchaseRef => text()(); 
@@ -39,6 +41,7 @@ class Payables extends Table {
 // ==========================================
 // 3. TABEL ARUS KAS HUTANG & PIUTANG
 // ==========================================
+@DataClassName('DebtPaymentData')
 class DebtPayments extends Table {
   TextColumn get id => text()(); 
   TextColumn get refId => text()(); 
@@ -55,6 +58,7 @@ class DebtPayments extends Table {
 // ==========================================
 // 4. MODUL BEBAN USAHA (EXPENSES)
 // ==========================================
+@DataClassName('ExpenseData')
 class Expenses extends Table {
   TextColumn get id => text()(); 
   TextColumn get category => text()(); 
