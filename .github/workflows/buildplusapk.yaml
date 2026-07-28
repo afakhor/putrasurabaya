@@ -37,11 +37,34 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
 
-      - name: Clean build artifacts total (FIX DRIFT SCAN)
+      - name: Clean build artifacts total
         run: |
           flutter clean
           rm -rf .dart_tool/ build/ .dart_tool/build/
           find lib -name "*.g.dart" -delete
+          
+          # BIKIN build.yaml OTOMATIS DISINI
+          cat > build.yaml <<'EOF'
+          targets:
+            $default:
+              builders:
+                drift_dev:
+                  generate_for:
+                    include:
+                      - lib/core/database/local_database.dart
+                      - lib/core/database/tables/*.dart
+                      - lib/core/database/daos/*.dart
+                riverpod_generator:
+                  generate_for:
+                    include:
+                      - lib/**/*.dart
+                    exclude:
+                      - lib/core/firebase/**
+                      - lib/core/utils/format_rupiah.dart
+                      - lib/core/utils/permission_helper.dart
+          EOF
+          
+          cat build.yaml
           flutter pub get
 
       - name: Generate Database Code
