@@ -14,13 +14,11 @@ dependencies:
   firebase_core: ^2.32.0
   cloud_firestore: ^4.17.5
   rxdart: ^0.28.0
-
   drift: 2.21.0
   drift_flutter: 0.2.2
   sqlite3_flutter_libs: 0.5.24
   path_provider: ^2.1.2
   path: ^1.9.0
-
   connectivity_plus: ^6.0.3
   print_bluetooth_thermal: ^1.0.3
   image_picker: ^1.0.7
@@ -33,12 +31,13 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.2
   drift_dev: 2.21.0
-  build_runner: ^2.4.9
-  riverpod_generator: ^2.4.0
+  build_runner: 2.4.9
+  riverpod_generator: 2.4.0
 
-# INI KUNCI FIX ANALYZER CRASH
+# FIX UNTUK FLUTTER 3.24.3 + DRIFT 2.21.0
 dependency_overrides:
-  analyzer: 6.5.0
+  analyzer: 6.4.1
+  macros: 0.1.0-main.4
 
 flutter:
   uses-material-design: true
