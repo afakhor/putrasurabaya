@@ -2,7 +2,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
-import '../../core/database/local_database.dart';
+import 'package:ud_putra_kasir/core/database/local_database.dart';
 
 /// State penampung data form produk yang kompleks
 class ProductFormState {
