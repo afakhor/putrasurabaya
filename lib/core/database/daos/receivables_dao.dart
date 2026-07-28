@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Gunakan Package Import secara konsisten untuk semua dependency internal
 import 'package:ud_putra_kasir/core/database/local_database.dart';
@@ -229,3 +230,12 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
         .get();
   }
 }
+
+// ===========================================================================
+// PROVIDER RIVERPOD
+// ===========================================================================
+
+final receivablesDaoProvider = Provider<ReceivablesDao>((ref) {
+  final db = ref.watch(localDatabaseProvider);
+  return ReceivablesDao(db);
+});
