@@ -31,7 +31,7 @@ class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin 
     if (product != null) {
       final newStock = product.stock + deltaQuantity;
       await (update(products)..where((tbl) => tbl.id.equals(productId)))
-          .write(ProductsCompanion(stock: Value(newStock < 0 ? 0 : newStock)));
+          .write(ProductsCompanion(stock: Value(newStock < 0 ? 0.0 : newStock))); // <--- 0.0 double
     }
   }
 }
