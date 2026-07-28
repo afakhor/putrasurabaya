@@ -4,8 +4,8 @@ import 'package:drift/drift.dart';
 class Users extends Table {
   TextColumn get id => text()(); 
   TextColumn get name => text()();
-  TextColumn get role => text()(); // 'owner', 'admin', 'salesman'
-  TextColumn get apiKey => text().nullable()(); // API Key unik hasil generate Owner
+  TextColumn get role => text()(); 
+  TextColumn get apiKey => text().nullable()(); 
   TextColumn get status => text().withDefault(const Constant('aktif'))(); 
   BoolColumn get canEditPrice => boolean().withDefault(const Constant(false))();
   BoolColumn get canDeleteTransaction => boolean().withDefault(const Constant(false))();
@@ -20,8 +20,8 @@ class ShiftKasir extends Table {
   TextColumn get userId => text().references(Users, #id)();
   DateTimeColumn get startTime => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get endTime => dateTime().nullable()();
-  RealColumn get initialCash => real().withDefault(const Constant(0))();
-  RealColumn get expectedCash => real().withDefault(const Constant(0))();
+  RealColumn get initialCash => real().withDefault(const Constant(0.0))();
+  RealColumn get expectedCash => real().withDefault(const Constant(0.0))();
   RealColumn get actualCash => real().nullable()();
   RealColumn get cashDifference => real().nullable()();
   TextColumn get notes => text().nullable()();
