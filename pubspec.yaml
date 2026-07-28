@@ -4,21 +4,23 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
-  flutter: ">=3.19.0"
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: ">=3.24.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  flutter_riverpod: ^2.5.1
+  flutter_riverpod: ^2.6.1
   firebase_core: ^2.32.0
   cloud_firestore: ^4.17.5
   rxdart: ^0.28.0
-  drift: 2.21.0
-  drift_flutter: 0.2.2
-  sqlite3_flutter_libs: 0.5.24
+  
+  drift: ^2.22.0
+  drift_flutter: ^0.2.2
+  sqlite3_flutter_libs: ^0.5.24
   path_provider: ^2.1.2
   path: ^1.9.0
+  
   connectivity_plus: ^6.0.3
   print_bluetooth_thermal: ^1.0.3
   image_picker: ^1.0.7
@@ -29,14 +31,13 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.2
-  drift_dev: 2.21.0
-  build_runner: 2.4.9
-  riverpod_generator: 2.4.0
+  flutter_lints: ^4.0.0
+  drift_dev: ^2.22.0
+  build_runner: ^2.4.13
+  riverpod_generator: ^2.6.1
+  custom_lint: ^0.7.0
+  riverpod_lint: ^2.6.1
 
-dependency_overrides:
-  analyzer: 6.2.0
-  dart_style: 2.3.2
-
+# HAPUS SEMUA dependency_overrides YANG TADI
 flutter:
   uses-material-design: true
