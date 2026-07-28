@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:convert';
-import '../../core/database/local_database.dart'; // Sesuaikan dengan path database Anda
+import 'package:ud_putra_kasir/core/database/local_database.dart';
+
 
 class InventoryEmergencyFab extends ConsumerStatefulWidget {
   const InventoryEmergencyFab({super.key});
