@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Import terpadu menggunakan package scheme
 import 'package:ud_putra_kasir/core/database/local_database.dart';
@@ -179,7 +180,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
   // ===========================================================================
   // 3. RIWAYAT PEMBAYARAN
   // ===========================================================================
-
   Future<List<DebtPaymentData>> getPaymentHistory(String payableId) {
     return (select(debtPayments)
           ..where((tbl) =>
@@ -191,3 +191,12 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
         .get();
   }
 }
+
+// ===========================================================================
+// PROVIDER RIVERPOD
+// ===========================================================================
+
+final payablesDaoProvider = Provider<PayablesDao>((ref) {
+  final db = ref.watch(localDatabaseProvider);
+  return PayablesDao(db);
+});
