@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/database/local_database.dart';
-import '../../core/utils/format_rupiah.dart';
-import '../auth/auth_provider.dart';
+import 'package:ud_putra_kasir/core/database/local_database.dart';
+import 'package:ud_putra_kasir/core/utils/format_rupiah.dart';
+import 'package:ud_putra_kasir/features/auth/auth_provider.dart';
+
 
 class ShiftKasirDialog extends ConsumerStatefulWidget {
   const ShiftKasirDialog({super.key});
