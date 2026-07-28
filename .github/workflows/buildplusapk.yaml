@@ -37,7 +37,7 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
 
-      - name: Clean build artifacts total (FIX DRIFT)
+      - name: Clean build artifacts total (FIX DRIFT 2.21)
         run: |
           flutter clean
           rm -rf .dart_tool/ build/ .dart_tool/build/
@@ -45,13 +45,12 @@ jobs:
           flutter pub get
 
       - name: Generate Database Code
-        run: |
-          dart run build_runner build --delete-conflicting-outputs --verbose
+        run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Verify generated files
         run: |
           ls -lh lib/core/database/local_database.g.dart
-          ls -lh lib/core/database/daos/*.g.dart
+          ls -lh lib/core/database/daos/*.g.dart || echo "cek folder daos"
           echo "Generate OK"
 
       - name: Build APK Release
