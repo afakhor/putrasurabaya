@@ -1,8 +1,8 @@
 // lib/features/stock/stock_mutation_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/database/local_database.dart';
-import '../../core/utils/format_rupiah.dart';
+import 'package:ud_putra_kasir/core/database/local_database.dart';
+import 'package:ud_putra_kasir/core/utils/format_rupiah.dart';
 
 class StockMutationPage extends ConsumerStatefulWidget {
   const StockMutationPage({super.key});
