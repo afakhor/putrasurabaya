@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rxdart/rxdart.dart';
 
 import 'package:ud_putra_kasir/core/database/local_database.dart';
@@ -145,3 +146,12 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
         .get();
   }
 }
+
+// ===========================================================================
+// PROVIDER RIVERPOD
+// ===========================================================================
+
+final dashboardDaoProvider = Provider<DashboardDao>((ref) {
+  final db = ref.watch(localDatabaseProvider);
+  return DashboardDao(db);
+});
