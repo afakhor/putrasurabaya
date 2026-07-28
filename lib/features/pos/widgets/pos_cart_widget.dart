@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../pos_cart_provider.dart';
+import 'package:ud_putra_kasir/features/pos/pos_cart_provider.dart';
 import 'pos_payment_dialog.dart';
 
 class PosCartWidget extends ConsumerWidget {
