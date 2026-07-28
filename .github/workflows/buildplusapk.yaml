@@ -37,16 +37,22 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
 
-      - name: Clean build artifacts total
+      - name: Clean build artifacts total (FIX DRIFT)
         run: |
           flutter clean
-          rm -rf .dart_tool/ build/
+          rm -rf .dart_tool/ build/ .dart_tool/build/
+          find lib -name "*.g.dart" -delete
           flutter pub get
 
       - name: Generate Database Code
         run: |
-          dart run build_runner clean
-          dart run build_runner build --delete-conflicting-outputs
+          dart run build_runner build --delete-conflicting-outputs --verbose
+
+      - name: Verify generated files
+        run: |
+          ls -lh lib/core/database/local_database.g.dart
+          ls -lh lib/core/database/daos/*.g.dart
+          echo "Generate OK"
 
       - name: Build APK Release
         run: flutter build apk --release --no-shrink --split-per-abi
