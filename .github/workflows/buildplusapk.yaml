@@ -37,13 +37,12 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
 
-      - name: Clean build artifacts total
+            - name: Clean build artifacts total
         run: |
           flutter clean
-          rm -rf .dart_tool/ build/ .dart_tool/build/
+          rm -rf .dart_tool/ build/ .dart_tool/build/ pubspec.lock
           find lib -name "*.g.dart" -delete
           
-          # BIKIN build.yaml OTOMATIS DISINI
           cat > build.yaml <<'EOF'
           targets:
             $default:
@@ -65,6 +64,7 @@ jobs:
           EOF
           
           cat build.yaml
+          cat pubspec.yaml | grep -A2 environment
           flutter pub get
 
       - name: Generate Database Code
