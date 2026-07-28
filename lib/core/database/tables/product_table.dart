@@ -12,20 +12,20 @@ class Products extends Table {
   TextColumn get brand => text().nullable()();
   TextColumn get warehouseLocation => text().nullable()();
   TextColumn get tags => text().nullable()();
-  RealColumn get buyPrice => real().withDefault(const Constant(0))();
-  RealColumn get sellPriceGeneral => real().withDefault(const Constant(0))();
-  RealColumn get sellPriceTier1 => real().withDefault(const Constant(0))();
-  RealColumn get sellPriceTier2 => real().withDefault(const Constant(0))();
-  RealColumn get sellPriceTier3 => real().withDefault(const Constant(0))();
-  RealColumn get maxDiscountSales => real().withDefault(const Constant(0))();
+  RealColumn get buyPrice => real().withDefault(const Constant(0.0))();
+  RealColumn get sellPriceGeneral => real().withDefault(const Constant(0.0))();
+  RealColumn get sellPriceTier1 => real().withDefault(const Constant(0.0))();
+  RealColumn get sellPriceTier2 => real().withDefault(const Constant(0.0))();
+  RealColumn get sellPriceTier3 => real().withDefault(const Constant(0.0))();
+  RealColumn get maxDiscountSales => real().withDefault(const Constant(0.0))();
   BoolColumn get isPriceLocked => boolean().withDefault(const Constant(true))();
-  RealColumn get stock => real().withDefault(const Constant(0))();
-  RealColumn get minStock => real().withDefault(const Constant(5))();
-  RealColumn get maxStock => real().withDefault(const Constant(100))();
+  RealColumn get stock => real().withDefault(const Constant(0.0))();
+  RealColumn get minStock => real().withDefault(const Constant(5.0))();
+  RealColumn get maxStock => real().withDefault(const Constant(100.0))();
   BoolColumn get allowMinusStock => boolean().withDefault(const Constant(false))();
-  RealColumn get weight => real().withDefault(const Constant(0))();
+  RealColumn get weight => real().withDefault(const Constant(0.0))();
   TextColumn get dimensions => text().nullable()();
-  RealColumn get ppnPercent => real().withDefault(const Constant(0))();
+  RealColumn get ppnPercent => real().withDefault(const Constant(0.0))();
   IntColumn get rewardPoints => integer().withDefault(const Constant(0))();
   DateTimeColumn get expiryDate => dateTime().nullable()();
   TextColumn get statusActive => text().withDefault(const Constant('aktif'))();
@@ -67,8 +67,8 @@ class ProductVariants extends Table {
   TextColumn get skuVariant => text()();
   TextColumn get variantName => text()();
   TextColumn get barcode => text().nullable()();
-  RealColumn get stock => real().withDefault(const Constant(0))();
-  RealColumn get sellPrice => real().withDefault(const Constant(0))();
+  RealColumn get stock => real().withDefault(const Constant(0.0))();
+  RealColumn get sellPrice => real().withDefault(const Constant(0.0))();
 
   @override 
   Set<Column> get primaryKey => {id};
@@ -78,8 +78,8 @@ class ProductVariants extends Table {
 class ProductPromos extends Table {
   TextColumn get id => text()();
   TextColumn get productId => text().references(Products, #id)();
-  RealColumn get discountPercent => real().withDefault(const Constant(0))();
-  RealColumn get discountNominal => real().withDefault(const Constant(0))();
+  RealColumn get discountPercent => real().withDefault(const Constant(0.0))();
+  RealColumn get discountNominal => real().withDefault(const Constant(0.0))();
   TextColumn get promoType => text().withDefault(const Constant('regular'))();
   DateTimeColumn get startDate => dateTime()();
   DateTimeColumn get endDate => dateTime()();
