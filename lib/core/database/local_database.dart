@@ -39,7 +39,7 @@ part 'local_database.g.dart';
     Payables, 
     Receivables, 
     DebtPayments, 
-    Expenses
+    Expenses,
   ],
   daos: [
     DashboardDao, 
@@ -53,7 +53,7 @@ class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v8'));
 
   @override
-  int get schemaVersion => 8; // Naiknya schema version dari 7 ke 8
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -67,7 +67,7 @@ class LocalDatabase extends _$LocalDatabase {
         await m.createTable(expenses);
       }
       if (from < 8) {
-        // Migrasi aman: Menambahkan kolom apiKey tanpa menghapus data user yang ada
+        // Migrasi aman: Menambahkan kolom apiKey tanpa menghapus data user
         await m.addColumn(users, users.apiKey);
       }
     },
@@ -127,7 +127,7 @@ class LocalDatabase extends _$LocalDatabase {
           productId: item.productId.value, 
           type: 'keluar', 
           qty: item.quantity.value,
-          hargaMasuk: 0, 
+          hargaMasuk: 0.0, 
           refNo: dataTransaksi.invoiceNo.value,
         );
       }
