@@ -1,14 +1,22 @@
+local_database sebelum diperbaiki META.AI
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Import Tabel saja - JANGAN import DAO di sini
+// Import Tabel
 import 'package:ud_putra_kasir/core/database/tables/user_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/customer_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
+
+// Import DAOs
+import 'package:ud_putra_kasir/core/database/daos/dashboard_dao.dart';
+import 'package:ud_putra_kasir/core/database/daos/product_dao.dart';
+import 'package:ud_putra_kasir/core/database/daos/receivables_dao.dart';
+import 'package:ud_putra_kasir/core/database/daos/transaction_dao.dart';
+import 'package:ud_putra_kasir/core/database/daos/payables_dao.dart';
 
 // Import Constant
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
@@ -34,13 +42,19 @@ part 'local_database.g.dart';
     DebtPayments, 
     Expenses,
   ],
-  // daos: [...] -> HAPUS TOTAL. DAO kamu pakai DatabaseAccessor jadi tidak perlu didaftarkan di sini
+  daos: [
+    DashboardDao, 
+    ProductDao, 
+    ReceivablesDao, 
+    PayablesDao, 
+    TransactionDao,
+  ],
 )
 class LocalDatabase extends _$LocalDatabase { 
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v8'));
 
   @override
-  int get schemaVersion => 9; // naikkan dari 8 ke 9 biar build_runner force rebuild
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -54,6 +68,7 @@ class LocalDatabase extends _$LocalDatabase {
         await m.createTable(expenses);
       }
       if (from < 8) {
+        // Migrasi aman: Menambahkan kolom apiKey tanpa menghapus data user
         await m.addColumn(users, users.apiKey);
       }
     },
