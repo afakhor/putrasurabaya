@@ -37,7 +37,7 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
 
-      - name: Clean build artifacts total (FIX DRIFT 2.21)
+      - name: Clean build artifacts total (FIX DRIFT SCAN)
         run: |
           flutter clean
           rm -rf .dart_tool/ build/ .dart_tool/build/
