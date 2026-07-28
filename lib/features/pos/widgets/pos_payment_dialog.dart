@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../pos_cart_provider.dart';
+import 'package:ud_putra_kasir/features/pos/pos_cart_provider.dart';
 
 class PosPaymentDialog extends ConsumerStatefulWidget {
   final Function(PosCartState cartSnapshot)? onSuccess;
