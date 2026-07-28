@@ -142,7 +142,7 @@ class AuthPage extends ConsumerWidget {
           'UD. PUTRA SURABAYA',
           style: TextStyle(
             fontSize: 22,
-            fontWeight: FontWeight.black,
+            fontWeight: FontWeight.bold,
             letterSpacing: 1.1,
             color: Color(0xFF1E293B),
           ),
