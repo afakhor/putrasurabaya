@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/database/local_database.dart';
-import '../../core/utils/format_rupiah.dart';
-import 'product_form_provider.dart';
+import 'package:ud_putra_kasir/core/database/local_database.dart';
+import 'package:ud_putra_kasir/core/utils/format_rupiah.dart';
+import 'package:ud_putra_kasir/core/utils/fab_product_punya.dart';
+
 import 'product_form_dialogs.dart';
-import '../../core/utils/fab_product_punya.dart';
+import 'product_form_provider.dart';
+
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 final filterCategoryProvider = StateProvider<String?>((ref) => null);
