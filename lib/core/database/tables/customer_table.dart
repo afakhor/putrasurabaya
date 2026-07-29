@@ -1,4 +1,4 @@
-import 'package0:drift/drift.dart';
+import 'package:drift/drift.dart';
 import 'category_table.dart';
 
 /// TABEL MASTER PELANGGAN / CUSTOMER
