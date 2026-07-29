@@ -4,10 +4,10 @@ import 'package:rxdart/rxdart.dart';
 
 import 'package:ud_putra_kasir/core/database/local_database.dart';
 
-// --- IMPORT SEMUA FILE TABEL DENGAN LENGKAP ---
-import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';     // Berisi Payables, Receivables, Expenses
-import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart'; // Berisi Transactions, TransactionItems
-import 'package:ud_putra_kasir/core/database/tables/product_table.dart';     // Berisi Products
+// --- IMPORT TABEL DATABASE ---
+import 'package:ud_putra_kasir/core/database/tables/finance_tables.dart';     // Payables, Receivables, Expenses
+import 'package:ud_putra_kasir/core/database/tables/transaction_tables.dart'; // Transactions, TransactionItems
+import 'package0:ud_putra_kasir/core/database/tables/product_tables.dart';     // Products
 import 'package:ud_putra_kasir/features/dashboard/models/dashboard_finance_summary.dart';
 
 part 'dashboard_dao.g.dart';
@@ -30,7 +30,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
-    // 1. Stream Hutang
+    // 1. STREAM HUTANG SUPPLIER (AP)
     final payablesSum = payables.remainingAmount.sum();
     final payablesCount = payables.id.count();
     final payablesStream = (selectOnly(payables)
@@ -42,7 +42,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
               'count': row.read(payablesCount) ?? 0,
             });
 
-    // 2. Stream Piutang
+    // 2. STREAM PIUTANG PELANGGAN (AR)
     final receivablesSum = receivables.remainingAmount.sum();
     final receivablesCount = receivables.id.count();
     final receivablesStream = (selectOnly(receivables)
@@ -54,37 +54,46 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
               'count': row.read(receivablesCount) ?? 0,
             });
 
-    // 3. Stream Omset
-    final totalOmset = transactions.total.sum();
+    // 3. STREAM OMSET PENJUALAN HARI INI (Eksklusi Transaksi Void)
+    final totalOmset = transactions.grandTotal.sum();
     final totalCount = transactions.id.count();
     final todaySalesStream = (selectOnly(transactions)
           ..addColumns([totalOmset, totalCount])
-          ..where(transactions.date.isBetweenValues(startOfDay, endOfDay)))
+          ..where(
+            transactions.date.isBetweenValues(startOfDay, endOfDay) &
+                transactions.status.equals(TransactionStatus.voided).not(),
+          ))
         .watchSingle()
         .map((row) => {
               'omset': row.read(totalOmset) ?? 0.0,
               'jumlahTransaksi': row.read(totalCount) ?? 0,
             });
 
-    // 4. Stream Estimasi Laba
+    // 4. STREAM ESTIMASI LABA KOTOR HARI INI
     final todayProfitStream = (select(transactionItems).join([
       innerJoin(
         transactions,
         transactions.id.equalsExp(transactionItems.transactionId),
       ),
     ])
-          ..where(transactions.date.isBetweenValues(startOfDay, endOfDay)))
+          ..where(
+            transactions.date.isBetweenValues(startOfDay, endOfDay) &
+                transactions.status.equals(TransactionStatus.voided).not(),
+          ))
         .watch()
         .map((rows) {
       double profit = 0.0;
       for (final row in rows) {
         final item = row.readTable(transactionItems);
-        profit += ((item.price - item.buyPriceAtTransaction) * item.quantity);
+        // Menghitung HPP berdasarkan unit konversi
+        final totalHpp = (item.buyPriceAtTransaction * item.conversionFactor) * item.quantity;
+        final revenue = item.subtotal; 
+        profit += (revenue - totalHpp);
       }
       return profit;
     });
 
-    // 5. Stream Pengeluaran
+    // 5. STREAM PENGELUARAN OPERASIONAL HARI INI
     final totalExpense = expenses.amount.sum();
     final todayExpensesStream = (selectOnly(expenses)
           ..addColumns([totalExpense])
@@ -92,12 +101,12 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
         .watchSingle()
         .map((row) => row.read(totalExpense) ?? 0.0);
 
-    // 6. Stream Stok Menipis
+    // 6. STREAM STOK MENIPIS (< MIN STOK)
     final productCount = products.id.count();
     final lowStockCountStream = (selectOnly(products)
           ..addColumns([productCount])
           ..where(products.stock.isSmallerOrEqual(products.minStock) &
-              products.statusActive.equals('aktif')))
+              products.status.equals('aktif')))
         .watchSingle()
         .map((row) => row.read(productCount) ?? 0);
 
@@ -131,12 +140,12 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase>
     );
   }
 
-  /// Get daftar produk yang stoknya menipis
+  /// Get daftar produk yang stoknya menipis untuk alert/list dashboard
   Future<List<ProductData>> getLowStockProducts() {
     return (select(products)
           ..where((tbl) =>
               tbl.stock.isSmallerOrEqual(tbl.minStock) &
-              tbl.statusActive.equals('aktif'))
+              tbl.status.equals('aktif'))
           ..orderBy([
             (tbl) => OrderingTerm(
                   expression: tbl.stock,
