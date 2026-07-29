@@ -1,133 +1,123 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ud_putra_kasir/core/constants/constant_debt_status.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
-import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
-import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
+import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart';
 
 part 'transaction_dao.g.dart';
 
-@DriftAccessor(tables: [Transactions, TransactionItems, Products, StockMutations, Receivables, DebtPayments])
-class TransactionDao extends DatabaseAccessor<LocalDatabase>
-    with _$TransactionDaoMixin {
+@DriftAccessor(tables: [Transactions, TransactionItems, Products])
+class TransactionDao extends DatabaseAccessor<LocalDatabase> with _$TransactionDaoMixin {
   TransactionDao(LocalDatabase db) : super(db);
 
-  /// POS: SIMPAN TRANSAKSI PENJUALAN (ACID Transaction + Validasi Anti-Minus)
-  Future<void> simpanTransaksiPOS({
-    required TransactionsCompanion transactionHeader,
+  /// 1. SIMPAN TRANSAKSI ATOMIC (Header + Items + Potong Stok)
+  /// Jika salah satu langkah gagal, seluruh perubahan akan di-rollback otomatis oleh SQLite.
+  Future<void> insertTransaction({
+    required TransactionsCompanion transaction,
     required List<TransactionItemsCompanion> items,
-    required String userId,
-    DateTime? dueDate,
   }) async {
-    await transaction(() async {
-      // 1. Simpan Header Transaksi Penjualan
-      await into(transactions).insert(transactionHeader);
+    return transaction(() async {
+      // A. Simpan Header Transaksi
+      await into(transactions).insert(transaction);
 
-      // 2. Process Keranjang Item
+      // B. Simpan Items & Potong Stok Produk
       for (final item in items) {
-        final pId = item.productId.value;
-        final qtyJual = item.quantity.value;
+        await into(transactionItems).insert(item);
 
-        // Ambil Stok Terbaru Master Produk
-        final product = await (select(products)..where((p) => p.id.equals(pId))).getSingle();
-        final stokSebelum = product.stock;
-        final stokSesudah = stokSebelum - qtyJual;
+        // Ambil data produk terbaru untuk menghitung sisa stok
+        final product = await (select(products)
+              ..where((p) => p.id.equals(item.productId.value)))
+            .getSingleOrNull();
 
-        // VALIDASI EMAS: Cek Jika Stok Minus & System Diset Tidak Boleh Minus
-        if (stokSesudah < 0 && !product.allowMinusStock) {
-          throw Exception('Transaksi Ditolak: Stok "${product.name}" habis/tidak mencukupi (Sisa: ${stokSebelum.toInt()}).');
+        if (product != null) {
+          final sisaStok = product.stock - item.quantity.value;
+          await (update(products)..where((p) => p.id.equals(item.productId.value))).write(
+            ProductsCompanion(
+              stock: Value(sisaStok),
+            ),
+          );
         }
-
-        // Insert Item Transaksi (Simpan HPP Snapshot saat transaksi)
-        await into(transactionItems).insert(item.copyWith(
-          buyPriceAtTransaction: Value(product.buyPrice),
-        ));
-
-        // Update Stok Produk
-        await (update(products)..where((p) => p.id.equals(pId))).write(
-          ProductsCompanion(stock: Value(stokSesudah)),
-        );
-
-        // Catat Log Mutasi Stok PENJUALAN
-        await into(stockMutations).insert(
-          StockMutationsCompanion.insert(
-            id: 'MUT-${DateTime.now().millisecondsSinceEpoch}-$pId',
-            productId: pId,
-            type: 'PENJUALAN',
-            quantity: -qtyJual, // Nilai minus untuk pengurangan
-            stockBefore: stokSebelum,
-            stockAfter: stokSesudah,
-            hppSnapshot: product.buyPrice,
-            referenceNo: transactionHeader.invoiceNo.value,
-            userId: Value(userId),
-            notes: Value('Penjualan Kasir INV: ${transactionHeader.invoiceNo.value}'),
-          ),
-        );
-      }
-
-      // 3. Handle Piutang Customer (AR)
-      final debtAmount = transactionHeader.debt.value;
-      final paidAmount = transactionHeader.paid.value;
-      final customerId = transactionHeader.customerId.value;
-
-      if (debtAmount > 0 && customerId != null) {
-        final receivableId = 'RC-${transactionHeader.id.value}';
-        final status = DebtStatus.tentukanStatus(debtAmount, paidAmount);
-
-        await into(receivables).insert(
-          ReceivablesCompanion.insert(
-            id: receivableId,
-            transactionId: transactionHeader.id.value,
-            customerId: customerId,
-            totalAmount: transactionHeader.total.value,
-            paidAmount: Value(paidAmount),
-            remainingAmount: debtAmount,
-            dueDate: dueDate ?? DateTime.now().add(const Duration(days: 14)),
-            status: Value(status),
-          ),
-        );
       }
     });
   }
 
-  /// RETUR PENJUALAN
-  Future<void> prosesReturPenjualan({
-    required String transactionId,
-    required String productId,
-    required double qtyRetur,
-    required String userId,
-    required String alasan,
-  }) async {
-    await transaction(() async {
-      final product = await (select(products)..where((p) => p.id.equals(productId))).getSingle();
-      final stokSebelum = product.stock;
-      final stokSesudah = stokSebelum + qtyRetur;
+  /// 2. STREAM TRANSAKSI HARI INI (Untuk Dashboard / Histori Kasir)
+  Stream<List<TransactionData>> watchTodayTransactions() {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
-      // Update Kembalikan Stok
-      await (update(products)..where((p) => p.id.equals(productId))).write(
-        ProductsCompanion(stock: Value(stokSesudah)),
-      );
+    return (select(transactions)
+          ..where((t) => t.date.isBetweenValues(startOfDay, endOfDay))
+          ..orderBy([(t) => OrderingTerm(expression: t.date, mode: OrderingMode.desc)]))
+        .watch();
+  }
 
-      // Log Mutasi Retur
-      await into(stockMutations).insert(
-        StockMutationsCompanion.insert(
-          id: 'MUT-${DateTime.now().millisecondsSinceEpoch}',
-          productId: productId,
-          type: 'RETUR_PENJUALAN',
-          quantity: qtyRetur,
-          stockBefore: stokSebelum,
-          stockAfter: stokSesudah,
-          hppSnapshot: product.buyPrice,
-          referenceNo: transactionId,
-          userId: Value(userId),
-          notes: Value('Retur Penjualan: $alasan'),
+  /// 3. AMBIL TRANSAKSI BESERTA DETAIL ITEMS (Untuk Cetak Struk / Struk PDF)
+  Future<TransactionWithItems?> getTransactionWithItemsById(String transactionId) async {
+    final tx = await (select(transactions)..where((t) => t.id.equals(transactionId))).getSingleOrNull();
+    if (tx == null) return null;
+
+    final itemList = await (select(transactionItems)
+          ..where((ti) => ti.transactionId.equals(transactionId)))
+        .get();
+
+    return TransactionWithItems(transaction: tx, items: itemList);
+  }
+
+  /// 4. AMBIL DAFTAR TRANSAKSI OFFLINE (Belum Disinkronisasi ke Server)
+  Future<List<TransactionData>> getUnsyncedTransactions() {
+    return (select(transactions)..where((t) => t.isSynced.equals(false))).get();
+  }
+
+  /// 5. UPDATE STATUS SYNC (Setelah Sukses Dikirim ke Cloud/Server)
+  Future<void> markAsSynced(List<String> transactionIds) {
+    return (update(transactions)..where((t) => t.id.inValues(transactionIds)))
+        .write(const TransactionsCompanion(isSynced: Value(true)));
+  }
+
+  /// 6. VOID / BATALKAN TRANSAKSI (Otomatis Mengembalikan Stok Produk)
+  Future<void> voidTransaction(String transactionId) async {
+    return transaction(() async {
+      // Ambil daftar barang di nota yang dibatalkan
+      final items = await (select(transactionItems)
+            ..where((ti) => ti.transactionId.equals(transactionId)))
+          .get();
+
+      // Kembalikan stok masing-masing barang
+      for (final item in items) {
+        final product = await (select(products)..where((p) => p.id.equals(item.productId))).getSingleOrNull();
+        if (product != null) {
+          final restoredStock = product.stock + item.quantity;
+          await (update(products)..where((p) => p.id.equals(item.productId))).write(
+            ProductsCompanion(stock: Value(restoredStock)),
+          );
+        }
+      }
+
+      // Ubah status nota menjadi 'void'
+      await (update(transactions)..where((t) => t.id.equals(transactionId))).write(
+        const TransactionsCompanion(
+          status: Value(DebtStatus.voidStatus),
         ),
       );
     });
   }
 }
 
+/// Helper Class untuk Menggabungkan Header Nota & Detail Barang
+class TransactionWithItems {
+  final TransactionData transaction;
+  final List<TransactionItemData> items;
+
+  TransactionWithItems({
+    required this.transaction,
+    required this.items,
+  });
+}
+
+/// Provider Riverpod
 final transactionDaoProvider = Provider<TransactionDao>((ref) {
   return TransactionDao(ref.watch(localDatabaseProvider));
 });
