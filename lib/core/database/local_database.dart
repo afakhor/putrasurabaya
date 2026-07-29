@@ -2,13 +2,18 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Import Tabel saja - JANGAN import DAO di sini
+// Import Seluruh Tabel Eksisting
 import 'package:ud_putra_kasir/core/database/tables/user_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/customer_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
+
+// Import Tabel Baru
+import 'package:ud_putra_kasir/core/database/tables/category_table.dart';
+import 'package0:ud_putra_kasir/core/database/tables/purchase_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/audit_log_table.dart';
 
 // Import Constant
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
@@ -19,6 +24,7 @@ part 'local_database.g.dart';
   tables: [
     Users, 
     ShiftKasir, 
+    Categories,       // Tabel Baru
     Products, 
     ProductAssets, 
     ProductUnits, 
@@ -26,6 +32,8 @@ part 'local_database.g.dart';
     ProductPromos, 
     Suppliers, 
     StockMutations, 
+    Purchases,        // Tabel Baru
+    PurchaseItems,    // Tabel Baru
     Transactions, 
     TransactionItems,
     Customers,
@@ -33,18 +41,24 @@ part 'local_database.g.dart';
     Receivables, 
     DebtPayments, 
     Expenses,
+    AuditLogs,        // Tabel Baru
   ],
-  // daos: [...] -> HAPUS TOTAL. DAO kamu pakai DatabaseAccessor jadi tidak perlu didaftarkan di sini
+  // DAO dipisah menggunakan DatabaseAccessor demi performa & efisiensi RAM
 )
 class LocalDatabase extends _$LocalDatabase { 
-  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v8'));
+  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
 
   @override
-  int get schemaVersion => 9; // naikkan dari 8 ke 9 biar build_runner force rebuild
+  int get schemaVersion => 10; // Naik ke v10 untuk mengakomodasi migrasi tabel baru
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (Migrator m) async => await m.createAll(),
+    onCreate: (Migrator m) async {
+      await m.createAll();
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_stock_mutations_product_date ON stock_mutations (product_id, date);',
+      );
+    },
     onUpgrade: (Migrator m, int from, int to) async {
       if (from < 7) {
         await m.createTable(shiftKasir);
@@ -56,6 +70,24 @@ class LocalDatabase extends _$LocalDatabase {
       if (from < 8) {
         await m.addColumn(users, users.apiKey);
       }
+      if (from < 9) {
+        await m.addColumn(products, products.rackLocation);
+        await m.addColumn(products, products.allowMinusStock);
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_stock_mutations_product_date ON stock_mutations (product_id, date);',
+        );
+      }
+      if (from < 10) {
+        // Pembuatan tabel-tabel baru saat upgrade dari skema versi sebelumnya
+        await m.createTable(categories);
+        await m.createTable(purchases);
+        await m.createTable(purchaseItems);
+        await m.createTable(auditLogs);
+      }
+    },
+    beforeOpen: (details) async {
+      // Aktifkan foreign key SQLite
+      await customStatement('PRAGMA foreign_keys = ON;');
     },
   );
 
@@ -86,7 +118,7 @@ class LocalDatabase extends _$LocalDatabase {
 
     await into(stockMutations).insert(
       StockMutationsCompanion.insert(
-        id: 'MUT-${DateTime.now().millisecondsSinceEpoch}-$productId',
+        id: 'MUT-${DateTime.now().microsecondsSinceEpoch}-$productId',
         productId: productId, 
         variantId: const Value(null), 
         type: type, 
@@ -151,7 +183,7 @@ class LocalDatabase extends _$LocalDatabase {
         if (dp > 0) {
           await into(debtPayments).insert(
             DebtPaymentsCompanion.insert(
-              id: 'PAY-AR-${DateTime.now().millisecondsSinceEpoch}',
+              id: 'PAY-AR-${DateTime.now().microsecondsSinceEpoch}',
               refId: receivableId,
               type: 'receivable_collect',
               amount: dp,
@@ -200,7 +232,7 @@ class LocalDatabase extends _$LocalDatabase {
 
       await into(stockMutations).insert(
         StockMutationsCompanion.insert(
-          id: 'MUT-${DateTime.now().millisecondsSinceEpoch}',
+          id: 'MUT-${DateTime.now().microsecondsSinceEpoch}',
           productId: productId,
           variantId: Value(variantId),
           type: type,
@@ -216,4 +248,9 @@ class LocalDatabase extends _$LocalDatabase {
   }
 }
 
-final localDatabaseProvider = Provider<LocalDatabase>((ref) => LocalDatabase());
+// Provider Riverpod dengan penanganan auto-dispose koneksi database
+final localDatabaseProvider = Provider<LocalDatabase>((ref) {
+  final db = LocalDatabase();
+  ref.onDispose(() => db.close());
+  return db;
+});
