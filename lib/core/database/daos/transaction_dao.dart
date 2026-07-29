@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ud_putra_kasir/core/constants/constant_debt_status.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package0:ud_putra_kasir/core/database/tables/product_tables.dart';
+import 'package:ud_putra_kasir/core/database/tables/product_tables.dart';
 import 'package:ud_putra_kasir/core/database/tables/transaction_tables.dart';
 import 'package:ud_putra_kasir/core/database/daos/stock_mutation_dao.dart'; // Untuk StockMutationType
 
