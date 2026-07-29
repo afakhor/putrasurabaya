@@ -4,9 +4,13 @@ import 'package:drift/drift.dart';
 class Users extends Table {
   TextColumn get id => text()(); 
   TextColumn get name => text()();
-  TextColumn get role => text()(); 
+  TextColumn get role => text()(); // 'superuser' / 'salesman'
   TextColumn get apiKey => text().nullable()(); 
-  TextColumn get status => text().withDefault(const Constant('aktif'))(); 
+  TextColumn get phone => text().nullable()();
+  TextColumn get salesArea => text().nullable()();
+  TextColumn get address => text().nullable()();
+  TextColumn get passwordHash => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('aktif'))(); // 'aktif' / 'suspended'
   BoolColumn get canEditPrice => boolean().withDefault(const Constant(false))();
   BoolColumn get canDeleteTransaction => boolean().withDefault(const Constant(false))();
 
@@ -25,7 +29,7 @@ class ShiftKasir extends Table {
   RealColumn get actualCash => real().nullable()();
   RealColumn get cashDifference => real().nullable()();
   TextColumn get notes => text().nullable()();
-  TextColumn get status => text().withDefault(const Constant('open'))();
+  TextColumn get status => text().withDefault(const Constant('open'))(); // 'open' / 'closed'
 
   @override 
   Set<Column> get primaryKey => {id};
