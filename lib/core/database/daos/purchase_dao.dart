@@ -2,247 +2,240 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/purchase_tables.dart';
-import 'package:ud_putra_kasir/core/database/tables/product_tables.dart';
-import 'package:ud_putra_kasir/core/database/tables/finance_tables.dart';
-import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
+import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
+import 'package0:ud_putra_kasir/core/database/tables/supplier_table.dart';
+import 'package:ud_putra_kasir/core/constants/constant_debt_status.dart';
 
 part 'purchase_dao.g.dart';
 
+// ===========================================================================
+// DATA TRANSFER OBJECT (DTO) UNTUK VIEW / PRINT NOTA BELI
+// ===========================================================================
+
+class PurchaseWithSupplier {
+  final PayableData purchase;
+  final SupplierData? supplier;
+
+  PurchaseWithSupplier({
+    required this.purchase,
+    this.supplier,
+  });
+}
+
+// ===========================================================================
+// PURCHASE DAO CLASS
+// ===========================================================================
+
 @DriftAccessor(tables: [
-  Purchases,
-  PurchaseItems,
-  Products,
-  StockMutations,
   Payables,
   DebtPayments,
+  Products,
+  StockMutations,
+  Suppliers,
 ])
 class PurchaseDao extends DatabaseAccessor<LocalDatabase>
     with _$PurchaseDaoMixin {
   PurchaseDao(LocalDatabase db) : super(db);
 
   // ===========================================================================
-  // 1. PROSES PEMBELIAN STOK & PERHITUNGAN MOVING AVERAGE HPP
+  // 1. INPUT PEMBELIAN ATOMIC (TAMBAH STOK + HPP MOVING AVERAGE + HUTANG)
   // ===========================================================================
 
-  /// BARANG MASUK / PEMBELIAN DARI SUPPLIER
-  /// (Aturan Emas Mutasi, Auto-Update Stok, Moving Average HPP, & Pencatatan Hutang AP)
-  Future<void> simpanPembelianSupplier({
-    required PurchasesCompanion purchaseHeader,
-    required List<PurchaseItemsCompanion> items,
+  /// Mencatat Pembelian dari Supplier.
+  /// Secara otomatis:
+  /// - Menambah stok produk master
+  /// - Menghitung ulang HPP Moving Average: ((StokLama * HPP) + (QtyBeli * HargaBeliBaru)) / TotalStokBaru
+  /// - Mencatat Log Mutasi Stok ('PEMBELIAN')
+  /// - Mencatat Hutang Usaha (Payables) & Pembayaran Uang Muka/Tunai
+  Future<String> insertPurchaseTransaction({
+    required String purchaseInvoiceNo,
+    required String supplierId,
+    required List<PurchaseItemInput> items,
+    required double totalAmount,
+    required double paidAmount, // DP atau Pembayaran Tunai
+    required DateTime invoiceDate,
+    required DateTime dueDate,
+    required String paymentMethod, // 'TUNAI', 'TRANSFER', 'TEMPO'
     required String userId,
-    DateTime? dueDate,
+    String? notes,
   }) async {
-    await transaction(() async {
+    return transaction(() async {
       final now = DateTime.now();
+      final payableId = 'PAY-${now.microsecondsSinceEpoch}';
+      final remainingAmount = totalAmount - paidAmount;
 
-      // 1. Simpan Header Pembelian (Set flag sync)
-      final headerWithSync = purchaseHeader.copyWith(
-        isSynced: const Value(false),
-        createdAt: Value(now),
-        updatedAt: Value(now),
-      );
-      await into(purchases).insert(headerWithSync);
+      // Tentukan Status Hutang (LUNAS, SEBAGIAN, UNPAID)
+      final statusHutang = DebtStatus.tentukanStatus(remainingAmount, paidAmount);
 
-      double totalPurchaseAmount = 0.0;
-      int itemIndex = 0;
-
-      // 2. Loop Setiap Item Pembelian
-      for (final rawItem in items) {
-        itemIndex++;
-
-        // Simpan Item Pembelian
-        final itemWithSync = rawItem.copyWith(
+      // A. Catat Header Hutang Usaha / Pembelian (Payables)
+      await into(payables).insert(
+        PayablesCompanion.insert(
+          id: payableId,
+          supplierId: supplierId,
+          purchaseInvoiceNo: Value(purchaseInvoiceNo),
+          totalAmount: totalAmount,
+          paidAmount: Value(paidAmount),
+          remainingAmount: Value(remainingAmount < 0 ? 0.0 : remainingAmount),
+          dueDate: Value(dueDate),
+          status: Value(statusHutang),
+          notes: Value(notes),
+          createdAt: Value(now),
           isSynced: const Value(false),
-        );
-        await into(purchaseItems).insert(itemWithSync);
+        ),
+      );
 
-        final pId = rawItem.productId.value;
-        final qtyBeliInput = rawItem.quantity.value;
-        
-        // Memperhitungkan konversi satuan jika beli per Dus/Bal ke Pcs
-        final conversion = rawItem.conversionFactor.present
-            ? rawItem.conversionFactor.value
-            : 1.0;
-        final qtyBeliBaseUnit = qtyBeliInput * conversion;
-
-        final subtotalItem = rawItem.subtotal.value;
-        totalPurchaseAmount += subtotalItem;
-
-        // Harga Beli Efektif Per Satuan Dasar (Base Unit)
-        final hargaBeliPerBaseUnit = qtyBeliBaseUnit > 0
-            ? subtotalItem / qtyBeliBaseUnit
-            : rawItem.buyPrice.value;
-
-        // Fetch Data Produk Saat Ini
-        final product = await (select(products)..where((p) => p.id.equals(pId)))
+      // B. Update Total Hutang Master Supplier (jika ada sisa hutang)
+      if (remainingAmount > 0) {
+        final supplier = await (select(suppliers)
+              ..where((s) => s.id.equals(supplierId)))
             .getSingleOrNull();
 
-        if (product == null) {
-          throw Exception('Produk dengan ID $pId tidak ditemukan');
-        }
-
-        final stokLama = product.stock;
-        final hppLama = product.buyPrice;
-
-        final stokBaru = stokLama + qtyBeliBaseUnit;
-
-        // Hitung Moving Average HPP (Harga Pokok Penjualan Rata-Rata Tertimbang)
-        double hppBaru = hppLama;
-        if (stokBaru > 0) {
-          hppBaru =
-              ((stokLama * hppLama) + (qtyBeliBaseUnit * hargaBeliPerBaseUnit)) /
-                  stokBaru;
-        }
-
-        // Update Master Produk (Stok, HPP, Timestamp, Flag Sync)
-        await (update(products)..where((p) => p.id.equals(pId))).write(
-          ProductsCompanion(
-            stock: Value(stokBaru),
-            buyPrice: Value(hppBaru),
-            isSynced: const Value(false),
-            updatedAt: Value(now),
-          ),
-        );
-
-        // Catat Mutasi Stok PEMBELIAN (ID unik menggunakan microseconds + index)
-        final mutationId =
-            'MUT-${now.microsecondsSinceEpoch}-$itemIndex-$pId';
-
-        await into(stockMutations).insert(
-          StockMutationsCompanion.insert(
-            id: mutationId,
-            productId: pId,
-            type: 'PEMBELIAN',
-            quantity: qtyBeliBaseUnit,
-            stockBefore: stokLama,
-            stockAfter: stokBaru,
-            hppSnapshot: hppBaru,
-            referenceNo: purchaseHeader.invoiceNo.value,
-            userId: Value(userId),
-            notes: Value('Pembelian Nota: ${purchaseHeader.invoiceNo.value}'),
-            isSynced: const Value(false),
-            createdAt: Value(now),
-          ),
-        );
-      }
-
-      // 3. Jika Pembelian Tempo / Ada Hutang Ke Supplier (AP - Account Payable)
-      final debtAmount = purchaseHeader.debtAmount.value;
-      final paidAmount = purchaseHeader.paidAmount.value;
-
-      if (debtAmount > 0) {
-        final payableId = 'AP-${purchaseHeader.id.value}';
-        final status = DebtStatus.tentukanStatus(debtAmount, paidAmount);
-
-        await into(payables).insert(
-          PayablesCompanion.insert(
-            id: payableId,
-            purchaseRef: purchaseHeader.invoiceNo.value,
-            supplierId: purchaseHeader.supplierId.value,
-            totalAmount: totalPurchaseAmount,
-            paidAmount: Value(paidAmount),
-            remainingAmount: debtAmount,
-            dueDate: dueDate ?? now.add(const Duration(days: 30)),
-            status: Value(status),
-            isSynced: const Value(false),
-            createdAt: Value(now),
-            updatedAt: Value(now),
-          ),
-        );
-
-        // Catat DP jika ada pembayaran di awal
-        if (paidAmount > 0) {
-          await into(debtPayments).insert(
-            DebtPaymentsCompanion.insert(
-              id: 'PAY-AP-${now.microsecondsSinceEpoch}',
-              refId: payableId,
-              type: 'payable_pay',
-              amount: paidAmount,
-              paymentMethod: purchaseHeader.paymentMethod.value,
-              notes: const Value('DP Pembelian Stok Supplier'),
-              isSynced: const Value(false),
-              paymentDate: Value(now),
+        if (supplier != null) {
+          final newTotalDebt = supplier.totalDebt + remainingAmount;
+          await (update(suppliers)..where((s) => s.id.equals(supplierId))).write(
+            SuppliersCompanion(
+              totalDebt: Value(newTotalDebt),
+              updatedAt: Value(now),
             ),
           );
         }
       }
+
+      // C. Catat Uang Muka / Pelunasan Tunai Pertama
+      if (paidAmount > 0) {
+        await into(debtPayments).insert(
+          DebtPaymentsCompanion.insert(
+            id: 'PMT-${now.microsecondsSinceEpoch}',
+            refId: payableId,
+            type: 'payable_pay', // Pembayaran Hutang Ke Supplier
+            amount: paidAmount,
+            paymentMethod: Value(paymentMethod),
+            notes: Value('Pembayaran Beli Nota #$purchaseInvoiceNo'),
+            createdAt: Value(now),
+            isSynced: const Value(false),
+          ),
+        );
+      }
+
+      // D. Processing Setiap Produk: Tambah Stok, Hitung Moving Average HPP, & Mutasi
+      for (int i = 0; i < items.length; i++) {
+        final item = items[i];
+        final product = await (select(products)
+              ..where((p) => p.id.equals(item.productId)))
+            .getSingleOrNull();
+
+        if (product == null) {
+          throw Exception('Produk dengan ID "${item.productId}" tidak ditemukan.');
+        }
+
+        final stokLama = product.stock;
+        final hppLama = product.buyPrice;
+        final totalQtyMasuk = item.quantity * item.conversionFactor;
+
+        final stokBaru = stokLama + totalQtyMasuk;
+
+        // Formula HPP Moving Average
+        double hppBaru = hppLama;
+        if (stokBaru > 0) {
+          hppBaru = ((stokLama * hppLama) + (totalQtyMasuk * item.buyPricePerUnit)) / stokBaru;
+        }
+
+        // 1. Update Master Stok & HPP Produk
+        await (update(products)..where((p) => p.id.equals(item.productId))).write(
+          ProductsCompanion(
+            stock: Value(stokBaru),
+            buyPrice: Value(hppBaru), // HPP Terupdate Otomatis
+            updatedAt: Value(now),
+          ),
+        );
+
+        // 2. Catat Log Mutasi Stok 'PEMBELIAN'
+        await into(stockMutations).insert(
+          StockMutationsCompanion.insert(
+            id: 'MUT-BUY-${now.microsecondsSinceEpoch}-$i',
+            productId: item.productId,
+            type: 'PEMBELIAN',
+            quantity: totalQtyMasuk, // Nilai positif (Stok Masuk)
+            stockBefore: stokLama,
+            stockAfter: stokBaru,
+            hppSnapshot: hppBaru,
+            referenceNo: purchaseInvoiceNo,
+            date: Value(invoiceDate),
+            userId: Value(userId),
+            notes: Value('Pembelian Nota Supplier #${purchaseInvoiceNo}'),
+            createdAt: Value(now),
+            isSynced: const Value(false),
+          ),
+        );
+      }
+
+      return payableId;
     });
   }
 
   // ===========================================================================
-  // 2. QUERY & STREAM RIWAYAT PEMBELIAN
+  // 2. QUERY & STREAM UNTUK DAFTAR PEMBELIAN / HUTANG
   // ===========================================================================
 
-  /// Stream Riwayat Pembelian Terbaru (Untuk Dashboard / Laporan Pembelian)
-  Stream<List<PurchaseData>> watchRecentPurchases({int limit = 50}) {
-    return (select(purchases)
-          ..orderBy([
-            (tbl) => OrderingTerm(
-                expression: tbl.purchaseDate, mode: OrderingMode.desc)
-          ])
-          ..limit(limit))
+  /// Stream Daftar Hutang Usaha Ke Supplier yang Belum Lunas
+  Stream<List<PayableData>> watchUnpaidPayables() {
+    return (select(payables)
+          ..where((p) => p.remainingAmount.isGreaterThanValue(0.0))
+          ..orderBy([(p) => OrderingTerm(expression: p.dueDate)]))
         .watch();
   }
 
-  /// Stream Riwayat Pembelian Berdasarkan Supplier
-  Stream<List<PurchaseData>> watchPurchasesBySupplier(String supplierId) {
-    return (select(purchases)
-          ..where((tbl) => tbl.supplierId.equals(supplierId))
-          ..orderBy([
-            (tbl) => OrderingTerm(
-                expression: tbl.purchaseDate, mode: OrderingMode.desc)
-          ]))
+  /// Stream Riwayat Seluruh Transaksi Pembelian (Terbaru Dulu)
+  Stream<List<PayableData>> watchPurchaseHistory() {
+    return (select(payables)
+          ..orderBy([(p) => OrderingTerm(expression: p.createdAt, mode: OrderingMode.desc)]))
         .watch();
   }
 
-  /// Ambil Detail Header Pembelian berdasarkan ID Nota/Invoice
-  Future<PurchaseData?> getPurchaseById(String id) {
-    return (select(purchases)..where((tbl) => tbl.id.equals(id)))
-        .getSingleOrNull();
-  }
+  /// Ambil Detail Pembelian Beserta Data Supplier
+  Future<PurchaseWithSupplier?> getPurchaseById(String payableId) async {
+    final purchase = await (select(payables)..where((p) => p.id.equals(payableId))).getSingleOrNull();
+    if (purchase == null) return null;
 
-  /// Ambil Rincian Barang (Item) dari 1 Nota Pembelian
-  Future<List<PurchaseItemData>> getPurchaseItems(String purchaseId) {
-    return (select(purchaseItems)
-          ..where((tbl) => tbl.purchaseId.equals(purchaseId)))
-        .get();
-  }
+    final supplier = await (select(suppliers)..where((s) => s.id.equals(purchase.supplierId))).getSingleOrNull();
 
-  /// Get Pembelian Lengkap beserta Daftar Barang (DTO Result)
-  Future<PurchaseWithItemsDetail?> getPurchaseWithDetails(
-      String purchaseId) async {
-    final header = await getPurchaseById(purchaseId);
-    if (header == null) return null;
-
-    final items = await getPurchaseItems(purchaseId);
-
-    return PurchaseWithItemsDetail(
-      purchase: header,
-      items: items,
+    return PurchaseWithSupplier(
+      purchase: purchase,
+      supplier: supplier,
     );
   }
 }
 
 // ===========================================================================
-// DTO HELPER CLASS
+// HELPER CLASS / INPUT MODEL
 // ===========================================================================
 
-class PurchaseWithItemsDetail {
-  final PurchaseData purchase;
-  final List<PurchaseItemData> items;
+class PurchaseItemInput {
+  final String productId;
+  final double quantity; // Kuantitas Kemasan (misal: 2 Dus)
+  final double conversionFactor; // Faktor Konversi (1 Dus = 24 Pcs, maka factor = 24)
+  final double buyPricePerUnit; // Harga Beli per Unit Dasar (Pcs)
 
-  PurchaseWithItemsDetail({
-    required this.purchase,
-    required this.items,
+  PurchaseItemInput({
+    required this.productId,
+    required this.quantity,
+    this.conversionFactor = 1.0,
+    required this.buyPricePerUnit,
   });
 }
 
 // ===========================================================================
-// PROVIDER RIVERPOD
+// PROVIDERS RIVERPOD
 // ===========================================================================
 
 final purchaseDaoProvider = Provider<PurchaseDao>((ref) {
   final db = ref.watch(localDatabaseProvider);
   return PurchaseDao(db);
+});
+
+/// StreamProvider untuk Hutang Supplier Jatuh Tempo
+final unpaidPayablesStreamProvider = StreamProvider<List<PayableData>>((ref) {
+  final dao = ref.watch(purchaseDaoProvider);
+  return dao.watchUnpaidPayables();
 });
