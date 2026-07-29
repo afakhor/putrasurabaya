@@ -5,6 +5,30 @@ import 'package:ud_putra_kasir/core/database/local_database.dart';
 import 'package:ud_putra_kasir/core/utils/format_rupiah.dart';
 import 'package:ud_putra_kasir/features/auth/auth_provider.dart';
 
+/// Provider untuk menghitung ringkasan transaksi per shift
+final shiftSummaryProvider = FutureProvider.family<Map<String, double>, String?>((ref, shiftId) async {
+  if (shiftId == null) return {'cash': 0.0, 'nonCash': 0.0};
+
+  final db = ref.watch(localDatabaseProvider);
+  final listTrx = await (db.select(db.transactions)
+        ..where((tbl) => tbl.shiftId.equals(shiftId)))
+      .get();
+
+  double cashSum = 0;
+  double nonCashSum = 0;
+
+  for (final trx in listTrx) {
+    final method = trx.paymentMethod.toLowerCase();
+    if (method == 'cash' || method == 'tunai') {
+      // Gunakan grandTotal (atau net cash), bukan trx.paid
+      cashSum += trx.grandTotal; 
+    } else {
+      nonCashSum += trx.grandTotal;
+    }
+  }
+
+  return {'cash': cashSum, 'nonCash': nonCashSum};
+});
 
 class ShiftKasirDialog extends ConsumerStatefulWidget {
   const ShiftKasirDialog({super.key});
@@ -18,20 +42,24 @@ class _ShiftKasirDialogState extends ConsumerState<ShiftKasirDialog> {
   final _alasanCtrl = TextEditingController();
 
   double _uangFisik = 0;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _uangFisikCtrl.addListener(() {
-      final cleanVal = _uangFisikCtrl.text.replaceAll('.', '').replaceAll(',', '');
-      setState(() {
-        _uangFisik = double.tryParse(cleanVal) ?? 0;
-      });
+    _uangFisikCtrl.addListener(_onUangFisikChanged);
+  }
+
+  void _onUangFisikChanged() {
+    final cleanVal = _uangFisikCtrl.text.replaceAll('.', '').replaceAll(',', '');
+    setState(() {
+      _uangFisik = double.tryParse(cleanVal) ?? 0;
     });
   }
 
   @override
   void dispose() {
+    _uangFisikCtrl.removeListener(_onUangFisikChanged);
     _uangFisikCtrl.dispose();
     _alasanCtrl.dispose();
     super.dispose();
@@ -41,8 +69,9 @@ class _ShiftKasirDialogState extends ConsumerState<ShiftKasirDialog> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final modalAwal = authState.initialCash;
-    final activeShiftId = authState.activeShiftId; // ID Shift yang sedang berjalan
-    final db = ref.watch(localDatabaseProvider);
+    final activeShiftId = authState.activeShiftId;
+
+    final shiftSummaryAsync = ref.watch(shiftSummaryProvider(activeShiftId));
 
     return AlertDialog(
       title: const Text(
@@ -50,22 +79,19 @@ class _ShiftKasirDialogState extends ConsumerState<ShiftKasirDialog> {
         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
       ),
       content: SingleChildScrollView(
-        child: FutureBuilder<Map<String, double>>(
-          // Hitung total penjualan tunai & non-tunai pada shift ini
-          future: _hitungPenjualanShift(db, activeShiftId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(
-                height: 150,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
+        child: shiftSummaryAsync.when(
+          loading: () => const SizedBox(
+            height: 150,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (err, stack) => Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text('Gagal memuat data shift: $err'),
+          ),
+          data: (data) {
+            final totalCashPenjualan = data['cash'] ?? 0.0;
+            final totalNonCashPenjualan = data['nonCash'] ?? 0.0;
 
-            final data = snapshot.data ?? {'cash': 0.0, 'nonCash': 0.0};
-            final totalCashPenjualan = data['cash']!;
-            final totalNonCashPenjualan = data['nonCash']!;
-
-            // Rumus Rekonsiliasi
             final uangSeharusnya = modalAwal + totalCashPenjualan;
             final selisih = _uangFisik - uangSeharusnya;
 
@@ -178,7 +204,7 @@ class _ShiftKasirDialogState extends ConsumerState<ShiftKasirDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
           child: const Text('Batal'),
         ),
         ElevatedButton(
@@ -186,68 +212,67 @@ class _ShiftKasirDialogState extends ConsumerState<ShiftKasirDialog> {
             backgroundColor: Colors.red.shade800,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           ),
-          onPressed: () async {
-            if (_uangFisikCtrl.text.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Masukkan jumlah uang fisik di laci terlebih dahulu!')),
-              );
-              return;
-            }
-
-            final snapshotData = await _hitungPenjualanShift(db, activeShiftId);
-            final totalCash = snapshotData['cash']!;
-            final uangSeharusnya = modalAwal + totalCash;
-            final selisih = _uangFisik - uangSeharusnya;
-
-            // Validasi wajib alasan jika ada selisih
-            if (selisih != 0 && _alasanCtrl.text.trim().isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Terdapat selisih laci. Alasan wajib diisi!')),
-              );
-              return;
-            }
-
-            // Simpan Rekonsiliasi Kasir ke Database & State Management
-            await ref.read(authProvider.notifier).tutupKasir(
-                  actualCash: _uangFisik,
-                  expectedCash: uangSeharusnya,
-                  cashDifference: selisih,
-                  notes: _alasanCtrl.text.trim(),
-                );
-
-            if (mounted) {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Shift Kasir Berhasil Ditutup & Rekap Dicetak.')),
-              );
-            }
-          },
-          child: const Text('TUTUP KASIR', style: TextStyle(color: Colors.white)),
+          onPressed: _isSubmitting ? null : () => _submitTutupKasir(shiftSummaryAsync.value),
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                )
+              : const Text('TUTUP KASIR', style: TextStyle(color: Colors.white)),
         ),
       ],
     );
   }
 
-  /// Fungsi helper untuk menghitung akumulasi total penjualan tunai & non-tunai
-  Future<Map<String, double>> _hitungPenjualanShift(LocalDatabase db, String? shiftId) async {
-    if (shiftId == null) return {'cash': 0.0, 'nonCash': 0.0};
-
-    final listTrx = await (db.select(db.transactions)
-          ..where((tbl) => tbl.shiftId.equals(shiftId)))
-        .get();
-
-    double cashSum = 0;
-    double nonCashSum = 0;
-
-    for (final trx in listTrx) {
-      if (trx.paymentMethod.toLowerCase() == 'cash' || trx.paymentMethod.toLowerCase() == 'tunai') {
-        cashSum += trx.paid;
-      } else {
-        nonCashSum += trx.paid;
-      }
+  Future<void> _submitTutupKasir(Map<String, double>? summaryData) async {
+    if (_uangFisikCtrl.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Masukkan jumlah uang fisik di laci terlebih dahulu!')),
+      );
+      return;
     }
 
-    return {'cash': cashSum, 'nonCash': nonCashSum};
+    if (summaryData == null) return;
+
+    final authState = ref.read(authProvider);
+    final modalAwal = authState.initialCash;
+    final totalCash = summaryData['cash'] ?? 0.0;
+    final uangSeharusnya = modalAwal + totalCash;
+    final selisih = _uangFisik - uangSeharusnya;
+
+    if (selisih != 0 && _alasanCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Terdapat selisih laci. Alasan wajib diisi!')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      await ref.read(authProvider.notifier).tutupKasir(
+            actualCash: _uangFisik,
+            expectedCash: uangSeharusnya,
+            cashDifference: selisih,
+            notes: _alasanCtrl.text.trim(),
+          );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Shift Kasir Berhasil Ditutup & Rekap Dicetak.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menutup shift: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   Widget _rowInfo(String label, String value, {bool isBold = false}) {
