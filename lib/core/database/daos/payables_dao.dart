@@ -1,10 +1,10 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Import terpadu menggunakan package scheme
+// Import terpadu menggunakan package scheme konsisten
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
-import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/finance_tables.dart';
+import 'package:ud_putra_kasir/core/database/tables/supplier_tables.dart';
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 
 part 'payables_dao.g.dart';
@@ -14,21 +14,26 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
     with _$PayablesDaoMixin {
   PayablesDao(LocalDatabase db) : super(db);
 
-  // =======================================
-  // 1. QUERY & STREAM DAFTAR HUTANG
-  // ======================================
+  // ===========================================================================
+  // 1. QUERY & STREAM DAFTAR HUTANG (PAYABLES)
+  // ===========================================================================
 
+  /// Stream Hutang Aktif (Belum Lunas / Cicilan)
   Stream<List<PayableData>> watchActivePayables() {
     return (select(payables)
-          ..where((tbl) => tbl.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
+          ..where((tbl) =>
+              tbl.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
           ..orderBy([
-            (tbl) => OrderingTerm(expression: tbl.dueDate, mode: OrderingMode.asc)
+            (tbl) => OrderingTerm(
+                expression: tbl.dueDate, mode: OrderingMode.asc)
           ]))
         .watch();
   }
 
+  /// Alias Stream Hutang Aktif
   Stream<List<PayableData>> watchUnpaidPayables() => watchActivePayables();
 
+  /// Stream Hutang Jatuh Tempo / Lewat Tanggal
   Stream<List<PayableData>> watchOverduePayables({DateTime? dateLimit}) {
     final limit = dateLimit ?? DateTime.now();
     return (select(payables)
@@ -36,11 +41,13 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
               tbl.dueDate.isSmallerOrEqualValue(limit) &
               tbl.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
           ..orderBy([
-            (tbl) => OrderingTerm(expression: tbl.dueDate, mode: OrderingMode.asc)
+            (tbl) => OrderingTerm(
+                expression: tbl.dueDate, mode: OrderingMode.asc)
           ]))
         .watch();
   }
 
+  /// Stream Hutang Berdasarkan Supplier Spesifik
   Stream<List<PayableData>> watchPayablesBySupplier(String supplierId) {
     return (select(payables)
           ..where((tbl) => tbl.supplierId.equals(supplierId))
@@ -51,10 +58,53 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
         .watch();
   }
 
-  // ================================
-  // 2. TRANSAKSI (MUTASI HUTANG & PEMBAYARAN)
-  // =============================
+  /// Stream Detail 1 Data Hutang
+  Stream<PayableData?> watchPayableById(String id) {
+    return (select(payables)..where((tbl) => tbl.id.equals(id)))
+        .watchSingleOrNull();
+  }
 
+  /// Ambil Detail 1 Data Hutang (Future)
+  Future<PayableData?> getPayableById(String id) {
+    return (select(payables)..where((tbl) => tbl.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  /// Stream Hutang Aktif Gabungan dengan Nama Supplier (Untuk UI Tampilan Laporan/List)
+  Stream<List<PayableWithSupplier>> watchActivePayablesWithSupplier() {
+    final query = select(payables).join([
+      innerJoin(suppliers, suppliers.id.equalsExp(payables.supplierId)),
+    ])
+      ..where(payables.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
+      ..orderBy([
+        OrderingTerm(expression: payables.dueDate, mode: OrderingMode.asc)
+      ]);
+
+    return query.watch().map((rows) {
+      return rows.map((row) {
+        return PayableWithSupplier(
+          payable: row.readTable(payables),
+          supplier: row.readTable(suppliers),
+        );
+      }).toList();
+    });
+  }
+
+  /// Hitung Total Sisa Hutang Aktif Seluruh Supplier (Guna Summary Keuangan)
+  Future<double> getTotalRemainingPayables() async {
+    final sumExp = payables.remainingAmount.sum();
+    final query = selectOnly(payables)
+      ..addColumns([sumExp])
+      ..where(payables.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]));
+    final row = await query.getSingleOrNull();
+    return row?.read(sumExp) ?? 0.0;
+  }
+
+  // ===========================================================================
+  // 2. TRANSAKSI (MUTASI HUTANG & PEMBAYARAN ANGSURAN)
+  // ===========================================================================
+
+  /// Catat Pembelian Tempo Baru (Memunculkan Kartu Hutang Supplier)
   Future<void> catatPembelianTempo({
     required String purchaseRef,
     required String supplierId,
@@ -77,6 +127,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
           remainingAmount: sisaHutang < 0 ? 0.0 : sisaHutang,
           dueDate: dueDate,
           status: Value(status),
+          isSynced: const Value(false),
         ),
       );
 
@@ -89,12 +140,14 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
             amount: dpAmount,
             paymentMethod: 'cash',
             notes: const Value('Uang Muka / DP Pembelian Stok'),
+            isSynced: const Value(false),
           ),
         );
       }
     });
   }
 
+  /// Alias Catat Pembelian Tempo
   Future<void> catatHutang({
     required String purchaseRef,
     required String supplierId,
@@ -110,6 +163,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
         dueDate: dueDate,
       );
 
+  /// Catat Bayar Angsuran / Pelunasan Hutang Supplier
   Future<bool> bayarAngsuranHutang({
     required String payableId,
     required double nominalBayar,
@@ -143,6 +197,8 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
           paidAmount: Value(newPaid),
           remainingAmount: Value(newRemaining < 0 ? 0.0 : newRemaining),
           status: Value(newStatus),
+          isSynced: const Value(false),
+          updatedAt: Value(DateTime.now()),
         ),
       );
 
@@ -154,9 +210,10 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
           amount: actualBayar,
           paymentMethod: paymentMethod,
           notes: Value(notes ??
-              (newStatus == DebtStatus.paid
+              (newStatus == DebtStatus.paid || newStatus == DebtStatus.lunas
                   ? 'Pelunasan Hutang Supplier'
                   : 'Angsuran Hutang Supplier')),
+          isSynced: const Value(false),
         ),
       );
 
@@ -164,6 +221,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
     });
   }
 
+  /// Alias Bayar Angsuran Hutang Supplier
   Future<bool> bayarHutangSupplier({
     required String payableId,
     required double nominalBayar,
@@ -178,8 +236,10 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
       );
 
   // ===========================================================================
-  // 3. RIWAYAT PEMBAYARAN
+  // 3. RIWAYAT PEMBAYARAN (DEBT PAYMENTS)
   // ===========================================================================
+
+  /// Ambil Riwayat Cicilan Hutang Spesifik (Future)
   Future<List<DebtPaymentData>> getPaymentHistory(String payableId) {
     return (select(debtPayments)
           ..where((tbl) =>
@@ -190,6 +250,32 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase>
           ]))
         .get();
   }
+
+  /// Stream Real-Time Riwayat Cicilan Hutang Spesifik
+  Stream<List<DebtPaymentData>> watchPaymentHistory(String payableId) {
+    return (select(debtPayments)
+          ..where((tbl) =>
+              tbl.refId.equals(payableId) & tbl.type.equals('payable_pay'))
+          ..orderBy([
+            (tbl) => OrderingTerm(
+                expression: tbl.paymentDate, mode: OrderingMode.desc)
+          ]))
+        .watch();
+  }
+}
+
+// ===========================================================================
+// DTO HELPER: PAYABLE + SUPPLIER
+// ===========================================================================
+
+class PayableWithSupplier {
+  final PayableData payable;
+  final SupplierData supplier;
+
+  PayableWithSupplier({
+    required this.payable,
+    required this.supplier,
+  });
 }
 
 // ===========================================================================
