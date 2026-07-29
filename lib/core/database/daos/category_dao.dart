@@ -1,4 +1,4 @@
-import 'package0:drift/drift.dart'; // Note: sesuaikan dengan package name project
+import 'package:drift/drift.dart'; // Note: sesuaikan dengan package name project
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
