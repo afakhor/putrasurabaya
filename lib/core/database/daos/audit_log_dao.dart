@@ -1,7 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ud_putra_kasir/core/constants/audit_constants.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/audit_log_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/audit_tables.dart';
 
 part 'audit_log_dao.g.dart';
 
@@ -9,8 +10,8 @@ part 'audit_log_dao.g.dart';
 class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixin {
   AuditLogDao(LocalDatabase db) : super(db);
 
-  /// 1. Catat Log Aktivitas
-  Future<void> logActivity({
+  /// 1. Catat Audit Log Baru (Menembalikan Log ID)
+  Future<String> logActivity({
     required String userId,
     required String userRole,
     required String actionType,
@@ -19,9 +20,11 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
     String? oldValue,
     String? newValue,
   }) async {
+    final logId = 'LOG-${DateTime.now().millisecondsSinceEpoch}';
+    
     await into(auditLogs).insert(
       AuditLogsCompanion.insert(
-        id: 'LOG-${DateTime.now().millisecondsSinceEpoch}',
+        id: logId,
         userId: userId,
         userRole: userRole,
         actionType: actionType,
@@ -31,20 +34,22 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
         newValue: Value(newValue),
       ),
     );
+    
+    return logId;
   }
 
-  /// 2. Picu Peringatan Fraud (Kuning / Merah)
+  /// 2. Picu Fraud Alert (Dihubungkan dengan auditLogId)
   Future<void> triggerFraudAlert({
     required String userId,
     required String fraudCategory,
-    required String severity, // 'kuning' atau 'merah'
+    required String severity,
     required String title,
     required String detailAnalysis,
     String? auditLogId,
   }) async {
     await into(fraudAlerts).insert(
       FraudAlertsCompanion.insert(
-        id: 'ALERT-${DateTime.now().millisecondsSinceEpoch}',
+        id: 'ALT-${DateTime.now().millisecondsSinceEpoch}',
         userId: userId,
         auditLogId: Value(auditLogId),
         fraudCategory: fraudCategory,
@@ -55,16 +60,18 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
     );
   }
 
-  /// 3. Stream Status Risiko Utama untuk Dashboard Owner ('hijau', 'kuning', 'merah')
+  /// 3. Stream Status Warna Indikator Risiko Owner (Hijau / Kuning / Merah)
   Stream<String> watchOwnerRiskStatus() {
-    return (select(fraudAlerts)..where((tbl) => tbl.isResolved.equals(false))).watch().map((alerts) {
+    return (select(fraudAlerts)..where((tbl) => tbl.isResolved.equals(false)))
+        .watch()
+        .map((alerts) {
       if (alerts.isEmpty) return 'hijau';
-      final hasRed = alerts.any((a) => a.severity == 'merah');
-      return hasRed ? 'merah' : 'kuning';
+      final hasRedAlert = alerts.any((a) => a.severity == FraudSeverity.merah);
+      return hasRedAlert ? 'merah' : 'kuning';
     });
   }
 
-  /// 4. Ambil Daftar Alert Fraud Aktif (Belum Dikonfirmasi Owner)
+  /// 4. Stream Daftar Alert yang Belum Selesai (Untuk Dashboard Owner)
   Stream<List<FraudAlertData>> watchActiveFraudAlerts() {
     return (select(fraudAlerts)
           ..where((tbl) => tbl.isResolved.equals(false))
@@ -72,7 +79,7 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
         .watch();
   }
 
-  /// 5. RESET HAK OWNER: Konfirmasi dan Hapus Warning Fraud oleh Owner
+  /// 5. Resolver Fraud Alert (Hanya dipanggil oleh Owner)
   Future<void> resolveFraudAlert({
     required String alertId,
     required String ownerUserId,
@@ -87,6 +94,4 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
   }
 }
 
-final auditLogDaoProvider = Provider<AuditLogDao>((ref) {
-  return AuditLogDao(ref.watch(localDatabaseProvider));
-});
+final auditLogDaoProvider = Provider<AuditLogDao>((ref) => AuditLogDao(ref.watch(localDatabaseProvider)));
