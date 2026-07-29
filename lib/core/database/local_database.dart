@@ -12,7 +12,7 @@ import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
 
 // Import Tabel Baru
 import 'package:ud_putra_kasir/core/database/tables/category_table.dart';
-import 'package0:ud_putra_kasir/core/database/tables/purchase_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/purchase_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/audit_log_table.dart';
 
 // Import Constant
