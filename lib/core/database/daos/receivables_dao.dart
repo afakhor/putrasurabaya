@@ -1,11 +1,11 @@
-import 'package:drift/drift.dart';
+import 'package0:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Gunakan Package Import secara konsisten untuk semua dependency internal
+// Import konsisten sesuai struktur project
+import 'package:ud_putra_kasir/core/constants/constant_debt_status.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/customer_table.dart';
-import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
+import 'package:ud_putra_kasir/core/database/tables/finance_tables.dart';
 
 part 'receivables_dao.g.dart';
 
@@ -59,8 +59,7 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
   }
 
   /// Stream piutang yang hampir / sudah jatuh tempo (Overdue)
-  Stream<List<ReceivableWithCustomer>> watchOverdueReceivables(
-      {DateTime? dateLimit}) {
+  Stream<List<ReceivableWithCustomer>> watchOverdueReceivables({DateTime? dateLimit}) {
     final limit = dateLimit ?? DateTime.now();
 
     final query = select(receivables).join([
@@ -84,13 +83,15 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
   // 2. TRANSAKSI (MUTASI PIUTANG & PEMBAYARAN)
   // ===========================================================================
 
-  /// Pencatatan Piutang Baru dari Transaksi Kasir
+  /// Pencatatan Piutang Baru dari Transaksi Kasir / Salesman
   Future<void> catatPiutangBaru({
     required String transactionId,
     required String customerId,
     required double totalAmount,
     required double dpAmount,
     required DateTime dueDate,
+    String? salesId,
+    String? userId, // Kasir / Salesman yang memproses
   }) async {
     final sisaPiutang = totalAmount - dpAmount;
     final status = DebtStatus.tentukanStatus(sisaPiutang, dpAmount);
@@ -103,11 +104,13 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
           id: receivableId,
           transactionId: transactionId,
           customerId: customerId,
+          salesId: Value(salesId),
           totalAmount: totalAmount,
           paidAmount: Value(dpAmount),
           remainingAmount: sisaPiutang < 0 ? 0.0 : sisaPiutang,
           dueDate: dueDate,
           status: Value(status),
+          isSynced: const Value(false),
         ),
       );
 
@@ -120,7 +123,11 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
         final newDebt = customer.totalDebt + (sisaPiutang < 0 ? 0.0 : sisaPiutang);
         await (update(customers)..where((tbl) => tbl.id.equals(customerId)))
             .write(
-          CustomersCompanion(totalDebt: Value(newDebt)),
+          CustomersCompanion(
+            totalDebt: Value(newDebt),
+            isSynced: const Value(false),
+            updatedAt: Value(DateTime.now()),
+          ),
         );
       }
 
@@ -130,10 +137,12 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
           DebtPaymentsCompanion.insert(
             id: 'PAY-AR-${DateTime.now().millisecondsSinceEpoch}',
             refId: receivableId,
-            type: 'receivable_collect',
+            type: 'receivable',
+            userId: userId ?? 'SYSTEM',
             amount: dpAmount,
-            paymentMethod: 'cash',
+            paymentMethod: Value(PaymentType.cash),
             notes: const Value('Uang Muka / DP Penjualan Kasir'),
+            isSynced: const Value(false),
           ),
         );
       }
@@ -145,6 +154,8 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     required String receivableId,
     required double nominalBayar,
     required String paymentMethod,
+    required String userId, // ID Salesman/Kasir yang menagih
+    String? proofImage,
     String? notes,
   }) async {
     if (nominalBayar <= 0) {
@@ -177,6 +188,8 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
           paidAmount: Value(newPaid),
           remainingAmount: Value(newRemaining < 0 ? 0.0 : newRemaining),
           status: Value(newStatus),
+          isSynced: const Value(false),
+          updatedAt: Value(DateTime.now()),
         ),
       );
 
@@ -190,22 +203,28 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
         await (update(customers)..where((tbl) => tbl.id.equals(item.customerId)))
             .write(
           CustomersCompanion(
-              totalDebt: Value(sisaUtangCust < 0 ? 0.0 : sisaUtangCust)),
+            totalDebt: Value(sisaUtangCust < 0 ? 0.0 : sisaUtangCust),
+            isSynced: const Value(false),
+            updatedAt: Value(DateTime.now()),
+          ),
         );
       }
 
-      // 4. Catat riwayat pembayaran
+      // 4. Catat riwayat pembayaran (Lengkap dengan userId & proofImage untuk audit)
       await into(debtPayments).insert(
         DebtPaymentsCompanion.insert(
           id: 'PAY-AR-${DateTime.now().millisecondsSinceEpoch}',
           refId: receivableId,
-          type: 'receivable_collect',
+          type: 'receivable',
+          userId: userId,
           amount: actualBayar,
-          paymentMethod: paymentMethod,
+          paymentMethod: Value(paymentMethod),
+          proofImage: Value(proofImage),
           notes: Value(notes ??
               (newStatus == DebtStatus.paid
                   ? 'Pelunasan Piutang Pelanggan'
                   : 'Angsuran Piutang Pelanggan')),
+          isSynced: const Value(false),
         ),
       );
 
@@ -222,7 +241,7 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase>
     return (select(debtPayments)
           ..where((tbl) =>
               tbl.refId.equals(receivableId) &
-              tbl.type.equals('receivable_collect'))
+              tbl.type.equals('receivable'))
           ..orderBy([
             (tbl) => OrderingTerm(
                 expression: tbl.paymentDate, mode: OrderingMode.desc)
