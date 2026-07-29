@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
 import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
-import 'package0:ud_putra_kasir/core/database/tables/supplier_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
 import 'package:ud_putra_kasir/core/constants/constant_debt_status.dart';
 
 part 'purchase_dao.g.dart';
