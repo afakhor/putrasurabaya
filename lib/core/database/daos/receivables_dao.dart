@@ -1,10 +1,10 @@
-import 'package0:drift/drift.dart' hide Column; // Corrected below
+import 'package:drift/drift.dart' hide Column; // Corrected below
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package0:ud_putra_kasir/core/database/tables/customer_tables.dart'; // Alias safety check
+import 'package:ud_putra_kasir/core/database/tables/customer_tables.dart'; // Alias safety check
 import 'package:ud_putra_kasir/core/database/tables/customer_tables.dart';
 import 'package:ud_putra_kasir/core/database/tables/finance_tables.dart';
 
