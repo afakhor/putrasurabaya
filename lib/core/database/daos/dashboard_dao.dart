@@ -7,7 +7,7 @@ import 'package:ud_putra_kasir/core/database/local_database.dart';
 // --- IMPORT TABEL DATABASE ---
 import 'package:ud_putra_kasir/core/database/tables/finance_tables.dart';     // Payables, Receivables, Expenses
 import 'package:ud_putra_kasir/core/database/tables/transaction_tables.dart'; // Transactions, TransactionItems
-import 'package0:ud_putra_kasir/core/database/tables/product_tables.dart';     // Products
+import 'package:ud_putra_kasir/core/database/tables/product_tables.dart';     // Products
 import 'package:ud_putra_kasir/features/dashboard/models/dashboard_finance_summary.dart';
 
 part 'dashboard_dao.g.dart';
