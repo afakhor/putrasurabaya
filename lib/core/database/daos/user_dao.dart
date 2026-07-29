@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/user_table.dart';
+import 'package0:ud_putra_kasir/core/database/tables/user_table.dart';
 
 part 'user_dao.g.dart';
 
@@ -17,7 +17,7 @@ class UserDao extends DatabaseAccessor<LocalDatabase> with _$UserDaoMixin {
     return user;
   }
 
-  /// Generator API Key untuk Salesman baru (Hanya SuperUser)
+  /// Generator API Key untuk Salesman baru
   Future<String> generateApiKeyForSalesman({
     required String name,
     required String phone,
@@ -43,7 +43,35 @@ class UserDao extends DatabaseAccessor<LocalDatabase> with _$UserDaoMixin {
     return generatedApiKey;
   }
 
-  /// Ubah Status Suspend User
+  /// =========================================================================
+  /// HAK AKSES GRANULAR SALESMAN (DAPAT DICENTANG DARI PANEL OWNER)
+  /// =========================================================================
+
+  /// Owner mengubah izin hak akses Salesman secara spesifik
+  Future<void> updateSalesmanPermissions({
+    required String salesmanUserId,
+    required bool canOverridePrice,
+    required bool canGiveDiscount,
+    required bool canCreateCustomer,
+    required bool canCollectPayment,
+    required bool canProcessReturn,
+    required bool canVoidTransaction,
+    required double maxDiscountPercent,
+  }) async {
+    await (update(users)..where((u) => u.id.equals(salesmanUserId))).write(
+      UsersCompanion(
+        canOverridePrice: Value(canOverridePrice),
+        canGiveDiscount: Value(canGiveDiscount),
+        canCreateCustomer: Value(canCreateCustomer),
+        canCollectPayment: Value(canCollectPayment),
+        canProcessReturn: Value(canProcessReturn),
+        canVoidTransaction: Value(canVoidTransaction),
+        maxDiscountPercent: Value(maxDiscountPercent),
+      ),
+    );
+  }
+
+  /// Ubah Status Suspend / Aktif User
   Future<void> setUserStatus(String userId, String status) {
     return (update(users)..where((u) => u.id.equals(userId)))
         .write(UsersCompanion(status: Value(status)));
@@ -51,6 +79,11 @@ class UserDao extends DatabaseAccessor<LocalDatabase> with _$UserDaoMixin {
 
   /// Ambil Semua User
   Stream<List<UserData>> watchAllUsers() => select(users).watch();
+
+  /// Stream khusus daftar Salesman untuk Pengaturan Hak Akses Owner
+  Stream<List<UserData>> watchAllSalesmen() {
+    return (select(users)..where((u) => u.role.equals('salesman'))).watch();
+  }
 }
 
 final userDaoProvider = Provider<UserDao>((ref) {
