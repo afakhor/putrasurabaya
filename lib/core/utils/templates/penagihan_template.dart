@@ -1,27 +1,8 @@
-Import 'package:flutter/material.dart';
+// penagihan_template.dart
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../struk_components.dart';
-class PaymentHistory {
-  final DateTime date;
-  final double amount;
-  PaymentHistory(this.date, this.amount);
-}
-
-class PenagihanData {
-  final String invoiceId;
-  final double totalDebt;        // Total hutang awal
-  final double currentPayment;   // Bayar sekarang
-  final double remainingDebt;    // Sisa hutang
-  final List<PaymentHistory> history; // Riwayat cicilan
-  
-  PenagihanData({
-    required this.invoiceId,
-    required this.totalDebt,
-    required this.currentPayment,
-    required this.remainingDebt,
-    this.history = const [],
-  });
-}
+import 'struk_dto.dart'; // Import DTO yang baru kita buat
 
 // ===========================================================================
 // TEMPLATE 1: PENAGIHAN LUNAS (CASH)
@@ -54,7 +35,7 @@ class PenagihanLunasTemplate extends StatelessWidget {
 // TEMPLATE 2: PENAGIHAN SISTEM TITIP (CICILAN)
 // ===========================================================================
 class PenagihanTitipTemplate extends StatelessWidget {
-  final PenagihanData data;
+  final PenagihanDTO data; // Menggunakan DTO, bukan Data Class Database
 
   const PenagihanTitipTemplate({required this.data, super.key});
 
