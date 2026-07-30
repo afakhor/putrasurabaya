@@ -30,3 +30,21 @@ class PaymentHistoryDTO {
   final double amount;
   PaymentHistoryDTO({required this.date, required this.amount});
 }
+
+class PosReceiptDTO {
+  final List<ReceiptItemDTO> items;
+  final double total;
+  final double paidAmount;
+  final double change;
+  final double debt;
+  final String paymentMethod;
+
+  PosReceiptDTO({
+    required this.items,
+    required this.total,
+    required this.paidAmount,
+    required this.change,
+    required this.debt,
+    required this.paymentMethod,
+  });
+}
