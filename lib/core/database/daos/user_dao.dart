@@ -65,6 +65,24 @@ class UserDao extends DatabaseAccessor<LocalDatabase> with _$UserDaoMixin {
     return (select(users)..where((u) => u.id.equals(userId))).getSingleOrNull();
   }
 
+  /// Ambil Data User Berdasarkan ID (Sudah ada di kode Anda)
+  Future<UserData?> getUserById(String userId) {
+    return (select(users)..where((u) => u.id.equals(userId))).getSingleOrNull();
+  }
+
+  // ===========================================================================
+  // TAMBAHAN UNTUK FITUR 3-PLAY WHATSAPP
+  // ===========================================================================
+
+  /// Ambil Satu User Berdasarkan Role (Contoh: 'owner' atau 'salesman')
+  /// Berguna untuk mendapatkan nomor telepon Owner atau Salesman secara otomatis
+  Future<UserData?> getUserByRole(String role) {
+    return (select(users)
+          ..where((u) => u.role.equals(role) & u.status.equals(UserStatus.aktif))
+          ..limit(1)) // Ambil satu saja yang aktif
+        .getSingleOrNull();
+  }
+
   // ===========================================================================
   // 2. MANAJEMEN CRUD USER (CREATE, READ, UPDATE, DELETE)
   // ===========================================================================
