@@ -1,52 +1,75 @@
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'struk_dto.dart'; // Import DTO
-import '../struk_components.dart';
+// struk_dto.dart
 
-class PosReceiptTemplate extends StatelessWidget {
-  final PosReceiptDTO data; // Menerima DTO
+// 1. DTO untuk Barang (Dipakai di POS dan Faktur)
+class ReceiptItemDTO {
+  final String productName;
+  final double quantity;
+  final double subtotal;
 
-  const PosReceiptTemplate({required this.data, super.key});
+  ReceiptItemDTO({
+    required this.productName, 
+    required this.quantity, 
+    required this.subtotal
+  });
+}
 
-  @override
-  Widget build(BuildContext context) {
-    final currencyFormatter = NumberFormat.currency(
-      locale: 'id_ID', 
-      symbol: 'Rp ', 
-      decimalDigits: 0
-    );
+// 2. DTO untuk POS
+class PosReceiptDTO {
+  final List<ReceiptItemDTO> items;
+  final double total;
+  final double paidAmount;
+  final double change;
+  final double debt;
+  final String paymentMethod;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const StrukHeader("UD. PUTRA SURABAYA"),
-        const StrukInfoText("Jl. Surabaya - Sidoarjo"),
-        StrukInfoText("Tgl: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}"),
-        const StrukDivider(),
+  PosReceiptDTO({
+    required this.items,
+    required this.total,
+    required this.paidAmount,
+    required this.change,
+    required this.debt,
+    required this.paymentMethod,
+  });
+}
 
-        // Loop Item menggunakan DTO
-        ...data.items.map((it) => StrukRow(
-          "${it.productName} x ${it.quantity.toStringAsFixed(0)}", 
-          currencyFormatter.format(it.subtotal)
-        )),
+// 3. DTO untuk Faktur (Unpaid)
+class FakturDTO {
+  final String invoiceId;
+  final String customerName;
+  final DateTime date;
+  final DateTime dueDate;
+  final List<ReceiptItemDTO> items;
+  final double total;
 
-        const StrukDivider(),
+  FakturDTO({
+    required this.invoiceId,
+    required this.customerName,
+    required this.date,
+    required this.dueDate,
+    required this.items,
+    required this.total,
+  });
+}
 
-        // Ringkasan Pembayaran
-        StrukRow("TOTAL:", currencyFormatter.format(data.total), isBold: true),
+// 4. DTO untuk Penagihan (Titip/Cicilan)
+class PaymentHistoryDTO {
+  final DateTime date;
+  final double amount;
+  PaymentHistoryDTO({required this.date, required this.amount});
+}
 
-        if (data.paymentMethod == 'cash') ...[
-          StrukRow("BAYAR:", currencyFormatter.format(data.paidAmount)),
-          StrukRow("KEMBALI:", currencyFormatter.format(data.change)),
-        ] else if (data.paymentMethod == 'tempo') ...[
-          StrukRow("DP/UM:", currencyFormatter.format(data.paidAmount)),
-          const StrukStatusTag(status: "PIUTANG", isUnpaid: true),
-          StrukRow("SISA HUTANG:", currencyFormatter.format(data.debt), isBold: true),
-        ],
+class PenagihanDTO {
+  final String invoiceId;
+  final double totalDebt;
+  final double currentPayment;
+  final double remainingDebt;
+  final List<PaymentHistoryDTO> history;
 
-        const SizedBox(height: 10),
-        const StrukInfoText("Terima Kasih atas Kunjungan Anda"),
-      ],
-    );
-  }
+  PenagihanDTO({
+    required this.invoiceId,
+    required this.totalDebt,
+    required this.currentPayment,
+    required this.remainingDebt,
+    this.history = const [],
+  });
 }
