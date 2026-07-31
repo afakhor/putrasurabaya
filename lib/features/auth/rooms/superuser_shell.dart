@@ -4,7 +4,7 @@ import '../pages/dashboard_owner_page.dart';
 import '../pages/manage_users_page.dart';
 import '../pages/audit_fraud_page.dart';
 import '../pages/master_data_page.dart';
-import '../../auth/providers/auth_provider.dart';
+import '../auth_provider.dart';
 
 class SuperuserShell extends ConsumerStatefulWidget {
   const SuperuserShell({super.key});
