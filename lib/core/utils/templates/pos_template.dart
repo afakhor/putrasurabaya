@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'struk_dto.dart'; // Import DTO
+import 'struk_dto.dart';
 import '../struk_components.dart';
 
 class PosReceiptTemplate extends StatelessWidget {
-  final PosReceiptDTO data; // Menerima DTO
+  final PosReceiptDTO data;
 
   const PosReceiptTemplate({required this.data, super.key});
 
@@ -15,16 +15,22 @@ class PosReceiptTemplate extends StatelessWidget {
       symbol: 'Rp ', 
       decimalDigits: 0
     );
+    final dateFmt = DateFormat('dd/MM/yyyy HH:mm');
 
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center, // Pastikan rata tengah
       children: [
         const StrukHeader("UD. PUTRA SURABAYA"),
         const StrukInfoText("Jl. Surabaya - Sidoarjo"),
-        StrukInfoText("Tgl: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}"),
+        
+        // Metadata Transaksi
+        const StrukDivider(),
+        StrukInfoText("ID: ${data.invoiceId}"),
+        StrukInfoText("Tgl: ${dateFmt.format(data.transactionDate)}"),
         const StrukDivider(),
 
-        // Loop Item menggunakan DTO
+        // Loop Item
         ...data.items.map((it) => StrukRow(
           "${it.productName} x ${it.quantity.toStringAsFixed(0)}", 
           currencyFormatter.format(it.subtotal)
@@ -32,9 +38,10 @@ class PosReceiptTemplate extends StatelessWidget {
 
         const StrukDivider(),
 
-        // Ringkasan Pembayaran
+        // Summary
         StrukRow("TOTAL:", currencyFormatter.format(data.total), isBold: true),
 
+        // Logic Pembayaran
         if (data.paymentMethod == 'cash') ...[
           StrukRow("BAYAR:", currencyFormatter.format(data.paidAmount)),
           StrukRow("KEMBALI:", currencyFormatter.format(data.change)),
@@ -44,8 +51,9 @@ class PosReceiptTemplate extends StatelessWidget {
           StrukRow("SISA HUTANG:", currencyFormatter.format(data.debt), isBold: true),
         ],
 
-        const SizedBox(height: 10),
+        const SizedBox(height: 20), // Padding lebih lega untuk printer thermal
         const StrukInfoText("Terima Kasih atas Kunjungan Anda"),
+        const SizedBox(height: 10), // Memberi ruang potong kertas
       ],
     );
   }
