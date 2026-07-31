@@ -3,7 +3,7 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/utils/config.dart';
-import 'features/auth/presentation/pages/login_main_page.dart';
+import 'features/auth/login_main_page.dart';
 import 'core/database/local_database.dart';
 
 void main() {
