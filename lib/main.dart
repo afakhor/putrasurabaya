@@ -3,15 +3,20 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/utils/config.dart';
-import 'features/auth/login_main_page.dart';
 import 'core/database/local_database.dart';
+import 'features/auth/presentation/pages/login_main_page.dart';
+import 'features/auth/providers/auth_provider.dart';
+import 'features/superuser/presentation/superuser_shell.dart';
+import 'features/admin/presentation/admin_shell.dart';
+import 'features/salesman/presentation/salesman_shell.dart';
+import 'core/database/daos/user_dao.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // RANDOM 20 TEMA DARI config.dart
+  // RANDOM 20 TEMA DARI config.dart KAMU
   final randomTheme = AppThemes.allThemes[Random().nextInt(AppThemes.allThemes.length)];
-  debugPrint('✨ Tema hari ini: ${randomTheme.name} [${AppThemes.allThemes.length} tema]');
+  debugPrint('✨ Tema hari ini: ${randomTheme.name} | Total: ${AppThemes.allThemes.length} tema');
 
   runApp(
     ProviderScope(
@@ -42,34 +47,68 @@ class AppEntry extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    
+    final authState = ref.watch(authNotifierProvider);
+    final currentUser = ref.watch(currentUserProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        // AppBar otomatis ngikutin tema gelap/terang biar font kebaca
         backgroundColor: isDark ? Colors.black.withOpacity(0.4) : Colors.white.withOpacity(0.75),
-        foregroundColor: isDark ? Colors.white : Colors.black,
         elevation: 0,
         centerTitle: true,
-        title: Text(
-          'PUTRA SURABAYA - iPOS 5',
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : Colors.black,
-          ),
-        ),
         flexibleSpace: ClipRRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(color: Colors.transparent),
           ),
         ),
+        title: Text(
+          currentUser == null ? 'PUTRA SURABAYA - iPOS 5' : '${currentUser.role.toUpperCase()}: ${currentUser.name}',
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: isDark ? Colors.white : Colors.black,
+          ),
+        ),
+        actions: [
+          if (currentUser != null)
+            IconButton(
+              icon: Icon(Icons.logout, color: isDark ? Colors.white : Colors.black),
+              onPressed: () {
+                ref.read(authNotifierProvider.notifier).logout();
+              },
+            ),
+        ],
       ),
-      // INI PINTU UTAMA 3 ROLE: OWNER / ADMIN / SALESMAN
-      body: const LoginMainPage(),
+      body: _buildBody(authState, currentUser),
     );
+  }
+
+  Widget _buildBody(AuthState authState, UserData? user) {
+    // Loading
+    if (authState.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Belum login -> Pintu Utama 3 Role
+    if (user == null) {
+      return const LoginMainPage();
+    }
+
+    // Sudah login -> Route sesuai Role (iPOS 5)
+    switch (user.role) {
+      case UserRole.owner:
+      case UserRole.superuser:
+        return const SuperuserShell();
+      case UserRole.admin:
+      case UserRole.kasir:
+        return const AdminShell();
+      case UserRole.salesman:
+        return SalesmanShell(user: user);
+      default:
+        return const LoginMainPage();
+    }
   }
 }
