@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'dart:ui';
-import 'core/utils/config.dart'; // sesuaikan path kamu
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/utils/config.dart';
+import 'features/auth/presentation/pages/login_main_page.dart';
+import 'core/database/local_database.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // PICK RANDOM TEMA SETIAP KALI APP DIBUKA
-  final randomTheme = AppThemes.allThemes[Random().nextInt(AppThemes.allThemes.length)];
-  
-  // Print buat debug biar tau dapet tema apa
-  debugPrint('✨ Tema hari ini: ${randomTheme.name}');
 
-  runApp(MyApp(initialTheme: randomTheme));
+  // RANDOM 20 TEMA DARI config.dart
+  final randomTheme = AppThemes.allThemes[Random().nextInt(AppThemes.allThemes.length)];
+  debugPrint('✨ Tema hari ini: ${randomTheme.name} [${AppThemes.allThemes.length} tema]');
+
+  runApp(
+    ProviderScope(
+      child: MyApp(initialTheme: randomTheme),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -23,49 +28,48 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'PUTRA SURABAYA',
+      title: 'UD PUTRA KASIR',
       theme: initialTheme.themeData,
       home: initialTheme.backgroundBuilder(
-        child: const MyHomePage(),
+        child: const AppEntry(),
       ),
     );
   }
 }
 
-// CONTOH HALAMAN UTAMA
-class MyHomePage extends StatelessWidget {
-  const MyHomePage({super.key});
+class AppEntry extends ConsumerWidget {
+  const AppEntry({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Scaffold(
-      backgroundColor: Colors.transparent, // WAJIB transparan biar background keliatan
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: Colors.white.withOpacity(0.6),
+        // AppBar otomatis ngikutin tema gelap/terang biar font kebaca
+        backgroundColor: isDark ? Colors.black.withOpacity(0.4) : Colors.white.withOpacity(0.75),
+        foregroundColor: isDark ? Colors.white : Colors.black,
         elevation: 0,
-        title: const Text('Halo, Cantik! ✨', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
-        flexibleSpace: ClipRRect(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), child: Container(color: Colors.transparent))),
-      ),
-      body: Center(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          margin: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.7),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.8)),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20)],
+        centerTitle: true,
+        title: Text(
+          'PUTRA SURABAYA - iPOS 5',
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Tema random aktif!', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text('Tutup & buka lagi aplikasinya untuk ganti tema lain.', textAlign: TextAlign.center),
-            ],
+        ),
+        flexibleSpace: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(color: Colors.transparent),
           ),
         ),
       ),
+      // INI PINTU UTAMA 3 ROLE: OWNER / ADMIN / SALESMAN
+      body: const LoginMainPage(),
     );
   }
 }
