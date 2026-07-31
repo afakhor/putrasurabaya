@@ -38,6 +38,8 @@ class PosReceiptDTO {
 
 
 // 3. DTO untuk Faktur (Unpaid)
+// struk_dto.dart
+
 class FakturDTO {
   final String invoiceId;
   final String customerName;
@@ -45,6 +47,7 @@ class FakturDTO {
   final DateTime dueDate;
   final List<ReceiptItemDTO> items;
   final double total;
+  final double paidAmount; // DP / Uang Muka (jika ada)
 
   FakturDTO({
     required this.invoiceId,
@@ -53,7 +56,10 @@ class FakturDTO {
     required this.dueDate,
     required this.items,
     required this.total,
+    this.paidAmount = 0,
   });
+
+  double get remainingDebt => (total - paidAmount).clamp(0, double.infinity);
 }
 
 // 4. DTO untuk Penagihan (Titip/Cicilan)
