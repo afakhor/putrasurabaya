@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import '../../providers/auth_provider.dart';
-import '../../../../core/routing/role_router.dart';
+import 'auth_provider.dart';
+import 'role_router.dart';
 
 class LoginMainPage extends ConsumerStatefulWidget {
   const LoginMainPage({super.key});
