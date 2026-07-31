@@ -57,24 +57,48 @@ class FakturDTO {
 }
 
 // 4. DTO untuk Penagihan (Titip/Cicilan)
+// struk_dto.dart
+
 class PaymentHistoryDTO {
   final DateTime date;
   final double amount;
-  PaymentHistoryDTO({required this.date, required this.amount});
+
+  PaymentHistoryDTO({
+    required this.date, 
+    required this.amount,
+  });
 }
 
 class PenagihanDTO {
   final String invoiceId;
-  final double totalDebt;
-  final double currentPayment;
-  final double remainingDebt;
+  final String customerName;       // Tambahan: Nama Pelanggan
+  final DateTime paymentDate;      // Tambahan: Waktu Bayar
+  final double totalDebt;          // Total piutang awal
+  final double currentPayment;     // Bayar saat ini
+  final double remainingDebt;      // Sisa piutang
   final List<PaymentHistoryDTO> history;
 
   PenagihanDTO({
     required this.invoiceId,
+    required this.customerName,
+    required this.paymentDate,
     required this.totalDebt,
     required this.currentPayment,
     required this.remainingDebt,
     this.history = const [],
+  });
+}
+
+class PenagihanLunasDTO {
+  final String invoiceId;
+  final String customerName;
+  final DateTime paymentDate;
+  final double totalPaid;
+
+  PenagihanLunasDTO({
+    required this.invoiceId,
+    required this.customerName,
+    required this.paymentDate,
+    required this.totalPaid,
   });
 }
