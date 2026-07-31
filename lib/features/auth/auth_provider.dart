@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
 import 'package:ud_putra_kasir/core/database/daos/user_dao.dart';
-import '../data/auth_repository.dart';
+import 'auth_repository.dart';
 
 // ============================================================
 // 1. ROLE DEFINISI (iPOS 5 Style)
