@@ -15,6 +15,8 @@ class ReceiptItemDTO {
 
 // 2. DTO untuk POS
 class PosReceiptDTO {
+  final String invoiceId;          
+  final DateTime transactionDate; 
   final List<ReceiptItemDTO> items;
   final double total;
   final double paidAmount;
@@ -23,6 +25,8 @@ class PosReceiptDTO {
   final String paymentMethod;
 
   PosReceiptDTO({
+    required this.invoiceId,
+    required this.transactionDate,
     required this.items,
     required this.total,
     required this.paidAmount,
@@ -31,6 +35,7 @@ class PosReceiptDTO {
     required this.paymentMethod,
   });
 }
+
 
 // 3. DTO untuk Faktur (Unpaid)
 class FakturDTO {
