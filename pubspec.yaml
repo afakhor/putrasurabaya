@@ -26,6 +26,10 @@ dependencies:
   mobile_scanner: ^5.2.0
   permission_handler: ^11.3.1
   intl: ^0.19.0
+  screenshot: ^3.0.0      # Untuk capture widget
+  qr_flutter: ^4.1.0      # Untuk membuat QR Code
+  share_plus: ^10.0.0     # Untuk mengirim file ke WhatsApp
+  
 
 dev_dependencies:
   flutter_test:
