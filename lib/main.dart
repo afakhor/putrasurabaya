@@ -6,9 +6,9 @@ import 'core/utils/config.dart';
 import 'core/database/local_database.dart';
 import 'features/auth/presentation/pages/login_main_page.dart';
 import 'features/auth/providers/auth_provider.dart';
-import 'features/superuser/presentation/superuser_shell.dart';
-import 'features/admin/presentation/admin_shell.dart';
-import 'features/salesman/presentation/salesman_shell.dart';
+import 'features/auth/rooms/superuser_shell.dart';
+import 'features/auth/rooms/admin_shell.dart';
+import 'features/auth/rooms/salesman_shell.dart';
 import 'core/database/daos/user_dao.dart';
 
 void main() {
