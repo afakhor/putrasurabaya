@@ -23,7 +23,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Aplikasi Viral',
+      title: 'PUTRA SURABAYA',
       theme: initialTheme.themeData,
       home: initialTheme.backgroundBuilder(
         child: const MyHomePage(),
