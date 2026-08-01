@@ -23,35 +23,49 @@ part 'dashboard_dao.g.dart';
 class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMixin {
   DashboardDao(LocalDatabase db) : super(db);
 
+  /// Stream utama - gabungan 6 metrik real-time
   Stream<DashboardFinanceSummary> watchFinanceSummary() {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
+    // 1. HUTANG SUPPLIER
     final payablesSum = payables.remainingAmount.sum();
     final payablesCount = payables.id.count();
     final payablesStream = (selectOnly(payables)
          ..addColumns([payablesSum, payablesCount])
          ..where(payables.remainingAmount.isBiggerThanValue(0.0)))
        .watchSingle()
-       .map((row) => {'total': row.read(payablesSum)?? 0.0, 'count': row.read(payablesCount)?? 0});
+       .map((row) => {
+              'total': row.read(payablesSum)?? 0.0,
+              'count': row.read(payablesCount)?? 0,
+            });
 
+    // 2. PIUTANG PELANGGAN
     final receivablesSum = receivables.remainingAmount.sum();
     final receivablesCount = receivables.id.count();
     final receivablesStream = (selectOnly(receivables)
          ..addColumns([receivablesSum, receivablesCount])
          ..where(receivables.remainingAmount.isBiggerThanValue(0.0)))
        .watchSingle()
-       .map((row) => {'total': row.read(receivablesSum)?? 0.0, 'count': row.read(receivablesCount)?? 0});
+       .map((row) => {
+              'total': row.read(receivablesSum)?? 0.0,
+              'count': row.read(receivablesCount)?? 0,
+            });
 
+    // 3. OMSET HARI INI
     final totalOmset = transactions.grandTotal.sum();
     final totalCount = transactions.id.count();
     final todaySalesStream = (selectOnly(transactions)
          ..addColumns([totalOmset, totalCount])
          ..where(transactions.date.isBetweenValues(startOfDay, endOfDay)))
        .watchSingle()
-       .map((row) => {'omset': row.read(totalOmset)?? 0.0, 'jumlahTransaksi': row.read(totalCount)?? 0});
+       .map((row) => {
+              'omset': row.read(totalOmset)?? 0.0,
+              'jumlahTransaksi': row.read(totalCount)?? 0,
+            });
 
+    // 4. LABA KOTOR HARI INI
     final todayProfitStream = (select(transactionItems).join([
       innerJoin(transactions, transactions.id.equalsExp(transactionItems.transactionId)),
     ])
@@ -67,6 +81,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
       return profit;
     });
 
+    // 5. PENGELUARAN HARI INI
     final totalExpense = expenses.amount.sum();
     final todayExpensesStream = (selectOnly(expenses)
          ..addColumns([totalExpense])
@@ -74,6 +89,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
        .watchSingle()
        .map((row) => row.read(totalExpense)?? 0.0);
 
+    // 6. STOK MENIPIS - FIX: pakai stock < 5 karena minStock gak ada di tabel Products
     final productCount = products.id.count();
     final lowStockCountStream = (selectOnly(products)
          ..addColumns([productCount])
@@ -81,6 +97,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
        .watchSingle()
        .map((row) => row.read(productCount)?? 0);
 
+    // Gabung 6 stream jadi 1 model
     return Rx.combineLatest6(
       payablesStream,
       receivablesStream,
@@ -98,8 +115,6 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
         labaKotorHariIni: profit,
         pengeluaranHariIni: expense,
         stokMenipisCount: lowStock,
-        todaySales: (sData['omset'] as num).toDouble(),
-        totalReceivable: (rData['total'] as num).toDouble(),
       ),
     );
   }
@@ -110,15 +125,19 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
 
   Stream<List<FraudAlertData>> watchActiveFraudAlerts() {
     return (select(fraudAlerts)
-         ..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)])
-    ).watch();
+         ..orderBy([
+            (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)
+          ]))
+       .watch();
   }
 
   Stream<List<AuditLogData>> watchRecentAuditLogs(int limit) {
     return (select(auditLogs)
-         ..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)])
-         ..limit(limit)
-    ).watch();
+         ..orderBy([
+            (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)
+          ])
+         ..limit(limit))
+       .watch();
   }
 
   Stream<String> watchOwnerRiskStatus() {
