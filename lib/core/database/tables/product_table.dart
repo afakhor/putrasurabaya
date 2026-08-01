@@ -1,24 +1,57 @@
 import 'package:drift/drift.dart';
 
-@DataClassName('ProductData')
-class Products extends Table {
+@DataClassName('UserData') // <- INI YANG BIKIN NAMANYA UserData
+class Users extends Table {
   TextColumn get id => text()();
-  TextColumn get code => text().unique()();
+  TextColumn get username => text().nullable()();
   TextColumn get name => text()();
-  TextColumn get unit => text().withDefault(const Constant('Pcs'))();
-  
-  // Stok & harga
-  RealColumn get stock => real().withDefault(const Constant(0.0))();
-  RealColumn get buyPrice => real().withDefault(const Constant(0.0))(); // HPP Master
-  RealColumn get sellPrice => real().withDefault(const Constant(0.0))();
-  
-  // Fitur Tambahan untuk DAO Stok Mutasi
-  BoolColumn get allowMinusStock => boolean().withDefault(const Constant(false))();
-  TextColumn get rackLocation => text().nullable()(); // Nomor / Posisi Rak Barang
-
+  TextColumn get role => text()();
+  TextColumn get passwordHash => text().nullable()();
+  TextColumn get pinCode => text().nullable()();
+  TextColumn get apiKey => text().nullable()();
+  TextColumn get phone => text().nullable()();
+  TextColumn get salesArea => text().nullable()();
+  TextColumn get address => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('aktif'))();
+  BoolColumn get canOverridePrice => boolean().withDefault(const Constant(false))();
+  BoolColumn get canGiveDiscount => boolean().withDefault(const Constant(false))();
+  RealColumn get maxDiscountPercent => real().withDefault(const Constant(5.0))();
+  BoolColumn get canCreateCustomer => boolean().withDefault(const Constant(true))();
+  BoolColumn get canCollectPayment => boolean().withDefault(const Constant(true))();
+  BoolColumn get canProcessReturn => boolean().withDefault(const Constant(false))();
+  BoolColumn get canVoidTransaction => boolean().withDefault(const Constant(false))();
+  BoolColumn get canManageStock => boolean().withDefault(const Constant(false))();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get updatedAt => dateTime().nullable()();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  @override Set<Column> get primaryKey => {id};
+}
 
-  @override
-  Set<Column> get primaryKey => {id};
+@DataClassName('ShiftKasirData')
+class ShiftKasir extends Table {
+  TextColumn get id => text()();
+  TextColumn get userId => text().references(Users, #id)();
+  DateTimeColumn get startTime => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get endTime => dateTime().nullable()();
+  RealColumn get initialCash => real().withDefault(const Constant(0.0))();
+  RealColumn get totalCashSales => real().withDefault(const Constant(0.0))();
+  RealColumn get totalNonCashSales => real().withDefault(const Constant(0.0))();
+  RealColumn get totalReceivableCollected => real().withDefault(const Constant(0.0))();
+  RealColumn get expectedCash => real().withDefault(const Constant(0.0))();
+  RealColumn get actualCash => real().nullable()();
+  RealColumn get cashDifference => real().nullable()();
+  TextColumn get notes => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('open'))();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  @override Set<Column> get primaryKey => {id};
+}
+
+abstract class UserRole {
+  static const String superuser = 'superuser';
+  static const String owner = 'owner';
+  static const String admin = 'admin';
+  static const String kasir = 'kasir';
+  static const String salesman = 'salesman';
 }
