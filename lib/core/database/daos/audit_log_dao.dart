@@ -2,7 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Import konsisten sesuai struktur project
-import 'package:ud_putra_kasir/core/constants/audit_constants.dart';
+import 'package:ud_putra_kasir/core/database/constant/audit_constant.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
 import 'package:ud_putra_kasir/core/database/tables/audit_log_table.dart';
 
