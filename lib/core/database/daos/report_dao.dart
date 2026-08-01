@@ -2,9 +2,9 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/transaction_tables.dart';
-import 'package:ud_putra_kasir/core/database/tables/finance_tables.dart';
-import 'package:ud_putra_kasir/core/database/tables/product_tables.dart';
+import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
 
 part 'report_dao.g.dart';
 
