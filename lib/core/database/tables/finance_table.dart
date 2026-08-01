@@ -3,7 +3,7 @@ import 'package:ud_putra_kasir/core/constants/constant_debt_status.dart';
 import 'category_table.dart';
 import 'customer_table.dart';
 import 'transaction_table.dart';
-import 'purchase_tables.dart';
+import 'purchase_table.dart';
 
 // ==========================================
 // 1. MODUL PIUTANG CUSTOMER (AR - Accounts Receivable)
