@@ -3,18 +3,16 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/utils/config.dart';
-import 'core/database/local_database.dart';
+import 'core/database/tables/user_table.dart'; // <-- INI WAJIB BIAR UserData & UserRole KEDETEK
 import 'features/auth/login_main_page.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/auth/rooms/superuser_shell.dart';
 import 'features/auth/rooms/admin_shell.dart';
 import 'features/auth/rooms/salesman_shell.dart';
-import 'core/database/daos/user_dao.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // RANDOM 20 TEMA DARI config.dart KAMU
   final randomTheme = AppThemes.allThemes[Random().nextInt(AppThemes.allThemes.length)];
   debugPrint('✨ Tema hari ini: ${randomTheme.name} | Total: ${AppThemes.allThemes.length} tema');
 
@@ -86,18 +84,15 @@ class AppEntry extends ConsumerWidget {
     );
   }
 
+  // INI TADI YANG MERAH KARENA UserData GAK KE-IMPORT
   Widget _buildBody(AuthState authState, UserData? user) {
-    // Loading
     if (authState.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-
-    // Belum login -> Pintu Utama 3 Role
     if (user == null) {
       return const LoginMainPage();
     }
 
-    // Sudah login -> Route sesuai Role (iPOS 5)
     switch (user.role) {
       case UserRole.owner:
       case UserRole.superuser:
