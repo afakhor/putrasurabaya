@@ -1,6 +1,7 @@
+// lib/features/auth/auth_provider.dart - FINAL FIX
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/daos/user_dao.dart';
+import 'package:ud_putra_kasir/core/database/tables/user_table.dart'; // <-- INI YANG KURANG
 import 'auth_repository.dart';
 
 // ============================================================
@@ -16,35 +17,39 @@ extension UserRoleExt on UserData {
     if (r == 'salesman') return AppRole.salesman;
     return AppRole.kasir;
   }
-
   bool get isSuperuser => appRole == AppRole.superuser;
 }
 
 // ============================================================
-// 2. PROVIDER DASAR
+// 2. PROVIDER DASAR - FIX DI SINI
 // ============================================================
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  final dao = ref.watch(userDaoProvider);
+  // FIX: ambil dao dari localDatabaseProvider.userDao
+  final dao = ref.watch(localDatabaseProvider).userDao;
   return AuthRepository(dao);
 });
 
-// User yang sedang login (disimpan di RAM, hilang kalau app di-close)
-// Nanti kalau mau permanen, ganti pakai SharedPreferences / Hive
 final currentUserProvider = StateProvider<UserData?>((ref) => null);
 
-// Provider utama untuk UI (loading/error/data)
+// StateNotifier dengan AuthState custom biar gampang di main.dart
+class AuthState {
+  final bool isLoading;
+  final String? error;
+  const AuthState({this.isLoading = false, this.error});
+}
+
 final authNotifierProvider =
     StateNotifierProvider<AuthNotifier, AsyncValue<UserData?>>((ref) {
   return AuthNotifier(ref);
 });
 
 // ============================================================
-// 3. CEK HAK AKSES CEPAT (Dipakai di semua halaman salesman)
+// 3. CEK HAK AKSES CEPAT
 // ============================================================
 final hasPermissionProvider = Provider.family<bool, String>((ref, permission) {
   final user = ref.watch(currentUserProvider);
   if (user == null) return false;
-  if (user.isSuperuser) return true; // Superuser bypass semua kunci
+  if (user.isSuperuser) return true;
 
   switch (permission) {
     case 'canOverridePrice':
@@ -73,14 +78,12 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserData?>> {
   final Ref ref;
   AuthNotifier(this.ref) : super(const AsyncValue.data(null));
 
-  // --- PINTU 1: OWNER / SUPERUSER / ADMIN (Username + Password) ---
   Future<void> loginByPassword(String username, String password) async {
     state = const AsyncValue.loading();
     try {
       final repo = ref.read(authRepositoryProvider);
       final user = await repo.loginByPassword(username, password);
       if (user == null) throw Exception('Username / Password salah');
-
       ref.read(currentUserProvider.notifier).state = user;
       state = AsyncValue.data(user);
     } catch (e, st) {
@@ -88,14 +91,12 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserData?>> {
     }
   }
 
-  // --- PINTU 2: KASIR (PIN 6 Digit) ---
   Future<void> loginByPin(String pin) async {
     state = const AsyncValue.loading();
     try {
       final repo = ref.read(authRepositoryProvider);
       final user = await repo.loginByPin(pin);
       if (user == null) throw Exception('PIN salah / User tidak aktif');
-
       ref.read(currentUserProvider.notifier).state = user;
       state = AsyncValue.data(user);
     } catch (e, st) {
@@ -103,14 +104,12 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserData?>> {
     }
   }
 
-  // --- PINTU 3: SALESMAN (API Key / QR Scan) ---
   Future<void> loginByApiKey(String apiKey) async {
     state = const AsyncValue.loading();
     try {
       final repo = ref.read(authRepositoryProvider);
       final user = await repo.loginByApiKey(apiKey);
-      if (user == null) throw Exception('API Key tidak valid / Salesman tidak aktif');
-
+      if (user == null) throw Exception('API Key tidak valid');
       ref.read(currentUserProvider.notifier).state = user;
       state = AsyncValue.data(user);
     } catch (e, st) {
@@ -118,7 +117,6 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserData?>> {
     }
   }
 
-  // --- LOGOUT ---
   void logout() {
     ref.read(currentUserProvider.notifier).state = null;
     state = const AsyncValue.data(null);
