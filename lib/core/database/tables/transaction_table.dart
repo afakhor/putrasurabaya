@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart';
 import 'customer_table.dart';
-import 'product_tables.dart';
+import 'product_table.dart';
 
 // ==========================================
 // 1. HEADER TRANSAKSI PENJUALAN (TRANSACTIONS)
