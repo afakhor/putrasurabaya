@@ -2,7 +2,6 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Tabel kamu semua
 import 'tables/user_table.dart';
 import 'tables/product_table.dart';
 import 'tables/customer_table.dart';
@@ -14,44 +13,29 @@ import 'tables/purchase_table.dart';
 import 'tables/audit_log_table.dart';
 import 'constant/constant_debt_status.dart';
 
+import 'daos/user_dao.dart';
+import 'daos/dashboard_dao.dart'; // <-- buat dashboardDao
+
 part 'local_database.g.dart';
 
 @DriftDatabase(tables: [
-  Users,
-  ShiftKasir,
-  Categories,
-  Products,
-  ProductAssets,
-  ProductUnits,
-  ProductVariants,
-  ProductPromos,
-  Suppliers,
-  StockMutations,
-  Purchases,
-  PurchaseItems,
-  Transactions,
-  TransactionItems,
-  Customers,
-  Payables,
-  Receivables,
-  DebtPayments,
-  Expenses,
-  AuditLogs,
-  FraudAlerts,
+  Users, ShiftKasir, Categories, Products, ProductAssets, ProductUnits,
+  ProductVariants, ProductPromos, Suppliers, StockMutations, Purchases,
+  PurchaseItems, Transactions, TransactionItems, Customers, Payables,
+  Receivables, DebtPayments, Expenses, AuditLogs, FraudAlerts,
 ])
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
 
-  @override
-  int get schemaVersion => 10;
+  // INI YANG BIKIN db.userDao & db.dashboardDao BISA DIPANGGIL
+  late final UserDao userDao = UserDao(this);
+  late final DashboardDao dashboardDao = DashboardDao(this);
 
-  @override
-  MigrationStrategy get migration => MigrationStrategy(
+  @override int get schemaVersion => 10;
+
+  @override MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
-      await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_stock_mutations_product_date ON stock_mutations (product_id, date);',
-      );
     },
     onUpgrade: (Migrator m, int from, int to) async {
       if (from < 7) {
@@ -61,9 +45,7 @@ class LocalDatabase extends _$LocalDatabase {
         await m.createTable(debtPayments);
         await m.createTable(expenses);
       }
-      if (from < 8) {
-        await m.addColumn(users, users.apiKey);
-      }
+      if (from < 8) await m.addColumn(users, users.apiKey);
       if (from < 9) {
         await m.addColumn(products, products.rackLocation);
         await m.addColumn(products, products.allowMinusStock);
@@ -81,7 +63,6 @@ class LocalDatabase extends _$LocalDatabase {
     },
   );
 
-  // HELPER LAMA KAMU - UDAH AKU SESUAIKAN SAMA KOLOM ASLI
   Future<List<ProductData>> getAllProducts() => select(products).get();
 
   Future<void> prosesTransaksiPenyimpanan({
@@ -90,32 +71,24 @@ class LocalDatabase extends _$LocalDatabase {
   }) async {
     await transaction(() async {
       await into(transactions).insert(dataTransaksi);
-
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        // potong stok
         final prod = await (select(products)..where((t) => t.id.equals(item.productId.value))).getSingle();
         await (update(products)..where((t) => t.id.equals(item.productId.value))).write(
           ProductsCompanion(stock: Value(prod.stock - item.quantity.value)),
         );
       }
-
-      // kalau masih ada sisa hutang, catat piutang
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
-        final receivableId = 'RC-${dataTransaksi.id.value}';
         await into(receivables).insert(
           ReceivablesCompanion.insert(
-            id: receivableId,
+            id: 'RC-${dataTransaksi.id.value}',
             transactionId: dataTransaksi.id.value,
             customerId: dataTransaksi.customerId.value!,
             totalAmount: dataTransaksi.grandTotal.value,
             paidAmount: Value(dataTransaksi.payAmount.value),
             remainingAmount: dataTransaksi.remainingDebt.value,
             dueDate: DateTime.now().add(const Duration(days: 14)),
-            status: Value(DebtStatus.tentukanStatus(
-              dataTransaksi.remainingDebt.value,
-              dataTransaksi.payAmount.value,
-            )),
+            status: Value(DebtStatus.tentukanStatus(dataTransaksi.remainingDebt.value, dataTransaksi.payAmount.value)),
           ),
         );
       }
