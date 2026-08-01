@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import '../../../../core/database/local_database.dart';
-import '../../../../core/database/daos/user_dao.dart';
+import '../../../core/database/local_database.dart';
+import '../../../core/database/daos/user_dao.dart';
 
 class DetailSalesmanPage extends ConsumerStatefulWidget {
   final UserData user;
