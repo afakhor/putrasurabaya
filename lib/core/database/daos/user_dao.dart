@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/user_tables.dart';
+import 'package:ud_putra_kasir/core/database/tables/user_table.dart';
 
 part 'user_dao.g.dart';
 
