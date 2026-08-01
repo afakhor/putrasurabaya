@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/utils/config.dart';
 import 'core/database/local_database.dart';
 import 'features/auth/presentation/pages/login_main_page.dart';
-import 'features/auth/providers/auth_provider.dart';
+import 'features/auth/auth_provider.dart';
 import 'features/auth/rooms/superuser_shell.dart';
 import 'features/auth/rooms/admin_shell.dart';
 import 'features/auth/rooms/salesman_shell.dart';
