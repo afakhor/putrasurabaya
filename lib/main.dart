@@ -84,26 +84,24 @@ class AppEntry extends ConsumerWidget {
     );
   }
 
-  // INI TADI YANG MERAH KARENA UserData GAK KE-IMPORT
-  Widget _buildBody(AuthState authState, UserData? user) {
-    if (authState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (user == null) {
+ 
+Widget _buildBody(AsyncValue<UserData?> authState, UserData? user) {
+  if (authState.isLoading) {
+    return const Center(child: CircularProgressIndicator());
+  }
+  if (user == null) {
+    return const LoginMainPage();
+  }
+  switch (user.role) {
+    case UserRole.owner:
+    case UserRole.superuser:
+      return const SuperuserShell();
+    case UserRole.admin:
+    case UserRole.kasir:
+      return const AdminShell();
+    case UserRole.salesman:
+      return SalesmanShell(user: user);
+    default:
       return const LoginMainPage();
-    }
-
-    switch (user.role) {
-      case UserRole.owner:
-      case UserRole.superuser:
-        return const SuperuserShell();
-      case UserRole.admin:
-      case UserRole.kasir:
-        return const AdminShell();
-      case UserRole.salesman:
-        return SalesmanShell(user: user);
-      default:
-        return const LoginMainPage();
-    }
   }
 }
