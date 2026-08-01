@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart';
-import 'package:ud_putra_kasir/core/database/tables/product_tables.dart';
+import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
 
 @DataClassName('StockMutationData')
 class StockMutations extends Table {
