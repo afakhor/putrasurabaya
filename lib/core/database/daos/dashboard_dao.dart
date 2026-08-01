@@ -11,8 +11,14 @@ import 'dashboard_finance_summary.dart';
 part 'dashboard_dao.g.dart';
 
 @DriftAccessor(tables: [
-  Payables, Receivables, Transactions, TransactionItems, Expenses, Products,
-  AuditLogs, FraudAlerts
+  Payables,
+  Receivables,
+  Transactions,
+  TransactionItems,
+  Expenses,
+  Products,
+  AuditLogs,
+  FraudAlerts
 ])
 class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMixin {
   DashboardDao(LocalDatabase db) : super(db);
@@ -48,7 +54,8 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
 
     final todayProfitStream = (select(transactionItems).join([
       innerJoin(transactions, transactions.id.equalsExp(transactionItems.transactionId)),
-    ])..where(transactions.date.isBetweenValues(startOfDay, endOfDay)))
+    ])
+         ..where(transactions.date.isBetweenValues(startOfDay, endOfDay)))
        .watch()
        .map((rows) {
       double profit = 0.0;
@@ -67,7 +74,6 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
        .watchSingle()
        .map((row) => row.read(totalExpense)?? 0.0);
 
-    // FIX: Products gak ada minStock & status, pakai stock < 5
     final productCount = products.id.count();
     final lowStockCountStream = (selectOnly(products)
          ..addColumns([productCount])
@@ -75,35 +81,44 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
        .watchSingle()
        .map((row) => row.read(productCount)?? 0);
 
-    return Rx.combineLatest6(payablesStream, receivablesStream, todaySalesStream,
-        todayProfitStream, todayExpensesStream, lowStockCountStream,
-        (pData, rData, sData, profit, expense, lowStock) => DashboardFinanceSummary(
-              totalSisaHutang: (pData['total'] as num).toDouble(),
-              jumlahHutangAktif: pData['count'] as int,
-              totalSisaPiutang: (rData['total'] as num).toDouble(),
-              jumlahPiutangAktif: rData['count'] as int,
-              omsetHariIni: (sData['omset'] as num).toDouble(),
-              jumlahTransaksiHariIni: sData['jumlahTransaksi'] as int,
-              labaKotorHariIni: profit,
-              pengeluaranHariIni: expense,
-              stokMenipisCount: lowStock,
-              // alias biar dashboard_owner_page lama tetap jalan
-              todaySales: (sData['omset'] as num).toDouble(),
-              totalReceivable: (rData['total'] as num).toDouble(),
-            ));
+    return Rx.combineLatest6(
+      payablesStream,
+      receivablesStream,
+      todaySalesStream,
+      todayProfitStream,
+      todayExpensesStream,
+      lowStockCountStream,
+      (pData, rData, sData, profit, expense, lowStock) => DashboardFinanceSummary(
+        totalSisaHutang: (pData['total'] as num).toDouble(),
+        jumlahHutangAktif: pData['count'] as int,
+        totalSisaPiutang: (rData['total'] as num).toDouble(),
+        jumlahPiutangAktif: rData['count'] as int,
+        omsetHariIni: (sData['omset'] as num).toDouble(),
+        jumlahTransaksiHariIni: sData['jumlahTransaksi'] as int,
+        labaKotorHariIni: profit,
+        pengeluaranHariIni: expense,
+        stokMenipisCount: lowStock,
+        todaySales: (sData['omset'] as num).toDouble(),
+        totalReceivable: (rData['total'] as num).toDouble(),
+      ),
+    );
   }
 
   Future<List<ProductData>> getLowStockProducts() {
     return (select(products)..where((tbl) => tbl.stock.isSmallerThanValue(5))).get();
   }
 
-  // TAMBAHAN BIAR audit_fraud_page & dashboard_owner_page GAK ERROR LAGI
   Stream<List<FraudAlertData>> watchActiveFraudAlerts() {
-    return (select(fraudAlerts)..orderBy([(t) => OrderingTerm.desc(t.createdAt))]).watch();
+    return (select(fraudAlerts)
+         ..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)])
+    ).watch();
   }
 
   Stream<List<AuditLogData>> watchRecentAuditLogs(int limit) {
-    return (select(auditLogs)..orderBy([(t) => OrderingTerm.desc(t.createdAt)])..limit(limit)).watch();
+    return (select(auditLogs)
+         ..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)])
+         ..limit(limit)
+    ).watch();
   }
 
   Stream<String> watchOwnerRiskStatus() {
