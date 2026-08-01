@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/customer_tables.dart'; // Alias safety check
-import 'package:ud_putra_kasir/core/database/tables/customer_tables.dart';
-import 'package:ud_putra_kasir/core/database/tables/finance_tables.dart';
+import 'package:ud_putra_kasir/core/database/tables/customer_table.dart'; // Alias safety check
+import 'package:ud_putra_kasir/core/database/tables/customer_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
 
 part 'receivables_dao.g.dart';
 
