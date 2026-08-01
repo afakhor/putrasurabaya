@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart';
-import 'product_tables.dart';
+import 'product_table.dart';
 import 'supplier_table.dart';
 
 // ==========================================
