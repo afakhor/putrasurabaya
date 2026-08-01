@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart';
-import 'package:ud_putra_kasir/core/constants/constant_debt_status.dart';
+import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 import 'category_table.dart';
 import 'customer_table.dart';
 import 'transaction_table.dart';
