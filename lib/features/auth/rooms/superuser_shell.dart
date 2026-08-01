@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../pages/dashboard_owner_page.dart';
-import '../pages/manage_users_page.dart';
-import '../pages/audit_fraud_page.dart';
-import '../pages/master_data_page.dart';
+import '../superuser/dashboard_owner_page.dart';
+import '../superuser/manage_users_page.dart';
+import '../superuser/audit_fraud_page.dart';
+import '../superuser/master_data_page.dart';
 import '../auth_provider.dart';
 
 class SuperuserShell extends ConsumerStatefulWidget {
