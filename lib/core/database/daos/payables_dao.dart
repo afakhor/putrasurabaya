@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Import terpadu menggunakan package scheme konsisten
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/finance_tables.dart';
-import 'package:ud_putra_kasir/core/database/tables/supplier_tables.dart';
+import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 
 part 'payables_dao.g.dart';
