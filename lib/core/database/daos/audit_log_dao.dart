@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Import konsisten sesuai struktur project
 import 'package:ud_putra_kasir/core/constants/audit_constants.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/audit_tables.dart';
+import 'package:ud_putra_kasir/core/database/tables/audit_table.dart';
 
 part 'audit_log_dao.g.dart';
 
