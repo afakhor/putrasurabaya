@@ -14,7 +14,7 @@ import 'tables/audit_log_table.dart';
 import 'constant/constant_debt_status.dart';
 
 import 'daos/user_dao.dart';
-import 'daos/dashboard_dao.dart'; // <-- buat dashboardDao
+import 'daos/dashboard_dao.dart';
 
 part 'local_database.g.dart';
 
@@ -27,15 +27,36 @@ part 'local_database.g.dart';
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
 
-  // INI YANG BIKIN db.userDao & db.dashboardDao BISA DIPANGGIL
   late final UserDao userDao = UserDao(this);
   late final DashboardDao dashboardDao = DashboardDao(this);
 
-  @override int get schemaVersion => 10;
+  @override
+  int get schemaVersion => 11; // NAIK KE 11 BIAR SEED KEJALAN
 
-  @override MigrationStrategy get migration => MigrationStrategy(
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
+      // SEED OWNER ONLY - USERNAME: owner | PASSWORD: owner
+      await into(users).insert(UsersCompanion.insert(
+        id: 'owner-01',
+        name: 'Owner Putra Surabaya',
+        role: 'owner',
+        username: Value('owner'),
+        passwordHash: Value('owner'),
+        pinCode: Value('123456'),
+        status: Value('aktif'),
+        createdAt: Value(DateTime.now()),
+        canOverridePrice: Value(true),
+        canGiveDiscount: Value(true),
+        canVoidTransaction: Value(true),
+        canManageStock: Value(true),
+        canCreateCustomer: Value(true),
+        canCollectPayment: Value(true),
+        canProcessReturn: Value(true),
+        maxDiscountPercent: Value(100),
+        isSynced: Value(false),
+      ));
     },
     onUpgrade: (Migrator m, int from, int to) async {
       if (from < 7) {
@@ -56,6 +77,31 @@ class LocalDatabase extends _$LocalDatabase {
         await m.createTable(purchaseItems);
         await m.createTable(auditLogs);
         await m.createTable(fraudAlerts);
+      }
+      // SEED JIKA UPDATE DARI VERSI LAMA YANG BELUM ADA OWNER
+      if (from < 11) {
+        final count = await (select(users)..where((u) => u.role.equals('owner'))).get();
+        if (count.isEmpty) {
+          await into(users).insert(UsersCompanion.insert(
+            id: 'owner-01',
+            name: 'Owner Putra Surabaya',
+            role: 'owner',
+            username: Value('owner'),
+            passwordHash: Value('owner'),
+            pinCode: Value('123456'),
+            status: Value('aktif'),
+            createdAt: Value(DateTime.now()),
+            canOverridePrice: Value(true),
+            canGiveDiscount: Value(true),
+            canVoidTransaction: Value(true),
+            canManageStock: Value(true),
+            canCreateCustomer: Value(true),
+            canCollectPayment: Value(true),
+            canProcessReturn: Value(true),
+            maxDiscountPercent: Value(100),
+            isSynced: Value(false),
+          ));
+        }
       }
     },
     beforeOpen: (details) async {
