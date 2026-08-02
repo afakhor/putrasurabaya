@@ -4,6 +4,7 @@ import '../superuser/dashboard_owner_page.dart';
 import '../superuser/manage_users_page.dart';
 import '../superuser/audit_fraud_page.dart';
 import '../superuser/master_data_page.dart';
+import '../superuser/owner_settings_page.dart'; // <-- IMPORT INI
 import '../auth_provider.dart';
 
 class SuperuserShell extends ConsumerStatefulWidget {
@@ -30,10 +31,21 @@ class _SuperuserShellState extends ConsumerState<SuperuserShell> {
       appBar: AppBar(
         title: Text('SUPERUSER: ${user?.name ?? ''}'),
         actions: [
-          IconButton(icon: const Icon(Icons.logout), onPressed: () {
-            ref.read(authNotifierProvider.notifier).logout();
-            Navigator.pushReplacementNamed(context, '/login');
-          })
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Ganti Username & Password',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const OwnerSettingsPage()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              ref.read(authNotifierProvider.notifier).logout();
+              Navigator.pushReplacementNamed(context, '/login');
+            },
+          ),
         ],
       ),
       body: _pages[_index],
