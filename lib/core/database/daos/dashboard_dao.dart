@@ -123,7 +123,7 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
     });
   }
 
-  Future<List<Product>> getLowStockProducts() {
+  Future<List<ProductData>> getLowStockProducts() {
     return (select(products)..where((t) => t.stock.isSmallerThanValue(5))).get();
   }
 }
