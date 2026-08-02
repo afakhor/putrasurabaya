@@ -19,10 +19,18 @@ class MasterDataPage extends StatelessWidget {
       itemBuilder: (c,i) => Container(
         decoration: BoxDecoration(color: Colors.white.withOpacity(0.92), borderRadius: BorderRadius.circular(16)),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(menus[i]['icon'] as IconData, size: 36, color: Colors.black),
-          const SizedBox(height: 10),
-          Text(menus[i]['title'] as String, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
-        ]),
+              // ICON SOLID - INI KUNCINYA
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: (m['color'] as Color).withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(m['icon'] as IconData, size: 32, color: m['color'] as Color), // WARNA SOLID, SIZE BESAR
+              ),
+              const SizedBox(height: 12),
+              Text(m['label'] as String, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontFamily: 'Poppins', fontSize: 14)),
+            ],),
       ),
     );
   }
