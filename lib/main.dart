@@ -3,7 +3,9 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/utils/config.dart';
-import 'core/database/local_database.dart'; // <-- GANTI JADI INI, INI YANG BAWA UserData & UserRole
+import 'core/database/local_database.dart';
+import 'core/database/tables/user_table.dart';
+ // <-- GANTI JADI INI, INI YANG BAWA UserData & UserRole
 import 'features/auth/login_main_page.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/auth/rooms/superuser_shell.dart';
