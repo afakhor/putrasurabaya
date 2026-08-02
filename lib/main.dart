@@ -1,149 +1,74 @@
-import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/material.dart';
+import 'dart:math';
+import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/utils/config.dart';
+import 'core/database/local_database.dart'; // UserData
+import 'core/database/tables/user_table.dart'; // UserRole
+import 'features/auth/login_main_page.dart';
+import 'features/auth/auth_provider.dart';
+import 'features/auth/rooms/superuser_shell.dart';
+import 'features/auth/rooms/admin_shell.dart';
+import 'features/auth/rooms/salesman_shell.dart';
 
-import 'tables/user_table.dart';
-import 'tables/product_table.dart';
-import 'tables/customer_table.dart';
-import 'tables/transaction_table.dart';
-import 'tables/finance_table.dart';
-import 'tables/supplier_table.dart';
-import 'tables/category_table.dart';
-import 'tables/purchase_table.dart';
-import 'tables/audit_log_table.dart';
-import 'constant/constant_debt_status.dart';
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  final randomTheme = AppThemes.allThemes[Random().nextInt(AppThemes.allThemes.length)];
+  debugPrint('✨ Tema hari ini: ${randomTheme.name} | Total: ${AppThemes.allThemes.length} tema');
+  runApp(ProviderScope(child: MyApp(initialTheme: randomTheme)));
+}
 
-import 'daos/user_dao.dart';
-import 'daos/dashboard_dao.dart';
-
-part 'local_database.g.dart';
-
-@DriftDatabase(tables: [
-  Users, ShiftKasir, Categories, Products, ProductAssets, ProductUnits,
-  ProductVariants, ProductPromos, Suppliers, StockMutations, Purchases,
-  PurchaseItems, Transactions, TransactionItems, Customers, Payables,
-  Receivables, DebtPayments, Expenses, AuditLogs, FraudAlerts,
-])
-class LocalDatabase extends _$LocalDatabase {
-  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
-
-  late final UserDao userDao = UserDao(this);
-  late final DashboardDao dashboardDao = DashboardDao(this);
-
+class MyApp extends StatelessWidget {
+  final AppTheme initialTheme;
+  const MyApp({super.key, required this.initialTheme});
   @override
-  int get schemaVersion => 11; // NAIK KE 11 BIAR SEED KEJALAN
-
-  @override
-  MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (Migrator m) async {
-      await m.createAll();
-      // SEED OWNER ONLY - USERNAME: owner | PASSWORD: owner
-      await into(users).insert(UsersCompanion.insert(
-        id: 'owner-01',
-        name: 'Owner Putra Surabaya',
-        role: 'owner',
-        username: Value('owner'),
-        passwordHash: Value('owner'),
-        pinCode: Value('123456'),
-        status: Value('aktif'),
-        createdAt: Value(DateTime.now()),
-        canOverridePrice: Value(true),
-        canGiveDiscount: Value(true),
-        canVoidTransaction: Value(true),
-        canManageStock: Value(true),
-        canCreateCustomer: Value(true),
-        canCollectPayment: Value(true),
-        canProcessReturn: Value(true),
-        maxDiscountPercent: Value(100),
-        isSynced: Value(false),
-      ));
-    },
-    onUpgrade: (Migrator m, int from, int to) async {
-      if (from < 7) {
-        await m.createTable(shiftKasir);
-        await m.createTable(payables);
-        await m.createTable(receivables);
-        await m.createTable(debtPayments);
-        await m.createTable(expenses);
-      }
-      if (from < 8) await m.addColumn(users, users.apiKey);
-      if (from < 9) {
-        await m.addColumn(products, products.rackLocation);
-        await m.addColumn(products, products.allowMinusStock);
-      }
-      if (from < 10) {
-        await m.createTable(categories);
-        await m.createTable(purchases);
-        await m.createTable(purchaseItems);
-        await m.createTable(auditLogs);
-        await m.createTable(fraudAlerts);
-      }
-      // SEED JIKA UPDATE DARI VERSI LAMA YANG BELUM ADA OWNER
-      if (from < 11) {
-        final count = await (select(users)..where((u) => u.role.equals('owner'))).get();
-        if (count.isEmpty) {
-          await into(users).insert(UsersCompanion.insert(
-            id: 'owner-01',
-            name: 'Owner Putra Surabaya',
-            role: 'owner',
-            username: Value('owner'),
-            passwordHash: Value('owner'),
-            pinCode: Value('123456'),
-            status: Value('aktif'),
-            createdAt: Value(DateTime.now()),
-            canOverridePrice: Value(true),
-            canGiveDiscount: Value(true),
-            canVoidTransaction: Value(true),
-            canManageStock: Value(true),
-            canCreateCustomer: Value(true),
-            canCollectPayment: Value(true),
-            canProcessReturn: Value(true),
-            maxDiscountPercent: Value(100),
-            isSynced: Value(false),
-          ));
-        }
-      }
-    },
-    beforeOpen: (details) async {
-      await customStatement('PRAGMA foreign_keys = ON;');
-    },
-  );
-
-  Future<List<ProductData>> getAllProducts() => select(products).get();
-
-  Future<void> prosesTransaksiPenyimpanan({
-    required TransactionsCompanion dataTransaksi,
-    required List<TransactionItemsCompanion> itemTransaksi,
-  }) async {
-    await transaction(() async {
-      await into(transactions).insert(dataTransaksi);
-      for (final item in itemTransaksi) {
-        await into(transactionItems).insert(item);
-        final prod = await (select(products)..where((t) => t.id.equals(item.productId.value))).getSingle();
-        await (update(products)..where((t) => t.id.equals(item.productId.value))).write(
-          ProductsCompanion(stock: Value(prod.stock - item.quantity.value)),
-        );
-      }
-      if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
-        await into(receivables).insert(
-          ReceivablesCompanion.insert(
-            id: 'RC-${dataTransaksi.id.value}',
-            transactionId: dataTransaksi.id.value,
-            customerId: dataTransaksi.customerId.value!,
-            totalAmount: dataTransaksi.grandTotal.value,
-            paidAmount: Value(dataTransaksi.payAmount.value),
-            remainingAmount: dataTransaksi.remainingDebt.value,
-            dueDate: DateTime.now().add(const Duration(days: 14)),
-            status: Value(DebtStatus.tentukanStatus(dataTransaksi.remainingDebt.value, dataTransaksi.payAmount.value)),
-          ),
-        );
-      }
-    });
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'UD PUTRA KASIR',
+      theme: initialTheme.themeData,
+      home: initialTheme.backgroundBuilder(child: const AppEntry()),
+    );
   }
 }
 
-final localDatabaseProvider = Provider<LocalDatabase>((ref) {
-  final db = LocalDatabase();
-  ref.onDispose(() => db.close());
-  return db;
-});
+class AppEntry extends ConsumerWidget {
+  const AppEntry({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authNotifierProvider);
+    final currentUser = ref.watch(currentUserProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        backgroundColor: isDark ? Colors.black.withOpacity(0.4) : Colors.white.withOpacity(0.75),
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: ClipRRect(
+          child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), child: Container(color: Colors.transparent)),
+        ),
+        title: Text(currentUser == null ? 'PUTRA SURABAYA - iPOS 5' : '${currentUser.role.toUpperCase()}: ${currentUser.name}', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 14)),
+        actions: [if (currentUser != null) IconButton(icon: const Icon(Icons.logout), onPressed: () => ref.read(authNotifierProvider.notifier).logout())],
+      ),
+      body: _buildBody(authState, currentUser),
+    );
+  }
+
+  Widget _buildBody(AsyncValue<UserData?> authState, UserData? user) {
+    if (authState.isLoading) return const Center(child: CircularProgressIndicator());
+    if (user == null) return const LoginMainPage();
+    switch (user.role) {
+      case UserRole.owner:
+      case UserRole.superuser:
+        return const SuperuserShell();
+      case UserRole.admin:
+      case UserRole.kasir:
+        return const AdminShell();
+      case UserRole.salesman:
+        return SalesmanShell(user: user);
+      default:
+        return const LoginMainPage();
+    }
+  }
+}
