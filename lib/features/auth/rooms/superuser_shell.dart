@@ -23,7 +23,7 @@ class _SuperuserShellState extends ConsumerState<SuperuserShell> {
     ManageUsersPage(),
     AuditFraudPage(),
     MasterDataPage(),
-    Center(child: Text('Laporan & Tutup Buku', style: TextStyle(color: Colors.black))),
+    Center(child: Text('Laporan & Tutup Buku', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold))),
   ];
 
   Future<void> _doLogout() async {
@@ -31,11 +31,15 @@ class _SuperuserShellState extends ConsumerState<SuperuserShell> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        title: const Text('Logout?', style: TextStyle(color: Colors.black)),
-        content: const Text('Yakin mau keluar dari Superuser?', style: TextStyle(color: Colors.black54)),
+        title: const Text('Logout?', style: TextStyle(color: Colors.black, fontFamily: 'Poppins')),
+        content: const Text('Yakin mau keluar?', style: TextStyle(color: Colors.black54)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
-          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), onPressed: () => Navigator.pop(ctx, true), child: const Text('Logout')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Logout'),
+          ),
         ],
       ),
     );
@@ -52,18 +56,21 @@ class _SuperuserShellState extends ConsumerState<SuperuserShell> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
+    // JANGAN pakai Theme di sini - pakai tema random dari main.dart
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.transparent, // PENTING: biar blob tema random kelihatan
+      extendBody: true,
       appBar: AppBar(
-        backgroundColor: Colors.white.withOpacity(0.85),
+        backgroundColor: Colors.white.withOpacity(0.82),
         elevation: 0,
         flexibleSpace: ClipRRect(
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: Container(color: Colors.transparent),
           ),
         ),
-        title: Text('SUPERUSER: ${user?.name ?? ''}', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Poppins')),
+        title: Text('SUPERUSER: ${user?.name ?? ''}',
+            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Poppins')),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings, color: Colors.black87, size: 26),
@@ -80,9 +87,9 @@ class _SuperuserShellState extends ConsumerState<SuperuserShell> {
       body: _pages[_index],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.90),
+          color: Colors.white.withOpacity(0.90), // KACA
           border: const Border(top: BorderSide(color: Colors.black12)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, -2))],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, -3))],
         ),
         child: NavigationBar(
           backgroundColor: Colors.transparent,
