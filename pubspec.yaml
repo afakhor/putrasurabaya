@@ -29,6 +29,7 @@ dependencies:
   screenshot: ^3.0.0      # Untuk capture widget
   qr_flutter: ^4.1.0      # Untuk membuat QR Code
   share_plus: ^10.0.0     # Untuk mengirim file ke WhatsApp
+  shared_preferences: ^2.2.2
   
 
 dev_dependencies:
