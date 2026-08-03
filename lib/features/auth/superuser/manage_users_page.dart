@@ -111,7 +111,81 @@ class ManageUsersPage extends ConsumerWidget {
   }
 
   void _showFullEditDialog(BuildContext context, WidgetRef ref, UserData u) {
-    //... isi dialog edit lengkap punyamu, tetap sama, tidak usah diubah
-    // di dalamnya kamu sudah ada tombol ke ManagePermissionPage dan DetailSalesmanPage juga
+    final nameC = TextEditingController(text: u.name);
+    final usernameC = TextEditingController(text: u.username?? '');
+    final passC = TextEditingController(text: u.passwordHash?? '');
+    final pinC = TextEditingController(text: u.pinCode?? '');
+    final maxDiscC = TextEditingController(text: u.maxDiscountPercent.toString());
+    final areaC = TextEditingController(text: u.salesArea?? '');
+
+    bool canOverride = u.canOverridePrice;
+    bool canDiscount = u.canGiveDiscount;
+    bool canVoid = u.canVoidTransaction;
+    bool canStock = u.canManageStock;
+    bool canCreateCust = u.canCreateCustomer;
+    bool canCollect = u.canCollectPayment;
+    bool canReturn = u.canProcessReturn;
+    String status = u.status;
+    String role = u.role;
+
+    showDialog(context: context, builder: (ctx) {
+      return StatefulBuilder(builder: (ctx, setSt) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: Text('Kelola: ${u.name}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('1. UBAH USERNAME & PASSWORD', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Nama Lengkap')),
+                TextField(controller: usernameC, decoration: const InputDecoration(labelText: 'Username (login)')),
+                TextField(controller: passC, decoration: const InputDecoration(labelText: 'Password Baru')),
+                TextField(controller: pinC, decoration: const InputDecoration(labelText: 'PIN 6 digit')),
+                TextField(controller: areaC, decoration: const InputDecoration(labelText: 'Area / Alamat')),
+                DropdownButton<String>(value: role, isExpanded: true, items: const [DropdownMenuItem(value: 'salesman', child: Text('Salesman')), DropdownMenuItem(value: 'kasir', child: Text('Kasir/Admin')), DropdownMenuItem(value: 'owner', child: Text('Owner'))], onChanged: (v) => setSt(() => role = v!)),
+                DropdownButton<String>(value: status, isExpanded: true, items: const [DropdownMenuItem(value: 'aktif', child: Text('Aktif')), DropdownMenuItem(value: 'non_aktif', child: Text('Non Aktif')), DropdownMenuItem(value: 'suspended', child: Text('Suspended'))], onChanged: (v) => setSt(() => status = v!)),
+                const Divider(),
+                const Text('2. CHECKLIST HALAMAN SALESMAN', style: TextStyle(fontWeight: FontWeight.bold)),
+                CheckboxListTile(value: canCreateCust, dense: true, title: const Text('Boleh Buat Customer', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canCreateCust = v!)),
+                CheckboxListTile(value: canCollect, dense: true, title: const Text('Boleh Tagih Piutang', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canCollect = v!)),
+                CheckboxListTile(value: canReturn, dense: true, title: const Text('Boleh Proses Retur', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canReturn = v!)),
+                const Divider(),
+                const Text('3. KELOLA PENTING LAINNYA', style: TextStyle(fontWeight: FontWeight.bold)),
+                CheckboxListTile(value: canStock, dense: true, title: const Text('Kelola Stok & Master', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canStock = v!)),
+                CheckboxListTile(value: canVoid, dense: true, title: const Text('Boleh Void Transaksi', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canVoid = v!)),
+                CheckboxListTile(value: canOverride, dense: true, title: const Text('Boleh Override Harga', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canOverride = v!)),
+                CheckboxListTile(value: canDiscount, dense: true, title: const Text('Boleh Kasih Diskon', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canDiscount = v!)),
+                TextField(controller: maxDiscC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Max Diskon %')),
+                const Divider(),
+                const Text('4. GENERATOR API KEY (LAMA)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                Text('Key saat ini: ${u.apiKey?? "-"}', style: const TextStyle(fontSize: 11)),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(child: ElevatedButton.icon(onPressed: () async { final dao = ref.read(userDaoProvider); final newKey = await dao.regenerateApiKey(u.id); setSt(() {}); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('New Key: $newKey'))); }, icon: const Icon(Icons.refresh), label: const Text('Regenerate Key'))),
+                  const SizedBox(width: 8),
+                  Expanded(child: OutlinedButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailSalesmanPage(user: u))), icon: const Icon(Icons.qr_code), label: const Text('Lihat QR'))),
+                ]),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManagePermissionPage(user: u))), icon: const Icon(Icons.tune), label: const Text('Buka ManagePermissionPage Lama')),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
+              onPressed: () async {
+                final dao = ref.read(userDaoProvider);
+                await dao.updateUserFull(u.id, nameC.text, usernameC.text, passC.text, pinC.text, role, status, canOverride, canDiscount, canVoid, canStock, canCreateCust, canCollect, canReturn, double.tryParse(maxDiscC.text)?? 0.0);
+                await dao.updateUserProfile(userId: u.id, name: nameC.text, username: usernameC.text, salesArea: areaC.text);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text('SIMPAN SEMUA'),
+            ),
+          ],
+        );
+      });
+    });
   }
 }
