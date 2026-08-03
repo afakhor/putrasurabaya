@@ -20,7 +20,7 @@ class ManageUsersPage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       // 1. Posisi FAB
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloated,
       // 2. FAB 10px di atas NavigationBar kaca (65 + 12 margin + 10 jarak = 87)
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 87),
@@ -36,7 +36,7 @@ class ManageUsersPage extends ConsumerWidget {
           ),
           child: IconButton(
             onPressed: () => _showAddSalesmanDialog(context, ref),
-            icon: const Icon(Icons.person_add),
+            icon: Icon(Icons.person_add),
             color: Colors.white, // <-- icon pasti putih
             iconSize: 26,
             tooltip: 'Tambah Salesman',
