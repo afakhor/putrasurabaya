@@ -32,7 +32,7 @@ class ManageUsersPage extends ConsumerWidget {
           itemBuilder: (c, i) {
             final u = list[i];
             return Container(
-              margin: const EdgeInsets.only(bottom: 70),
+              margin: const EdgeInsets.only(bottom: 90),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.92),
                 borderRadius: BorderRadius.circular(14),
