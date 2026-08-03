@@ -19,75 +19,75 @@ class ManageUsersPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      // 1. Posisi FAB
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      // 2. FAB 10px di atas NavigationBar kaca (65 + 12 margin + 10 jarak = 87)
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 87),
-        child: Container(
-          width: 56,
-          height: 56,
-          decoration: const BoxDecoration(
-            color: Colors.black,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3))
-            ],
-          ),
-          child: IconButton(
-            onPressed: () => _showAddSalesmanDialog(context, ref),
-            icon: Icon(Icons.person_add),
-            color: Colors.white, // <-- icon pasti putih
-            iconSize: 26,
-            tooltip: 'Tambah Salesman',
-          ),
-        ),
-      ),
       body: usersAsync.when(
-        data: (list) => ListView.builder(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 120), // bawah 120 biar gak ketutup FAB + Navbar
-          itemCount: list.length,
-          itemBuilder: (c, i) {
-            final u = list[i];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10), // balikin ke 10 aja
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.92),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.black12),
-              ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  child: Text(u.name.isNotEmpty? u.name[0].toUpperCase() : '?'),
-                ),
-                title: Text(u.name, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${u.role.toUpperCase()} | ${u.status} | ${u.username?? "-"}', style: const TextStyle(color: Colors.black87, fontSize: 12, fontWeight: FontWeight.w500)),
-                    Text('API: ${u.apiKey?? "No API Key"} | Disc Max: ${u.maxDiscountPercent}%', style: const TextStyle(color: Colors.black54, fontSize: 10)),
-                    Text('Akses: ${u.canManageStock? "Master " : ""}${u.canCreateCustomer? "Cust " : ""}${u.canCollectPayment? "Tagih " : ""}${u.canVoidTransaction? "Void" : ""}', style: const TextStyle(color: Colors.blueGrey, fontSize: 10)),
-                  ],
-                ),
-                isThreeLine: true,
-                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                  if (u.role == UserRole.salesman)
-                    IconButton(
-                      tooltip: 'QR API Key',
-                      icon: const Icon(Icons.qr_code, color: Colors.black),
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailSalesmanPage(user: u))),
-                    ),
-                  IconButton(
-                    tooltip: 'Kelola Akses & Login',
-                    icon: const Icon(Icons.settings, color: Colors.black),
-                    onPressed: () => _showFullEditDialog(context, ref, u),
+        data: (list) => Stack(
+          children: [
+            // LIST USER
+            ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
+              itemCount: list.length,
+              itemBuilder: (c, i) {
+                final u = list[i];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.92),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.black12),
                   ),
-                ]),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      child: Text(u.name.isNotEmpty? u.name[0].toUpperCase() : '?'),
+                    ),
+                    title: Text(u.name, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${u.role.toUpperCase()} | ${u.status} | ${u.username?? "-"}', style: const TextStyle(color: Colors.black87, fontSize: 12, fontWeight: FontWeight.w500)),
+                        Text('API: ${u.apiKey?? "No API Key"} | Disc Max: ${u.maxDiscountPercent}%', style: const TextStyle(color: Colors.black54, fontSize: 10)),
+                        Text('Akses: ${u.canManageStock? "Master " : ""}${u.canCreateCustomer? "Cust " : ""}${u.canCollectPayment? "Tagih " : ""}${u.canVoidTransaction? "Void" : ""}', style: const TextStyle(color: Colors.blueGrey, fontSize: 10)),
+                      ],
+                    ),
+                    isThreeLine: true,
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (u.role == UserRole.salesman)
+                        IconButton(
+                          tooltip: 'QR API Key',
+                          icon: const Icon(Icons.qr_code, color: Colors.black),
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailSalesmanPage(user: u))),
+                        ),
+                      IconButton(
+                        tooltip: 'Kelola Akses & Login',
+                        icon: const Icon(Icons.settings, color: Colors.black),
+                        onPressed: () => _showFullEditDialog(context, ref, u),
+                      ),
+                    ]),
+                  ),
+                );
+              },
+            ),
+            // FAB YANG PASTI DI ATAS NAVBAR KACA - 10px DI ATAS
+            Positioned(
+              right: 16,
+              bottom: 85, // 65 tinggi navbar + 12 margin + 8 jarak = pas 10px di atas
+              child: Material(
+                color: Colors.black,
+                shape: const CircleBorder(),
+                elevation: 8,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => _showAddSalesmanDialog(context, ref),
+                  child: const SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: Icon(Icons.person_add, color: Colors.white, size: 28),
+                  ),
+                ),
               ),
-            );
-          },
+            ),
+          ],
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, s) => Center(child: Text('Error: $e', style: const TextStyle(color: Colors.black))),
