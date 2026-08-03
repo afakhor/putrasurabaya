@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:math' as math;
+import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   final String name;
@@ -9,7 +10,7 @@ class AppTheme {
   const AppTheme({required this.name, required this.themeData, required this.backgroundBuilder});
 }
 
-// ===== REUSABLE GLASS WIDGETS - AMAN ICON =====
+// ===== GLASS CARD AMAN ICON =====
 class GlassCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets? padding;
@@ -77,16 +78,17 @@ class _MeshWrapper extends StatelessWidget {
 }
 
 class AppThemes {
-  // FIX UTAMA ICON ANEH DISINI
+  // FIX ICON ANEH + GOOGLE FONT - INI KUNCINYA
   static ThemeData _baseTheme(Brightness b) {
     final base = ThemeData(brightness: b, useMaterial3: true);
+    final poppinsText = GoogleFonts.poppinsTextTheme(base.textTheme);
     return base.copyWith(
       scaffoldBackgroundColor: Colors.transparent,
-      // INI KUNCI: fontFamily cuma untuk text, bukan icon
-      textTheme: base.textTheme.apply(fontFamily: 'Poppins'),
-      primaryTextTheme: base.primaryTextTheme.apply(fontFamily: 'Poppins'),
+      textTheme: poppinsText,
+      primaryTextTheme: GoogleFonts.poppinsTextTheme(base.primaryTextTheme),
       appBarTheme: const AppBarTheme(backgroundColor: Colors.transparent, elevation: 0, scrolledUnderElevation: 0),
       iconTheme: IconThemeData(color: b == Brightness.dark ? Colors.white : Colors.black87),
+      listTileTheme: ListTileThemeData(iconColor: b == Brightness.dark ? Colors.white : Colors.black87),
     );
   }
 
