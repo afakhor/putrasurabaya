@@ -21,10 +21,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: PUTRA SURABAYA',
+      title: 'UD PUTRA KASIR',
       theme: initialTheme.themeData,
       builder: (context, child) {
-
+        // INI KUNCI: Background di apply di level MaterialApp builder, jadi semua Scaffold transparent bisa tembus
         return initialTheme.backgroundBuilder(child: child?? const SizedBox());
       },
       home: const AppEntry(),
