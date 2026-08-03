@@ -23,7 +23,7 @@ class ManageUsersPage extends ConsumerWidget {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         onPressed: () => _showAddSalesmanDialog(context, ref),
-        child: const Icon(Icons.person_add),
+        child: const Icon(Icons.person_add, color : Colors.white),
       ),
       body: usersAsync.when(
         data: (list) => ListView.builder(
