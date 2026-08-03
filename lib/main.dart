@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
       title: PUTRA SURABAYA',
       theme: initialTheme.themeData,
       builder: (context, child) {
-        // INI KUNCI: Background di apply di level MaterialApp builder, jadi semua Scaffold transparent bisa tembus
+// INI KUNCI: Background di apply di level MaterialApp builder, jadi semua Scaffold transparent bisa tembus
         return initialTheme.backgroundBuilder(child: child?? const SizedBox());
       },
       home: const AppEntry(),
