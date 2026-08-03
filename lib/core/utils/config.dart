@@ -9,7 +9,7 @@ class AppTheme {
   const AppTheme({required this.name, required this.themeData, required this.backgroundBuilder});
 }
 
-// ===== REUSABLE GLASS WIDGETS =====
+// ===== REUSABLE GLASS WIDGETS - AMAN ICON =====
 class GlassCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets? padding;
@@ -27,11 +27,11 @@ class GlassCard extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Container(
-            padding: padding?? const EdgeInsets.all(16),
+            padding: padding ?? const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isDark? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.82),
+              color: isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.82),
               borderRadius: BorderRadius.circular(radius),
-              border: Border.all(color: isDark? Colors.white.withOpacity(0.15) : Colors.black.withOpacity(0.06)),
+              border: Border.all(color: isDark ? Colors.white.withOpacity(0.15) : Colors.black.withOpacity(0.06)),
             ),
             child: child,
           ),
@@ -69,20 +69,26 @@ class _MeshWrapper extends StatelessWidget {
   @override Widget build(BuildContext context) {
     return Stack(children: [
       Container(color: baseColor),
-     ...blobs.map((b) => Positioned(top: b.top, bottom: b.bottom, left: b.left, right: b.right, child: _AnimatedBlob(size: b.size, color: b.color, duration: Duration(seconds: 5 + math.Random().nextInt(4))))),
+      ...blobs.map((b) => Positioned(top: b.top, bottom: b.bottom, left: b.left, right: b.right, child: _AnimatedBlob(size: b.size, color: b.color, duration: Duration(seconds: 5 + math.Random().nextInt(4))))),
       Positioned.fill(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 90, sigmaY: 90), child: Container(color: Colors.transparent))),
-      child, // JANGAN pakai SafeArea di sini, biar Shell yang atur
+      child,
     ]);
   }
 }
 
 class AppThemes {
-  static ThemeData _baseTheme(Brightness b) => ThemeData(
-    useMaterial3: true, fontFamily: 'Poppins',
-    brightness: b,
-    scaffoldBackgroundColor: Colors.transparent,
-    appBarTheme: AppBarTheme(backgroundColor: Colors.transparent, elevation: 0, scrolledUnderElevation: 0),
-  );
+  // FIX UTAMA ICON ANEH DISINI
+  static ThemeData _baseTheme(Brightness b) {
+    final base = ThemeData(brightness: b, useMaterial3: true);
+    return base.copyWith(
+      scaffoldBackgroundColor: Colors.transparent,
+      // INI KUNCI: fontFamily cuma untuk text, bukan icon
+      textTheme: base.textTheme.apply(fontFamily: 'Poppins'),
+      primaryTextTheme: base.primaryTextTheme.apply(fontFamily: 'Poppins'),
+      appBarTheme: const AppBarTheme(backgroundColor: Colors.transparent, elevation: 0, scrolledUnderElevation: 0),
+      iconTheme: IconThemeData(color: b == Brightness.dark ? Colors.white : Colors.black87),
+    );
+  }
 
   static final blendedBright = AppTheme(name: 'Blended Bright Teal', themeData: _baseTheme(Brightness.light), backgroundBuilder: ({required child}) => Stack(children: [ Container(color: const Color(0xFFFFFDF9)), Positioned(top: -100, left: -50, child: _AnimatedBlob(size: 400, color: const Color(0xFFEAD09D).withOpacity(0.9), duration: const Duration(seconds: 6))), Positioned(top: 150, right: -100, child: _AnimatedBlob(size: 450, color: const Color(0xFFB9D7EA).withOpacity(0.9), duration: const Duration(seconds: 8))), Positioned(bottom: -50, left: -100, child: _AnimatedBlob(size: 400, color: const Color(0xFFD6C7E8).withOpacity(0.9), duration: const Duration(seconds: 7))), Positioned.fill(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 70, sigmaY: 70), child: Container(color: Colors.white.withOpacity(0.15)))), SafeArea(child: child), ]));
   static final goldenGreen = AppTheme(name: 'Golden Hour', themeData: _baseTheme(Brightness.light), backgroundBuilder: ({required child}) => Stack(children: [ Container(color: const Color(0xFFDFB76C)), Positioned(bottom: -50, right: -50, child: _AnimatedBlob(size: 380, color: const Color(0xFF9FA872), duration: const Duration(seconds: 5))), Positioned(top: 40, left: 20, child: _AnimatedBlob(size: 200, color: const Color(0xFFFFF9E6), duration: const Duration(seconds: 4))), Positioned.fill(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60), child: Container(color: Colors.transparent))), SafeArea(child: child), ]));
