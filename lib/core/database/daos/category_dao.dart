@@ -49,11 +49,13 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
     );
   }
 
-  Stream<List<CategoryData>> watchByType(String type, {String sort = CategorySort.manual, String keyword = ''}) {
-    var query = select(categories)..where((t) => t.type.equals(type) & t.status.equals(CategoryStatus.aktif));
+    Stream<List<CategoryData>> watchByType(String type, {String sort = CategorySort.manual, String keyword = ''}) {
+    final query = select(categories)..where((t) => t.type.equals(type) & t.status.equals(CategoryStatus.aktif));
+    
     if (keyword.isNotEmpty) {
       query.where((t) => t.name.like('%$keyword%'));
     }
+
     switch (sort) {
       case CategorySort.az:
         query.orderBy([(t) => OrderingTerm(expression: t.name, mode: OrderingMode.asc)]);
@@ -61,11 +63,21 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
       case CategorySort.za:
         query.orderBy([(t) => OrderingTerm(expression: t.name, mode: OrderingMode.desc)]);
         break;
-      case CategorySort.mostUsed:
-        query.orderBy([(t) => OrderingTerm(expression: t.usageCount, mode: OrderingMode.desc)]);
+      case CategorySort.newest:
+        query.orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)]);
         break;
-      default:
-        query.orderBy([(t) => OrderingTerm(expression: t.sortOrder), OrderingTerm(expression: t.name)]);
+      case CategorySort.mostUsed:
+        query.orderBy([
+          (t) => OrderingTerm(expression: t.usageCount, mode: OrderingMode.desc),
+          (t) => OrderingTerm(expression: t.isFavorite, mode: OrderingMode.desc),
+        ]);
+        break;
+      default: // manual
+        query.orderBy([
+          (t) => OrderingTerm(expression: t.isFavorite, mode: OrderingMode.desc),
+          (t) => OrderingTerm(expression: t.sortOrder),
+          (t) => OrderingTerm(expression: t.name),
+        ]);
     }
     return query.watch();
   }
