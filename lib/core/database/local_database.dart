@@ -15,6 +15,7 @@ import 'constant/constant_debt_status.dart';
 
 import 'daos/user_dao.dart';
 import 'daos/dashboard_dao.dart';
+import 'daos/category_dao.dart';
 
 part 'local_database.g.dart';
 
@@ -29,15 +30,15 @@ class LocalDatabase extends _$LocalDatabase {
 
   late final UserDao userDao = UserDao(this);
   late final DashboardDao dashboardDao = DashboardDao(this);
+  late final CategoryDao categoryDao = CategoryDao(this);
 
   @override
-  int get schemaVersion => 11; // NAIK KE 11 BIAR SEED KEJALAN
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
-      // SEED OWNER ONLY - USERNAME: owner | PASSWORD: owner
       await into(users).insert(UsersCompanion.insert(
         id: 'owner-01',
         name: 'Owner Putra Surabaya',
@@ -57,20 +58,9 @@ class LocalDatabase extends _$LocalDatabase {
         maxDiscountPercent: Value(100),
         isSynced: Value(false),
       ));
+      await categoryDao.seedDefaults();
     },
     onUpgrade: (Migrator m, int from, int to) async {
-      if (from < 7) {
-        await m.createTable(shiftKasir);
-        await m.createTable(payables);
-        await m.createTable(receivables);
-        await m.createTable(debtPayments);
-        await m.createTable(expenses);
-      }
-      if (from < 8) await m.addColumn(users, users.apiKey);
-      if (from < 9) {
-        await m.addColumn(products, products.rackLocation);
-        await m.addColumn(products, products.allowMinusStock);
-      }
       if (from < 10) {
         await m.createTable(categories);
         await m.createTable(purchases);
@@ -78,30 +68,23 @@ class LocalDatabase extends _$LocalDatabase {
         await m.createTable(auditLogs);
         await m.createTable(fraudAlerts);
       }
-      // SEED JIKA UPDATE DARI VERSI LAMA YANG BELUM ADA OWNER
-      if (from < 11) {
-        final count = await (select(users)..where((u) => u.role.equals('owner'))).get();
-        if (count.isEmpty) {
-          await into(users).insert(UsersCompanion.insert(
-            id: 'owner-01',
-            name: 'Owner Putra Surabaya',
-            role: 'owner',
-            username: Value('owner'),
-            passwordHash: Value('owner'),
-            pinCode: Value('123456'),
-            status: Value('aktif'),
-            createdAt: Value(DateTime.now()),
-            canOverridePrice: Value(true),
-            canGiveDiscount: Value(true),
-            canVoidTransaction: Value(true),
-            canManageStock: Value(true),
-            canCreateCustomer: Value(true),
-            canCollectPayment: Value(true),
-            canProcessReturn: Value(true),
-            maxDiscountPercent: Value(100),
-            isSynced: Value(false),
-          ));
-        }
+      if (from < 12) {
+        try {
+          await m.addColumn(categories, categories.code);
+          await m.addColumn(categories, categories.slug);
+          await m.addColumn(categories, categories.iconName);
+          await m.addColumn(categories, categories.colorHex);
+          await m.addColumn(categories, categories.imageUrl);
+          await m.addColumn(categories, categories.parentId);
+          await m.addColumn(categories, categories.level);
+          await m.addColumn(categories, categories.sortOrder);
+          await m.addColumn(categories, categories.productCount);
+          await m.addColumn(categories, categories.usageCount);
+          await m.addColumn(categories, categories.isFavorite);
+          await m.addColumn(categories, categories.isSystem);
+        } catch (_) {}
+        final cats = await select(categories).get();
+        if (cats.isEmpty) await categoryDao.seedDefaults();
       }
     },
     beforeOpen: (details) async {
@@ -124,7 +107,7 @@ class LocalDatabase extends _$LocalDatabase {
           ProductsCompanion(stock: Value(prod.stock - item.quantity.value)),
         );
       }
-      if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
+      if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value!= null) {
         await into(receivables).insert(
           ReceivablesCompanion.insert(
             id: 'RC-${dataTransaksi.id.value}',
