@@ -20,7 +20,7 @@ class ManageUsersPage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       // 1. Posisi FAB
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloated,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       // 2. FAB 10px di atas NavigationBar kaca (65 + 12 margin + 10 jarak = 87)
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 87),
