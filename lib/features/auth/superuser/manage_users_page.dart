@@ -28,7 +28,7 @@ class ManageUsersPage extends ConsumerWidget {
           width: 56,
           height: 56,
           decoration: const BoxDecoration(
-            color: Colors.white,
+            color: Colors.black,
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3))
