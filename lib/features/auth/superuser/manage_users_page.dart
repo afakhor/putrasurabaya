@@ -19,20 +19,38 @@ class ManageUsersPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        onPressed: () => _showAddSalesmanDialog(context, ref),
-        child: const Icon(Icons.person_add, color : Colors.white),
+      // 1. Posisi FAB
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      // 2. FAB 10px di atas NavigationBar kaca (65 + 12 margin + 10 jarak = 87)
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 87),
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: const BoxDecoration(
+            color: Colors.black,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3))
+            ],
+          ),
+          child: IconButton(
+            onPressed: () => _showAddSalesmanDialog(context, ref),
+            icon: const Icon(Icons.person_add),
+            color: Colors.white, // <-- icon pasti putih
+            iconSize: 26,
+            tooltip: 'Tambah Salesman',
+          ),
+        ),
       ),
       body: usersAsync.when(
         data: (list) => ListView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 120), // bawah 120 biar gak ketutup FAB + Navbar
           itemCount: list.length,
           itemBuilder: (c, i) {
             final u = list[i];
             return Container(
-              margin: const EdgeInsets.only(bottom: 90),
+              margin: const EdgeInsets.only(bottom: 10), // balikin ke 10 aja
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.92),
                 borderRadius: BorderRadius.circular(14),
@@ -55,14 +73,12 @@ class ManageUsersPage extends ConsumerWidget {
                 ),
                 isThreeLine: true,
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                  // 1. GENERATOR LAMA TETAP (QR)
                   if (u.role == UserRole.salesman)
                     IconButton(
                       tooltip: 'QR API Key',
                       icon: const Icon(Icons.qr_code, color: Colors.black),
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailSalesmanPage(user: u))),
                     ),
-                  // 2. KELOLA CHECKLIST HALAMAN + UBAH USERNAME/PASSWORD
                   IconButton(
                     tooltip: 'Kelola Akses & Login',
                     icon: const Icon(Icons.settings, color: Colors.black),
@@ -79,7 +95,6 @@ class ManageUsersPage extends ConsumerWidget {
     );
   }
 
-  // DIALOG TAMBAH SALESMAN BARU (LAMA TETAP)
   void _showAddSalesmanDialog(BuildContext context, WidgetRef ref) {
     final nameCtrl = TextEditingController();
     final pinCtrl = TextEditingController();
@@ -108,7 +123,6 @@ class ManageUsersPage extends ConsumerWidget {
     ));
   }
 
-  // DIALOG EDIT LENGKAP: UBAH USERNAME/PASSWORD + CHECKLIST HALAMAN + KELOLA PENTING + GENERATOR
   void _showFullEditDialog(BuildContext context, WidgetRef ref, UserData u) {
     final nameC = TextEditingController(text: u.name);
     final usernameC = TextEditingController(text: u.username?? '');
@@ -136,7 +150,6 @@ class ManageUsersPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // --- UBAH USERNAME & PASSWORD ---
                 const Text('1. UBAH USERNAME & PASSWORD', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
                 TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Nama Lengkap')),
                 TextField(controller: usernameC, decoration: const InputDecoration(labelText: 'Username (login)')),
@@ -146,13 +159,11 @@ class ManageUsersPage extends ConsumerWidget {
                 DropdownButton<String>(value: role, isExpanded: true, items: const [DropdownMenuItem(value: 'salesman', child: Text('Salesman')), DropdownMenuItem(value: 'kasir', child: Text('Kasir/Admin')), DropdownMenuItem(value: 'owner', child: Text('Owner'))], onChanged: (v) => setSt(() => role = v!)),
                 DropdownButton<String>(value: status, isExpanded: true, items: const [DropdownMenuItem(value: 'aktif', child: Text('Aktif')), DropdownMenuItem(value: 'non_aktif', child: Text('Non Aktif')), DropdownMenuItem(value: 'suspended', child: Text('Suspended'))], onChanged: (v) => setSt(() => status = v!)),
                 const Divider(),
-                // --- CHECKLIST HALAMAN SALESMAN ---
                 const Text('2. CHECKLIST HALAMAN SALESMAN', style: TextStyle(fontWeight: FontWeight.bold)),
                 CheckboxListTile(value: canCreateCust, dense: true, title: const Text('Boleh Buat Customer', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canCreateCust = v!)),
                 CheckboxListTile(value: canCollect, dense: true, title: const Text('Boleh Tagih Piutang', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canCollect = v!)),
                 CheckboxListTile(value: canReturn, dense: true, title: const Text('Boleh Proses Retur', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canReturn = v!)),
                 const Divider(),
-                // --- KELOLA PENTING LAINNYA ---
                 const Text('3. KELOLA PENTING LAINNYA', style: TextStyle(fontWeight: FontWeight.bold)),
                 CheckboxListTile(value: canStock, dense: true, title: const Text('Kelola Stok & Master', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canStock = v!)),
                 CheckboxListTile(value: canVoid, dense: true, title: const Text('Boleh Void Transaksi', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canVoid = v!)),
@@ -160,7 +171,6 @@ class ManageUsersPage extends ConsumerWidget {
                 CheckboxListTile(value: canDiscount, dense: true, title: const Text('Boleh Kasih Diskon', style: TextStyle(fontSize: 13)), onChanged: (v) => setSt(() => canDiscount = v!)),
                 TextField(controller: maxDiscC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Max Diskon %')),
                 const Divider(),
-                // --- GENERATOR LAMA TETAP ---
                 const Text('4. GENERATOR API KEY (LAMA)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
                 Text('Key saat ini: ${u.apiKey?? "-"}', style: const TextStyle(fontSize: 11)),
                 const SizedBox(height: 8),
@@ -181,7 +191,6 @@ class ManageUsersPage extends ConsumerWidget {
               onPressed: () async {
                 final dao = ref.read(userDaoProvider);
                 await dao.updateUserFull(u.id, nameC.text, usernameC.text, passC.text, pinC.text, role, status, canOverride, canDiscount, canVoid, canStock, canCreateCust, canCollect, canReturn, double.tryParse(maxDiscC.text)?? 0.0);
-                // update area juga
                 await dao.updateUserProfile(userId: u.id, name: nameC.text, username: usernameC.text, salesArea: areaC.text);
                 if (ctx.mounted) Navigator.pop(ctx);
               },
