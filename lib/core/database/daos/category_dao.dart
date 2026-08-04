@@ -19,8 +19,8 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
     bool isSystem = true,
     int sortOrder = 0,
   }) async {
-    final id = 'CAT-${DateTime.now().millisecondsSinceEpoch}-${sortOrder}';
-    final code = 'PRK-${(1000 + sortOrder).toString()}';
+    final id = 'CAT-${DateTime.now().millisecondsSinceEpoch}-$sortOrder';
+    final code = 'PRK-${1000 + sortOrder}';
     final slug = name.toLowerCase().replaceAll(' & ', '-').replaceAll(' ', '-').replaceAll('/', '-');
 
     await into(categories).insert(
@@ -49,13 +49,11 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
     );
   }
 
-    Stream<List<CategoryData>> watchByType(String type, {String sort = CategorySort.manual, String keyword = ''}) {
+  Stream<List<CategoryData>> watchByType(String type, {String sort = CategorySort.manual, String keyword = ''}) {
     final query = select(categories)..where((t) => t.type.equals(type) & t.status.equals(CategoryStatus.aktif));
-    
     if (keyword.isNotEmpty) {
       query.where((t) => t.name.like('%$keyword%'));
     }
-
     switch (sort) {
       case CategorySort.az:
         query.orderBy([(t) => OrderingTerm(expression: t.name, mode: OrderingMode.asc)]);
@@ -72,7 +70,7 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
           (t) => OrderingTerm(expression: t.isFavorite, mode: OrderingMode.desc),
         ]);
         break;
-      default: // manual
+      default:
         query.orderBy([
           (t) => OrderingTerm(expression: t.isFavorite, mode: OrderingMode.desc),
           (t) => OrderingTerm(expression: t.sortOrder),
@@ -83,7 +81,9 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
   }
 
   Future<CategoryData?> getCategoryById(String id) => (select(categories)..where((t) => t.id.equals(id))).getSingleOrNull();
+  Future<CategoryData?> getCategoryByName(String name) => (select(categories)..where((t) => t.name.equals(name))).getSingleOrNull();
   Stream<List<CategoryData>> watchProductCategories() => watchByType(CategoryType.product);
+  Future<List<CategoryData>> getAllByType(String type) => (select(categories)..where((t) => t.type.equals(type) & t.status.equals(CategoryStatus.aktif))).get();
 
   Future<void> softDeleteCategory(String id) {
     return (update(categories)..where((t) => t.id.equals(id))).write(
@@ -91,12 +91,31 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
     );
   }
 
-  // SEED 24 KATEGORI PERKAKAS SESUAI REQUEST KAMU
+  // INI YANG BIKIN BUILD KAMU GAGAL KEMARIN - BELUM ADA
+  Future<void> incrementUsage(String id) async {
+    final cat = await (select(categories)..where((t) => t.id.equals(id))).getSingleOrNull();
+    if (cat!= null) {
+      await (update(categories)..where((t) => t.id.equals(id))).write(
+        CategoriesCompanion(usageCount: Value(cat.usageCount + 1), updatedAt: Value(DateTime.now())),
+      );
+    }
+  }
+
+  Future<void> toggleFavorite(String id) async {
+    final cat = await getCategoryById(id);
+    if (cat!= null) {
+      await (update(categories)..where((t) => t.id.equals(id))).write(
+        CategoriesCompanion(isFavorite: Value(!cat.isFavorite), updatedAt: Value(DateTime.now())),
+      );
+    }
+  }
+
+  // SEED 24 KATEGORI PERKAKAS
   Future<void> seedDefaults() async {
     final existing = await (select(categories)..where((t) => t.type.equals(CategoryType.product))).get();
-    if (existing.isNotEmpty) return; // sudah ada, skip
+    if (existing.isNotEmpty) return;
 
-    final List<Map<String, String>> productSeeds = [
+    final productSeeds = [
       {'name': 'Perkakas Tangan', 'icon': 'handyman', 'color': '#FF9800'},
       {'name': 'Perkakas Listrik & Mesin', 'icon': 'power', 'color': '#FFC107'},
       {'name': 'Alat Ukur, Waterpass & Marking', 'icon': 'straighten', 'color': '#03A9F4'},
@@ -125,14 +144,7 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
 
     for (int i = 0; i < productSeeds.length; i++) {
       final d = productSeeds[i];
-      await createCategory(
-        name: d['name']!,
-        type: CategoryType.product,
-        iconName: d['icon'],
-        colorHex: d['color'],
-        sortOrder: i,
-        isFavorite: i < 5, // 5 pertama jadi favorit
-      );
+      await createCategory(name: d['name']!, type: CategoryType.product, iconName: d['icon'], colorHex: d['color'], sortOrder: i, isFavorite: i < 5);
     }
   }
 }
