@@ -13,29 +13,34 @@ class Products extends Table {
   TextColumn get brand => text().nullable()();
   TextColumn get warehouseLocation => text().nullable()();
   TextColumn get tags => text().nullable()();
+  
   RealColumn get buyPrice => real().withDefault(const Constant(0))();
   RealColumn get sellPriceGeneral => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier1 => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier2 => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier3 => real().withDefault(const Constant(0))();
-  RealColumn get sellPrice => real().withDefault(const Constant(0))();
+  RealColumn get sellPrice => real().withDefault(const Constant(0))(); // compat lama
   RealColumn get maxDiscountSales => real().withDefault(const Constant(0))();
   BoolColumn get isPriceLocked => boolean().withDefault(const Constant(true))();
+
   RealColumn get stock => real().withDefault(const Constant(0))();
   RealColumn get minStock => real().withDefault(const Constant(5))();
   RealColumn get maxStock => real().withDefault(const Constant(100))();
   BoolColumn get allowMinusStock => boolean().withDefault(const Constant(false))();
   TextColumn get unit => text().withDefault(const Constant('Pcs'))();
   TextColumn get rackLocation => text().nullable()();
+
   RealColumn get weight => real().withDefault(const Constant(0))();
   TextColumn get dimensions => text().nullable()();
   RealColumn get ppnPercent => real().withDefault(const Constant(0))();
   IntColumn get rewardPoints => integer().withDefault(const Constant(0))();
   DateTimeColumn get expiryDate => dateTime().nullable()();
   TextColumn get statusActive => text().withDefault(const Constant('aktif'))();
+
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().nullable()();
+  
   @override Set<Column> get primaryKey => {id};
 }
 
@@ -84,7 +89,7 @@ class StockMutations extends Table {
   TextColumn get id => text()();
   TextColumn get productId => text().references(Products, #id)();
   TextColumn get variantId => text().nullable()();
-  TextColumn get type => text()(); // opname, sale, purchase, adjust
+  TextColumn get type => text()();
   RealColumn get quantity => real()();
   RealColumn get hppSnapshot => real().withDefault(const Constant(0))();
   RealColumn get currentStockSnapshot => real().withDefault(const Constant(0))();
