@@ -89,10 +89,12 @@ class StockMutations extends Table {
   TextColumn get id => text()();
   TextColumn get productId => text().references(Products, #id)();
   TextColumn get variantId => text().nullable()();
-  TextColumn get type => text()();
-  RealColumn get quantity => real()();
-  RealColumn get hppSnapshot => real().withDefault(const Constant(0))();
-  RealColumn get currentStockSnapshot => real().withDefault(const Constant(0))();
+  TextColumn get type => text()(); // PEMBELIAN, PENJUALAN, ITEM_MASUK, ITEM_KELUAR, OPNAME, PERAKITAN_BAHAN, PROSES_JADI
+  RealColumn get quantity => real()(); // + / -
+  RealColumn get stockBefore => real().withDefault(const Constant(0.0))(); // <--- WAJIB ADA UNTUK DAO KAMU
+  RealColumn get stockAfter => real().withDefault(const Constant(0.0))(); // <--- WAJIB ADA UNTUK DAO KAMU
+  RealColumn get hppSnapshot => real().withDefault(const Constant(0.0))();
+  RealColumn get currentStockSnapshot => real().withDefault(const Constant(0.0))(); // compat lama
   TextColumn get referenceNo => text()();
   DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
   TextColumn get userId => text().nullable()();
