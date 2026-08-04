@@ -32,7 +32,6 @@ part 'local_database.g.dart';
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
 
-  // 7 DAO TERHUBUNG SEMUA
   late final UserDao userDao = UserDao(this);
   late final DashboardDao dashboardDao = DashboardDao(this);
   late final CategoryDao categoryDao = CategoryDao(this);
@@ -42,30 +41,19 @@ class LocalDatabase extends _$LocalDatabase {
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
 
   @override
-  int get schemaVersion => 14; // FINAL UPGRADE 14
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
       await into(users).insert(UsersCompanion.insert(
-        id: 'owner-01',
-        name: 'Owner Putra Surabaya',
-        role: 'owner',
-        username: Value('owner'),
-        passwordHash: Value('owner'),
-        pinCode: Value('123456'),
-        status: Value('aktif'),
-        createdAt: Value(DateTime.now()),
-        canOverridePrice: Value(true),
-        canGiveDiscount: Value(true),
-        canVoidTransaction: Value(true),
-        canManageStock: Value(true),
-        canCreateCustomer: Value(true),
-        canCollectPayment: Value(true),
-        canProcessReturn: Value(true),
-        maxDiscountPercent: Value(100),
-        isSynced: Value(false),
+        id: 'owner-01', name: 'Owner Putra Surabaya', role: 'owner',
+        username: Value('owner'), passwordHash: Value('owner'), pinCode: Value('123456'),
+        status: Value('aktif'), createdAt: Value(DateTime.now()),
+        canOverridePrice: Value(true), canGiveDiscount: Value(true), canVoidTransaction: Value(true),
+        canManageStock: Value(true), canCreateCustomer: Value(true), canCollectPayment: Value(true),
+        canProcessReturn: Value(true), maxDiscountPercent: Value(100), isSynced: Value(false),
       ));
       await categoryDao.seedDefaults();
     },
@@ -119,15 +107,14 @@ class LocalDatabase extends _$LocalDatabase {
         if (cats.isEmpty) await categoryDao.seedDefaults();
       }
       if (from < 14) {
-        // SINKRONISASI STOCK MUTATION DAO EMAS - stockBefore / stockAfter
         try {
           await m.addColumn(stockMutations, stockMutations.stockBefore);
           await m.addColumn(stockMutations, stockMutations.stockAfter);
+          await m.addColumn(stockMutations, stockMutations.currentStockSnapshot);
           await m.addColumn(stockMutations, stockMutations.variantId);
           await m.addColumn(stockMutations, stockMutations.userId);
           await m.addColumn(stockMutations, stockMutations.notes);
         } catch (_) {}
-        // pastikan 24 kategori tetap ada setelah upgrade
         final cats = await select(categories).get();
         if (cats.isEmpty) await categoryDao.seedDefaults();
       }
@@ -149,7 +136,6 @@ class LocalDatabase extends _$LocalDatabase {
         await into(transactionItems).insert(item);
         final prod = await (select(products)..where((t) => t.id.equals(item.productId.value))).getSingle();
         final newStock = prod.stock - item.quantity.value;
-        final beforeStock = prod.stock;
         await (update(products)..where((t) => t.id.equals(item.productId.value))).write(
           ProductsCompanion(stock: Value(newStock)),
         );
@@ -160,7 +146,7 @@ class LocalDatabase extends _$LocalDatabase {
           stockAfter: newStock,
           hpp: prod.buyPrice,
           refNo: dataTransaksi.id.value,
-          notes: 'Penjualan POS - before: $beforeStock',
+          notes: 'Penjualan POS',
         );
       }
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
