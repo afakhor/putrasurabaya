@@ -75,13 +75,14 @@ class MasterDataPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      extendBody : false,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text('Master Data - UD Putra', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 16)),
       ),
       body: GridView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16,16,16,120),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           crossAxisSpacing: 12,
