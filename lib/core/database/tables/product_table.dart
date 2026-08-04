@@ -13,41 +13,36 @@ class Products extends Table {
   TextColumn get brand => text().nullable()();
   TextColumn get warehouseLocation => text().nullable()();
   TextColumn get tags => text().nullable()();
-  
   RealColumn get buyPrice => real().withDefault(const Constant(0))();
   RealColumn get sellPriceGeneral => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier1 => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier2 => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier3 => real().withDefault(const Constant(0))();
-  RealColumn get sellPrice => real().withDefault(const Constant(0))(); // compat lama
+  RealColumn get sellPrice => real().withDefault(const Constant(0))();
   RealColumn get maxDiscountSales => real().withDefault(const Constant(0))();
   BoolColumn get isPriceLocked => boolean().withDefault(const Constant(true))();
-
   RealColumn get stock => real().withDefault(const Constant(0))();
   RealColumn get minStock => real().withDefault(const Constant(5))();
   RealColumn get maxStock => real().withDefault(const Constant(100))();
   BoolColumn get allowMinusStock => boolean().withDefault(const Constant(false))();
   TextColumn get unit => text().withDefault(const Constant('Pcs'))();
   TextColumn get rackLocation => text().nullable()();
-
   RealColumn get weight => real().withDefault(const Constant(0))();
   TextColumn get dimensions => text().nullable()();
   RealColumn get ppnPercent => real().withDefault(const Constant(0))();
   IntColumn get rewardPoints => integer().withDefault(const Constant(0))();
   DateTimeColumn get expiryDate => dateTime().nullable()();
   TextColumn get statusActive => text().withDefault(const Constant('aktif'))();
-
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().nullable()();
-  
   @override Set<Column> get primaryKey => {id};
 }
 
 @DataClassName('ProductAssetData')
 class ProductAssets extends Table {
   TextColumn get id => text()();
-  TextColumn get productId => text().references(Products, #id)();
+  TextColumn get productId => text().references(Products, #id, onDelete: KeyAction.cascade)();
   TextColumn get imagePath => text()();
   BoolColumn get isPrimary => boolean().withDefault(const Constant(false))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
@@ -57,7 +52,7 @@ class ProductAssets extends Table {
 @DataClassName('ProductUnitData')
 class ProductUnits extends Table {
   TextColumn get id => text()();
-  TextColumn get productId => text().references(Products, #id)();
+  TextColumn get productId => text().references(Products, #id, onDelete: KeyAction.cascade)();
   TextColumn get unitName => text()();
   IntColumn get conversion => integer().withDefault(const Constant(1))();
   RealColumn get buyPriceUnit => real().withDefault(const Constant(0))();
@@ -69,7 +64,7 @@ class ProductUnits extends Table {
 @DataClassName('ProductVariantData')
 class ProductVariants extends Table {
   TextColumn get id => text()();
-  TextColumn get productId => text().references(Products, #id)();
+  TextColumn get productId => text().references(Products, #id, onDelete: KeyAction.cascade)();
   TextColumn get skuVariant => text()();
   TextColumn get variantName => text()();
   TextColumn get barcode => text().nullable()();
@@ -85,16 +80,17 @@ class ProductPromos extends Table {
   @override Set<Column> get primaryKey => {id};
 }
 
+@DataClassName('StockMutationData')
 class StockMutations extends Table {
   TextColumn get id => text()();
   TextColumn get productId => text().references(Products, #id)();
   TextColumn get variantId => text().nullable()();
-  TextColumn get type => text()(); // PEMBELIAN, PENJUALAN, ITEM_MASUK, ITEM_KELUAR, OPNAME, PERAKITAN_BAHAN, PROSES_JADI
-  RealColumn get quantity => real()(); // + / -
-  RealColumn get stockBefore => real().withDefault(const Constant(0.0))(); // <--- WAJIB ADA UNTUK DAO KAMU
-  RealColumn get stockAfter => real().withDefault(const Constant(0.0))(); // <--- WAJIB ADA UNTUK DAO KAMU
+  TextColumn get type => text()();
+  RealColumn get quantity => real()();
+  RealColumn get stockBefore => real().withDefault(const Constant(0.0))();
+  RealColumn get stockAfter => real().withDefault(const Constant(0.0))();
   RealColumn get hppSnapshot => real().withDefault(const Constant(0.0))();
-  RealColumn get currentStockSnapshot => real().withDefault(const Constant(0.0))(); // compat lama
+  RealColumn get currentStockSnapshot => real().withDefault(const Constant(0.0))();
   TextColumn get referenceNo => text()();
   DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
   TextColumn get userId => text().nullable()();
