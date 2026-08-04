@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/utils/config.dart';
 import 'product/product_page.dart';
-import 'pos/pos_page.dart';
-import 'stock/stock_mutation_page.dart'; // kartu stok + mutasi
-import 'sales/sales_history_page.dart'; // riwayat penjualan
-import 'debt/debt_receivable_page.dart'; // faktur hutang/piutang
-import 'purchase/purchase_page.dart';
-import 'report/stock_report_page.dart';
+//import 'pos/pos_page.dart';
+//import 'stock/stock_mutation_page.dart'; // kartu stok + mutasi
+//import 'sales/sales_history_page.dart'; // riwayat penjualan
+//import 'debt/debt_receivable_page.dart'; // faktur hutang/piutang
+//import 'purchase/purchase_page.dart';
+//import 'report/stock_report_page.dart';
 
 class MasterDataPage extends StatelessWidget {
   const MasterDataPage({super.key});
@@ -27,42 +27,42 @@ class MasterDataPage extends StatelessWidget {
         'subtitle': 'Transaksi cepat barcode',
         'icon': Icons.point_of_sale_rounded,
         'color': const Color(0xFF007F00),
-        'page': const PosPage(),
+        'page': /PosPage,
       },
       {
         'title': 'Mutasi Stok',
         'subtitle': 'Item masuk / keluar',
         'icon': Icons.swap_horiz_rounded,
         'color': Colors.blue.shade700,
-        'page': const StockMutationPage(),
+        'page': /StockMutationPage,
       },
       {
         'title': 'Kartu Stok',
         'subtitle': 'Riwayat per produk',
         'icon': Icons.history_edu_rounded,
         'color': Colors.indigo,
-        'page': const StockReportPage(),
+        'page': /StockReportPage,
       },
       {
         'title': 'Penjualan',
         'subtitle': 'Riwayat & retur jual',
         'icon': Icons.receipt_long_rounded,
         'color': Colors.teal.shade700,
-        'page': const SalesHistoryPage(),
+        'page': /SalesHistoryPage,
       },
       {
         'title': 'Pembelian',
         'subtitle': 'PO & stok masuk',
         'icon': Icons.shopping_cart_checkout_rounded,
         'color': Colors.purple.shade700,
-        'page': const PurchasePage(),
+        'page': /PurchasePage,
       },
       {
         'title': 'Faktur Hutang\nPiutang',
         'subtitle': 'Hutang supplier & piutang customer',
         'icon': Icons.request_quote_rounded,
         'color': Colors.red.shade700,
-        'page': const DebtReceivablePage(),
+        'page': /DebtReceivablePage,
       },
       {
         'title': 'Laporan',
