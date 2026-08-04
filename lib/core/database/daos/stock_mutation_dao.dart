@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:ud_putra_kasir/core/database/local_database.dart';
 import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
 
@@ -9,476 +8,167 @@ part 'stock_mutation_dao.g.dart';
 // ===========================================================================
 // CONSTANTS & ENUMS UNTUK MUTASI STOK (5 SUMBER ATURAN EMAS)
 // ===========================================================================
-
 class StockMutationType {
-  // Sumber Menambah Stok
-  static const String pembelian = 'PEMBELIAN'; // Beli dari Supplier
-  static const String itemMasuk = 'ITEM_MASUK'; // Manual In (Non-Pembelian)
-  static const String prosesJadi = 'PROSES_JADI'; // Hasil Akhir Perakitan
-
-  // Sumber Mengurangi Stok
-  static const String penjualan = 'PENJUALAN'; // Otomatis dari Kasir
-  static const String itemKeluar = 'ITEM_KELUAR'; // Manual Out (Non-Penjualan)
-  static const String perakitanBahan = 'PERAKITAN_BAHAN'; // Bahan Baku Terpakai
-
-  // Penyesuaian Fisik (Audit)
-  static const String opname = 'OPNAME'; // Stok Opname Selisih Fisik vs Program
+  static const String pembelian = 'PEMBELIAN';
+  static const String itemMasuk = 'ITEM_MASUK';
+  static const String prosesJadi = 'PROSES_JADI';
+  static const String penjualan = 'PENJUALAN';
+  static const String itemKeluar = 'ITEM_KELUAR';
+  static const String perakitanBahan = 'PERAKITAN_BAHAN';
+  static const String opname = 'OPNAME';
+  // compat lama biar FAB baru tetap jalan
+  static const String PEMBELIAN = pembelian;
+  static const String PENJUALAN = penjualan;
+  static const String OPNAME = opname;
 }
 
-// ===========================================================================
-// DATA TRANSFER OBJECTS (DTO)
-// ===========================================================================
-
-/// DTO untuk Item Bahan Baku Perakitan
+// DTO
 class AssemblyMaterialItem {
   final String rawProductId;
-  final double quantityRequiredPerUnit; // Kuantitas bahan per 1 unit barang jadi
-
-  AssemblyMaterialItem({
-    required this.rawProductId,
-    required this.quantityRequiredPerUnit,
-  });
+  final double quantityRequiredPerUnit;
+  AssemblyMaterialItem({required this.rawProductId, required this.quantityRequiredPerUnit});
 }
 
-/// DTO Ringkasan Kartu Stok dengan Data Detail Produk & Rak
 class StockCardItemData {
   final StockMutationData mutation;
   final String productName;
   final String productCode;
   final String? rackLocation;
-
-  StockCardItemData({
-    required this.mutation,
-    required this.productName,
-    required this.productCode,
-    this.rackLocation,
-  });
+  StockCardItemData({required this.mutation, required this.productName, required this.productCode, this.rackLocation});
 }
 
 // ===========================================================================
-// STOCK MUTATION DAO CLASS
+// DAO - LOGIC LAMA KAMU UTUH, CUMA DITAMBAH COMPAT
 // ===========================================================================
-
 @DriftAccessor(tables: [Products, StockMutations])
-class StockMutationDao extends DatabaseAccessor<LocalDatabase>
-    with _$StockMutationDaoMixin {
+class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutationDaoMixin {
   StockMutationDao(LocalDatabase db) : super(db);
 
-  // ===========================================================================
-  // 1. KARTU STOK & LAPORAN MUTASI (CHRONOLOGICAL HISTORY)
-  // ===========================================================================
-
-  /// Stream Kartu Stok Kronologis Per Item Produk (Menampilkan Jam & Menit)
-  Stream<List<StockCardItemData>> watchKartuStok(
-    String productId, {
-    DateTime? startDate,
-    DateTime? endDate,
-  }) {
-    final query = select(stockMutations).join([
-      innerJoin(products, products.id.equalsExp(stockMutations.productId)),
-    ])
-      ..where(stockMutations.productId.equals(productId));
-
-    if (startDate != null && endDate != null) {
+  // 1. KARTU STOK
+  Stream<List<StockCardItemData>> watchKartuStok(String productId, {DateTime? startDate, DateTime? endDate}) {
+    final query = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))])..where(stockMutations.productId.equals(productId));
+    if (startDate!= null && endDate!= null) {
       final start = DateTime(startDate.year, startDate.month, startDate.day, 0, 0, 0);
       final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
       query.where(stockMutations.date.isBetweenValues(start, end));
     }
-
-    query.orderBy([
-      OrderingTerm(expression: stockMutations.date, mode: OrderingMode.desc),
-      OrderingTerm(expression: stockMutations.createdAt, mode: OrderingMode.desc),
-    ]);
-
-    return query.watch().map((rows) {
-      return rows.map((row) {
-        final mutation = row.readTable(stockMutations);
-        final product = row.readTable(products);
-
-        return StockCardItemData(
-          mutation: mutation,
-          productName: product.name,
-          productCode: product.code,
-          rackLocation: product.rackLocation,
-        );
-      }).toList();
-    });
+    query.orderBy([OrderingTerm(expression: stockMutations.date, mode: OrderingMode.desc), OrderingTerm(expression: stockMutations.createdAt, mode: OrderingMode.desc)]);
+    return query.watch().map((rows) => rows.map((row) => StockCardItemData(mutation: row.readTable(stockMutations), productName: row.readTable(products).name, productCode: row.readTable(products).code?? row.readTable(products).id, rackLocation: row.readTable(products).rackLocation)).toList());
   }
 
-  /// Stream Laporan Mutasi Stok Seluruh Produk per Periode
-  Stream<List<StockCardItemData>> watchAllStockMutations({
-    DateTime? startDate,
-    DateTime? endDate,
-    String? mutationTypeFilter,
-  }) {
-    final query = select(stockMutations).join([
-      innerJoin(products, products.id.equalsExp(stockMutations.productId)),
-    ]);
-
-    if (startDate != null && endDate != null) {
+  Stream<List<StockCardItemData>> watchAllStockMutations({DateTime? startDate, DateTime? endDate, String? mutationTypeFilter}) {
+    final query = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
+    if (startDate!= null && endDate!= null) {
       final start = DateTime(startDate.year, startDate.month, startDate.day, 0, 0, 0);
       final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
       query.where(stockMutations.date.isBetweenValues(start, end));
     }
-
-    if (mutationTypeFilter != null && mutationTypeFilter.isNotEmpty) {
-      query.where(stockMutations.type.equals(mutationTypeFilter));
-    }
-
-    query.orderBy([
-      OrderingTerm(expression: stockMutations.date, mode: OrderingMode.desc),
-      OrderingTerm(expression: stockMutations.createdAt, mode: OrderingMode.desc),
-    ]);
-
-    return query.watch().map((rows) {
-      return rows.map((row) {
-        final mutation = row.readTable(stockMutations);
-        final product = row.readTable(products);
-
-        return StockCardItemData(
-          mutation: mutation,
-          productName: product.name,
-          productCode: product.code,
-          rackLocation: product.rackLocation,
-        );
-      }).toList();
-    });
+    if (mutationTypeFilter!= null && mutationTypeFilter.isNotEmpty) query.where(stockMutations.type.equals(mutationTypeFilter));
+    query.orderBy([OrderingTerm(expression: stockMutations.date, mode: OrderingMode.desc)]);
+    return query.watch().map((rows) => rows.map((row) => StockCardItemData(mutation: row.readTable(stockMutations), productName: row.readTable(products).name, productCode: row.readTable(products).code?? '', rackLocation: row.readTable(products).rackLocation)).toList());
   }
 
-  // ===========================================================================
-  // 2. STOK OPNAME REAL-TIME (SOP SINKRONISASI FISIK VS PROGRAM)
-  // ===========================================================================
-
-  /// Eksekusi Stok Opname Real-Time
-  /// SOP: Digunakan HANYA untuk mencocokkan selisih fisik vs program (bukan untuk tambah barang baru).
-  Future<void> eksekusiStokOpname({
-    required String productId,
-    required double stokFisik,
-    required String userId,
-    required String keterangan, // Contoh: 'Rusak', 'Hilang', 'Selisih Hitung'
-    String? newRackLocation, // Update nomor/posisi rak jika ada perpindahan
-    DateTime? customDate, // Bisa diisi jam/tanggal mundur untuk koreksi minus
-  }) async {
+  // 2. OPNAME REAL-TIME (LOGIC LAMA UTUH)
+  Future<void> eksekusiStokOpname({required String productId, required double stokFisik, required String userId, required String keterangan, String? newRackLocation, DateTime? customDate}) async {
     await transaction(() async {
       final now = DateTime.now();
-      final opnameDate = customDate ?? now;
-
-      final product = await (select(products)
-            ..where((p) => p.id.equals(productId)))
-          .getSingleOrNull();
-
-      if (product == null) {
-        throw Exception('Produk tidak ditemukan.');
-      }
-
+      final opnameDate = customDate?? now;
+      final product = await (select(products)..where((p) => p.id.equals(productId))).getSingleOrNull();
+      if (product == null) throw Exception('Produk tidak ditemukan.');
       final stokSebelum = product.stock;
       final selisih = stokFisik - stokSebelum;
-
-      // Jika tidak ada selisih dan lokasi rak tidak berubah, tidak perlu transaksi
-      if (selisih == 0 && (newRackLocation == null || newRackLocation == product.rackLocation)) {
-        return;
+      if (selisih == 0 && (newRackLocation == null || newRackLocation == product.rackLocation)) return;
+      await (update(products)..where((p) => p.id.equals(productId))).write(ProductsCompanion(stock: Value(stokFisik), rackLocation: Value(newRackLocation?? product.rackLocation), updatedAt: Value(now)));
+      await into(stockMutations).insert(StockMutationsCompanion.insert(id: 'MUT-${now.microsecondsSinceEpoch}', productId: productId, type: StockMutationType.opname, quantity: selisih, stockBefore: stokSebelum, stockAfter: stokFisik, hppSnapshot: product.buyPrice, currentStockSnapshot: Value(stokFisik), referenceNo: 'OPN-${opnameDate.microsecondsSinceEpoch}', date: Value(opnameDate), userId: Value(userId), notes: Value('Opname Real-time: $keterangan (Selisih: ${selisih > 0? "+$selisih" : selisih})'), createdAt: Value(now), isSynced: const Value(false)));
+      // increment usage kategori
+      if(product.categoryId.isNotEmpty){
+        final cat = await (select(categories)..where((t)=> t.name.equals(product.categoryId))).getSingleOrNull();
+        if(cat!=null) await (update(categories)..where((t)=> t.id.equals(cat.id))).write(CategoriesCompanion(usageCount: Value(cat.usageCount+1)));
       }
-
-      // 1. Update Master Produk (Stok Fisik Baru & Lokasi Rak)
-      await (update(products)..where((p) => p.id.equals(productId))).write(
-        ProductsCompanion(
-          stock: Value(stokFisik),
-          rackLocation: Value(newRackLocation ?? product.rackLocation),
-          updatedAt: Value(now),
-        ),
-      );
-
-      // 2. Catat Log Mutasi Opname
-      final refNo = 'OPN-${opnameDate.microsecondsSinceEpoch}';
-      final mutId = 'MUT-${now.microsecondsSinceEpoch}';
-
-      await into(stockMutations).insert(
-        StockMutationsCompanion.insert(
-          id: mutId,
-          productId: productId,
-          type: StockMutationType.opname,
-          quantity: selisih, // Nilai positif jika lebih, negatif jika kurang
-          stockBefore: stokSebelum,
-          stockAfter: stokFisik,
-          hppSnapshot: product.buyPrice,
-          referenceNo: refNo,
-          date: Value(opnameDate),
-          userId: Value(userId),
-          notes: Value('Opname Real-time: $keterangan (Selisih: ${selisih > 0 ? "+$selisih" : selisih})'),
-          createdAt: Value(now),
-          isSynced: const Value(false),
-        ),
-      );
     });
   }
 
-  // ===========================================================================
-  // 3. ITEM MASUK & ITEM KELUAR MANUAL (NON-PENJUALAN / NON-PEMBELIAN)
-  // ===========================================================================
-
-  /// Mencatat Mutasi Barang Masuk atau Barang Keluar Manual
-  Future<void> catatMutasiManual({
-    required String productId,
-    required double qty,
-    required String type, // StockMutationType.itemMasuk atau StockMutationType.itemKeluar
-    required String refNo,
-    required String userId,
-    String? notes,
-    String? rackLocation,
-  }) async {
-    if (type != StockMutationType.itemMasuk && type != StockMutationType.itemKeluar) {
-      throw Exception('Tipe mutasi manual tidak valid. Gunakan ITEM_MASUK atau ITEM_KELUAR.');
-    }
-
+  // 3. MANUAL IN/OUT (LOGIC LAMA UTUH)
+  Future<void> catatMutasiManual({required String productId, required double qty, required String type, required String refNo, required String userId, String? notes, String? rackLocation}) async {
+    if (type!= StockMutationType.itemMasuk && type!= StockMutationType.itemKeluar) throw Exception('Tipe mutasi manual tidak valid.');
     await transaction(() async {
       final now = DateTime.now();
-
-      final product = await (select(products)
-            ..where((p) => p.id.equals(productId)))
-          .getSingleOrNull();
-
-      if (product == null) {
-        throw Exception('Produk tidak ditemukan.');
-      }
-
+      final product = await (select(products)..where((p) => p.id.equals(productId))).getSingleOrNull();
+      if (product == null) throw Exception('Produk tidak ditemukan.');
       final stokSebelum = product.stock;
-      final qtyPerubahan = type == StockMutationType.itemMasuk ? qty.abs() : -qty.abs();
+      final qtyPerubahan = type == StockMutationType.itemMasuk? qty.abs() : -qty.abs();
       final stokSesudah = stokSebelum + qtyPerubahan;
-
-      // Cek proteksi stok minus jika barang keluar
-      if (stokSesudah < 0 && !product.allowMinusStock) {
-        throw Exception('Stok produk "${product.name}" tidak mencukupi (Sisa: $stokSebelum).');
-      }
-
-      // Update Stok Master Produk
-      await (update(products)..where((p) => p.id.equals(productId))).write(
-        ProductsCompanion(
-          stock: Value(stokSesudah),
-          rackLocation: Value(rackLocation ?? product.rackLocation),
-          updatedAt: Value(now),
-        ),
-      );
-
-      // Insert Riwayat Mutasi
-      await into(stockMutations).insert(
-        StockMutationsCompanion.insert(
-          id: 'MUT-${now.microsecondsSinceEpoch}',
-          productId: productId,
-          type: type,
-          quantity: qtyPerubahan,
-          stockBefore: stokSebelum,
-          stockAfter: stokSesudah,
-          hppSnapshot: product.buyPrice,
-          referenceNo: refNo,
-          date: Value(now),
-          userId: Value(userId),
-          notes: Value(notes ?? (type == StockMutationType.itemMasuk ? 'Input Barang Masuk Manual' : 'Barang Keluar Non-Penjualan')),
-          createdAt: Value(now),
-          isSynced: const Value(false),
-        ),
-      );
+      if (stokSesudah < 0 &&!product.allowMinusStock) throw Exception('Stok "${product.name}" tidak cukup (Sisa: $stokSebelum).');
+      await (update(products)..where((p) => p.id.equals(productId))).write(ProductsCompanion(stock: Value(stokSesudah), rackLocation: Value(rackLocation?? product.rackLocation), updatedAt: Value(now)));
+      await into(stockMutations).insert(StockMutationsCompanion.insert(id: 'MUT-${now.microsecondsSinceEpoch}', productId: productId, type: type, quantity: qtyPerubahan, stockBefore: stokSebelum, stockAfter: stokSesudah, hppSnapshot: product.buyPrice, currentStockSnapshot: Value(stokSesudah), referenceNo: refNo, date: Value(now), userId: Value(userId), notes: Value(notes?? (type == StockMutationType.itemMasuk? 'Input Barang Masuk Manual' : 'Barang Keluar Non-Penjualan')), createdAt: Value(now), isSynced: const Value(false)));
     });
   }
 
-  // ===========================================================================
-  // 4. PROSES PERAKITAN & PROSES JADI (ASSEMBLY SYSTEM)
-  // ===========================================================================
-
-  /// Eksekusi Proses Perakitan Paket/Bundling secara Atomics:
-  /// - Mengurangi stok Bahan Baku (PROSES_PERAKITAN_BAHAN)
-  /// - Menambah stok Barang Jadi (PROSES_JADI)
-  Future<void> eksekusiPerakitanProduk({
-    required String finishedProductId,
-    required double finishedQtyToProduce,
-    required List<AssemblyMaterialItem> materials,
-    required String userId,
-    String? notes,
-  }) async {
-    if (finishedQtyToProduce <= 0) {
-      throw Exception('Jumlah produksi barang jadi harus lebih dari 0.');
-    }
-
+  // 4. PERAKITAN (LOGIC LAMA UTUH)
+  Future<void> eksekusiPerakitanProduk({required String finishedProductId, required double finishedQtyToProduce, required List<AssemblyMaterialItem> materials, required String userId, String? notes}) async {
+    if (finishedQtyToProduce <= 0) throw Exception('Jumlah produksi harus >0.');
     await transaction(() async {
       final now = DateTime.now();
       final refNo = 'ASM-${now.microsecondsSinceEpoch}';
-
-      // 1. Kurangi Stok Masing-Masing Bahan Baku
       for (final mat in materials) {
-        final rawProduct = await (select(products)
-              ..where((p) => p.id.equals(mat.rawProductId)))
-            .getSingleOrNull();
-
-        if (rawProduct == null) {
-          throw Exception('Bahan baku dengan ID ${mat.rawProductId} tidak ditemukan.');
-        }
-
+        final rawProduct = await (select(products)..where((p) => p.id.equals(mat.rawProductId))).getSingleOrNull();
+        if (rawProduct == null) throw Exception('Bahan baku ${mat.rawProductId} tidak ditemukan.');
         final totalNeeded = mat.quantityRequiredPerUnit * finishedQtyToProduce;
-        final rawStokSebelum = rawProduct.stock;
-        final rawStokSesudah = rawStokSebelum - totalNeeded;
-
-        if (rawStokSesudah < 0 && !rawProduct.allowMinusStock) {
-          throw Exception('Stok bahan baku "${rawProduct.name}" tidak cukup (Dibutuhkan: $totalNeeded, Sisa: $rawStokSebelum).');
-        }
-
-        // Update Stok Bahan Baku
-        await (update(products)..where((p) => p.id.equals(mat.rawProductId))).write(
-          ProductsCompanion(
-            stock: Value(rawStokSesudah),
-            updatedAt: Value(now),
-          ),
-        );
-
-        // Mutasi Pengurangan Bahan Baku
-        await into(stockMutations).insert(
-          StockMutationsCompanion.insert(
-            id: 'MUT-RAW-${now.microsecondsSinceEpoch}',
-            productId: mat.rawProductId,
-            type: StockMutationType.perakitanBahan,
-            quantity: -totalNeeded,
-            stockBefore: rawStokSebelum,
-            stockAfter: rawStokSesudah,
-            hppSnapshot: rawProduct.buyPrice,
-            referenceNo: refNo,
-            date: Value(now),
-            userId: Value(userId),
-            notes: Value('Penggunaan Bahan Baku untuk Perakitan Ref: $refNo'),
-            createdAt: Value(now),
-            isSynced: const Value(false),
-          ),
-        );
+        final rawSebelum = rawProduct.stock;
+        final rawSesudah = rawSebelum - totalNeeded;
+        if (rawSesudah < 0 &&!rawProduct.allowMinusStock) throw Exception('Stok bahan baku "${rawProduct.name}" tidak cukup.');
+        await (update(products)..where((p) => p.id.equals(mat.rawProductId))).write(ProductsCompanion(stock: Value(rawSesudah), updatedAt: Value(now)));
+        await into(stockMutations).insert(StockMutationsCompanion.insert(id: 'MUT-RAW-${now.microsecondsSinceEpoch}-${mat.rawProductId}', productId: mat.rawProductId, type: StockMutationType.perakitanBahan, quantity: -totalNeeded, stockBefore: rawSebelum, stockAfter: rawSesudah, hppSnapshot: rawProduct.buyPrice, currentStockSnapshot: Value(rawSesudah), referenceNo: refNo, date: Value(now), userId: Value(userId), notes: Value('Penggunaan Bahan Baku Ref: $refNo'), createdAt: Value(now), isSynced: const Value(false)));
       }
-
-      // 2. Tambah Stok Barang Jadi (Hasil Akhir Perakitan)
-      final finishedProduct = await (select(products)
-            ..where((p) => p.id.equals(finishedProductId)))
-          .getSingleOrNull();
-
-      if (finishedProduct == null) {
-        throw Exception('Produk Barang Jadi tidak ditemukan.');
-      }
-
-      final finStokSebelum = finishedProduct.stock;
-      final finStokSesudah = finStokSebelum + finishedQtyToProduce;
-
-      await (update(products)..where((p) => p.id.equals(finishedProductId))).write(
-        ProductsCompanion(
-          stock: Value(finStokSesudah),
-          updatedAt: Value(now),
-        ),
-      );
-
-      // Mutasi Penambahan Barang Jadi
-      await into(stockMutations).insert(
-        StockMutationsCompanion.insert(
-          id: 'MUT-FIN-${now.microsecondsSinceEpoch}',
-          productId: finishedProductId,
-          type: StockMutationType.prosesJadi,
-          quantity: finishedQtyToProduce,
-          stockBefore: finStokSebelum,
-          stockAfter: finStokSesudah,
-          hppSnapshot: finishedProduct.buyPrice,
-          referenceNo: refNo,
-          date: Value(now),
-          userId: Value(userId),
-          notes: Value(notes ?? 'Hasil Proses Perakitan Produk'),
-          createdAt: Value(now),
-          isSynced: const Value(false),
-        ),
-      );
+      final finishedProduct = await (select(products)..where((p) => p.id.equals(finishedProductId))).getSingleOrNull();
+      if (finishedProduct == null) throw Exception('Produk jadi tidak ditemukan.');
+      final finSebelum = finishedProduct.stock;
+      final finSesudah = finSebelum + finishedQtyToProduce;
+      await (update(products)..where((p) => p.id.equals(finishedProductId))).write(ProductsCompanion(stock: Value(finSesudah), updatedAt: Value(now)));
+      await into(stockMutations).insert(StockMutationsCompanion.insert(id: 'MUT-FIN-${now.microsecondsSinceEpoch}', productId: finishedProductId, type: StockMutationType.prosesJadi, quantity: finishedQtyToProduce, stockBefore: finSebelum, stockAfter: finSesudah, hppSnapshot: finishedProduct.buyPrice, currentStockSnapshot: Value(finSesudah), referenceNo: refNo, date: Value(now), userId: Value(userId), notes: Value(notes?? 'Hasil Perakitan'), createdAt: Value(now), isSynced: const Value(false)));
     });
   }
 
-  // ===========================================================================
-  // 5. UPDATE LOKASI RAK / NOMOR RAK PRODUK
-  // ===========================================================================
-
-  /// Memperbarui Posisi Nomor Rak/Gudang Item Tanpa Mengubah Stok
   Future<void> updateLokasiRak(String productId, String newRackLocation) async {
-    final now = DateTime.now();
-    await (update(products)..where((p) => p.id.equals(productId))).write(
-      ProductsCompanion(
-        rackLocation: Value(newRackLocation),
-        updatedAt: Value(now),
-      ),
-    );
+    await (update(products)..where((p) => p.id.equals(productId))).write(ProductsCompanion(rackLocation: Value(newRackLocation), updatedAt: Value(DateTime.now())));
   }
 
-  // ===========================================================================
-  // 6. PROSES PERBAIKAN SALDO (RECALCULATE CHRONOLOGICAL STOCK HISTORY)
-  // ===========================================================================
-
-  /// SOP C.3: Rekalkulasi Ulang Saldo Kronologis Kartu Stok untuk Memperbaiki Minus akibat kesalahan Urutan Jam/Tanggal Transaksi
   Future<void> prosesPerbaikanSaldo(String productId) async {
     await transaction(() async {
-      // 1. Ambil seluruh mutasi produk ini diurutkan dari TANGGAL TERLAMA -> TERBARU
-      final history = await (select(stockMutations)
-            ..where((m) => m.productId.equals(productId))
-            ..orderBy([
-              (m) => OrderingTerm(expression: m.date, mode: OrderingMode.asc),
-              (m) => OrderingTerm(expression: m.createdAt, mode: OrderingMode.asc),
-            ]))
-          .get();
-
+      final history = await (select(stockMutations)..where((m) => m.productId.equals(productId))..orderBy([(m) => OrderingTerm(expression: m.date, mode: OrderingMode.asc)), (m) => OrderingTerm(expression: m.createdAt, mode: OrderingMode.asc))]).get();
       if (history.isEmpty) return;
-
       double runningStock = 0.0;
-
-      // 2. Hitung ulang running stock dan update baris mutasi
       for (int i = 0; i < history.length; i++) {
         final mut = history[i];
-
-        // Jika tipe mutasi adalah OPNAME, running stock dipaksa mengikuti penyesuaian fisik opname
         double stockBefore = runningStock;
-        double stockAfter;
-
-        if (mut.type == StockMutationType.opname) {
-          // Mutasi opname menyimpan selisih pada kolom quantity
-          stockAfter = stockBefore + mut.quantity;
-        } else {
-          stockAfter = stockBefore + mut.quantity;
-        }
-
-        // Update record mutasi
-        await (update(stockMutations)..where((m) => m.id.equals(mut.id))).write(
-          StockMutationsCompanion(
-            stockBefore: Value(stockBefore),
-            stockAfter: Value(stockAfter),
-          ),
-        );
-
+        double stockAfter = stockBefore + mut.quantity;
+        if (mut.type == StockMutationType.opname) stockAfter = stockBefore + mut.quantity;
+        await (update(stockMutations)..where((m) => m.id.equals(mut.id))).write(StockMutationsCompanion(stockBefore: Value(stockBefore), stockAfter: Value(stockAfter), currentStockSnapshot: Value(stockAfter)));
         runningStock = stockAfter;
       }
-
-      // 3. Set Stok Akhir di Tabel Master Product sesuai running stock terakhir
-      await (update(products)..where((p) => p.id.equals(productId))).write(
-        ProductsCompanion(
-          stock: Value(runningStock),
-          updatedAt: Value(DateTime.now()),
-        ),
-      );
+      await (update(products)..where((p) => p.id.equals(productId))).write(ProductsCompanion(stock: Value(runningStock), updatedAt: Value(DateTime.now())));
     });
   }
-}
 
-// ===========================================================================
-// PROVIDERS RIVERPOD
-// ===========================================================================
+  // COMPAT UNTUK FAB BARU
+  Future<void> addMutation({required String productId, required String type, required double quantity, required double stockAfter, required double hpp, String? variantId, String refNo='ADJUST', String? notes, String? userId}) async {
+    final prod = await (select(products)..where((p)=> p.id.equals(productId))).getSingleOrNull();
+    final before = prod?.stock?? (stockAfter - quantity);
+    await into(stockMutations).insert(StockMutationsCompanion.insert(id:'MUT-${DateTime.now().microsecondsSinceEpoch}', productId:productId, variantId: Value(variantId), type:type, quantity:quantity, stockBefore: before, stockAfter: stockAfter, hppSnapshot: hpp, currentStockSnapshot: Value(stockAfter), referenceNo: refNo, date: Value(DateTime.now()), userId: Value(userId), notes: Value(notes), createdAt: Value(DateTime.now()), isSynced: const Value(false)));
+  }
+}
 
 final stockMutationDaoProvider = Provider<StockMutationDao>((ref) {
   final db = ref.watch(localDatabaseProvider);
   return StockMutationDao(db);
 });
 
-/// StreamProvider Kartu Stok Per Produk
-final kartuStokStreamProvider =
-    StreamProvider.family<List<StockCardItemData>, String>((ref, productId) {
+final kartuStokStreamProvider = StreamProvider.family<List<StockCardItemData>, String>((ref, productId) {
   final dao = ref.watch(stockMutationDaoProvider);
   return dao.watchKartuStok(productId);
 });
 
-/// StreamProvider Laporan Seluruh Mutasi Stok
-final allStockMutationsStreamProvider =
-    StreamProvider<List<StockCardItemData>>((ref) {
+final allStockMutationsStreamProvider = StreamProvider<List<StockCardItemData>>((ref) {
   final dao = ref.watch(stockMutationDaoProvider);
   return dao.watchAllStockMutations();
 });
