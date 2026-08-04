@@ -32,7 +32,7 @@ part 'local_database.g.dart';
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
 
-  // 5 DAO UTAMA TERHUBUNG
+  // 7 DAO TERHUBUNG SEMUA
   late final UserDao userDao = UserDao(this);
   late final DashboardDao dashboardDao = DashboardDao(this);
   late final CategoryDao categoryDao = CategoryDao(this);
@@ -42,7 +42,7 @@ class LocalDatabase extends _$LocalDatabase {
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
 
   @override
-  int get schemaVersion => 13; // UPGRADE DARI 12 KE 13
+  int get schemaVersion => 14; // FINAL UPGRADE 14
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -67,7 +67,7 @@ class LocalDatabase extends _$LocalDatabase {
         maxDiscountPercent: Value(100),
         isSynced: Value(false),
       ));
-      await categoryDao.seedDefaults(); // seed 24 kategori perkakas
+      await categoryDao.seedDefaults();
     },
     onUpgrade: (Migrator m, int from, int to) async {
       if (from < 10) {
@@ -94,7 +94,6 @@ class LocalDatabase extends _$LocalDatabase {
         } catch (_) {}
       }
       if (from < 13) {
-        // sync schema product_table full + pastikan 24 kategori ada
         try {
           await m.addColumn(products, products.shortName);
           await m.addColumn(products, products.barcode);
@@ -117,9 +116,20 @@ class LocalDatabase extends _$LocalDatabase {
           await m.addColumn(products, products.isSynced);
         } catch (_) {}
         final cats = await select(categories).get();
-        if (cats.isEmpty) {
-          await categoryDao.seedDefaults();
-        }
+        if (cats.isEmpty) await categoryDao.seedDefaults();
+      }
+      if (from < 14) {
+        // SINKRONISASI STOCK MUTATION DAO EMAS - stockBefore / stockAfter
+        try {
+          await m.addColumn(stockMutations, stockMutations.stockBefore);
+          await m.addColumn(stockMutations, stockMutations.stockAfter);
+          await m.addColumn(stockMutations, stockMutations.variantId);
+          await m.addColumn(stockMutations, stockMutations.userId);
+          await m.addColumn(stockMutations, stockMutations.notes);
+        } catch (_) {}
+        // pastikan 24 kategori tetap ada setelah upgrade
+        final cats = await select(categories).get();
+        if (cats.isEmpty) await categoryDao.seedDefaults();
       }
     },
     beforeOpen: (details) async {
@@ -127,7 +137,6 @@ class LocalDatabase extends _$LocalDatabase {
     },
   );
 
-  // helper lama tetap jalan
   Future<List<ProductData>> getAllProducts() => select(products).get();
 
   Future<void> prosesTransaksiPenyimpanan({
@@ -140,18 +149,18 @@ class LocalDatabase extends _$LocalDatabase {
         await into(transactionItems).insert(item);
         final prod = await (select(products)..where((t) => t.id.equals(item.productId.value))).getSingle();
         final newStock = prod.stock - item.quantity.value;
+        final beforeStock = prod.stock;
         await (update(products)..where((t) => t.id.equals(item.productId.value))).write(
           ProductsCompanion(stock: Value(newStock)),
         );
-        // catat mutasi stok penjualan
         await stockMutationDao.addMutation(
           productId: prod.id,
-          type: 'sale',
+          type: StockMutationType.penjualan,
           quantity: -item.quantity.value,
           stockAfter: newStock,
           hpp: prod.buyPrice,
           refNo: dataTransaksi.id.value,
-          notes: 'Penjualan POS',
+          notes: 'Penjualan POS - before: $beforeStock',
         );
       }
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
@@ -167,7 +176,6 @@ class LocalDatabase extends _$LocalDatabase {
             status: Value(DebtStatus.tentukanStatus(dataTransaksi.remainingDebt.value, dataTransaksi.payAmount.value)),
           ),
         );
-        // update total piutang customer
         final cust = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
         if(cust!=null){
           await (update(customers)..where((t)=> t.id.equals(cust.id))).write(
