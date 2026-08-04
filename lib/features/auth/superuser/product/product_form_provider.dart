@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import '../../../../core/database/local_database.dart';
+import '../../../../core/database/daos/stock_mutation_dao.dart';
 
 class ProductFormState {
   final String id;
