@@ -37,68 +37,54 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
   StockMutationDao(LocalDatabase db) : super(db);
 
   Stream<List<StockCardItemData>> watchKartuStok(String productId, {DateTime? startDate, DateTime? endDate}) {
-    final query = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))])..where(stockMutations.productId.equals(productId));
-    if (startDate!= null && endDate!= null) {
-      final start = DateTime(startDate.year, startDate.month, startDate.day, 0, 0, 0);
-      final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
-      query.where(stockMutations.date.isBetweenValues(start, end));
+    final q = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
+    q.where(stockMutations.productId.equals(productId));
+    if (startDate != null && endDate != null) {
+      final s = DateTime(startDate.year, startDate.month, startDate.day, 0, 0, 0);
+      final e = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+      q.where(stockMutations.date.isBetweenValues(s, e));
     }
-    query.orderBy([OrderingTerm(expression: stockMutations.date, mode: OrderingMode.desc), OrderingTerm(expression: stockMutations.createdAt, mode: OrderingMode.desc)]);
-    return query.watch().map((rows) => rows.map((row) {
-      return StockCardItemData(
-        mutation: row.readTable(stockMutations),
-        productName: row.readTable(products).name,
-        productCode: row.readTable(products).code?? row.readTable(products).id,
-        rackLocation: row.readTable(products).rackLocation,
-      );
-    }).toList());
+    q.orderBy([OrderingTerm(expression: stockMutations.date, mode: OrderingMode.desc)]);
+    return q.watch().map((rows) => rows.map((r) => StockCardItemData(mutation: r.readTable(stockMutations), productName: r.readTable(products).name, productCode: r.readTable(products).code ?? r.readTable(products).id, rackLocation: r.readTable(products).rackLocation)).toList());
   }
 
   Stream<List<StockCardItemData>> watchAllStockMutations({DateTime? startDate, DateTime? endDate, String? mutationTypeFilter}) {
-    final query = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
-    if (startDate!= null && endDate!= null) {
-      final start = DateTime(startDate.year, startDate.month, startDate.day, 0, 0, 0);
-      final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
-      query.where(stockMutations.date.isBetweenValues(start, end));
+    final q = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
+    if (startDate != null && endDate != null) {
+      final s = DateTime(startDate.year, startDate.month, startDate.day, 0, 0, 0);
+      final e = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+      q.where(stockMutations.date.isBetweenValues(s, e));
     }
-    if (mutationTypeFilter!= null && mutationTypeFilter.isNotEmpty) {
-      query.where(stockMutations.type.equals(mutationTypeFilter));
+    if (mutationTypeFilter != null && mutationTypeFilter.isNotEmpty) {
+      q.where(stockMutations.type.equals(mutationTypeFilter));
     }
-    query.orderBy([OrderingTerm(expression: stockMutations.date, mode: OrderingMode.desc)]);
-    return query.watch().map((rows) => rows.map((row) {
-      return StockCardItemData(
-        mutation: row.readTable(stockMutations),
-        productName: row.readTable(products).name,
-        productCode: row.readTable(products).code?? '',
-        rackLocation: row.readTable(products).rackLocation,
-      );
-    }).toList());
+    q.orderBy([OrderingTerm(expression: stockMutations.date, mode: OrderingMode.desc)]);
+    return q.watch().map((rows) => rows.map((r) => StockCardItemData(mutation: r.readTable(stockMutations), productName: r.readTable(products).name, productCode: r.readTable(products).code ?? '', rackLocation: r.readTable(products).rackLocation)).toList());
   }
 
   Future<void> eksekusiStokOpname({required String productId, required double stokFisik, required String userId, required String keterangan, String? newRackLocation, DateTime? customDate}) async {
     await transaction(() async {
       final now = DateTime.now();
-      final opnameDate = customDate?? now;
-      final product = await (select(products)..where((p) => p.id.equals(productId))).getSingleOrNull();
-      if (product == null) throw Exception('Produk tidak ditemukan');
-      final stokSebelum = product.stock;
-      final selisih = stokFisik - stokSebelum;
-      if (selisih == 0 && (newRackLocation == null || newRackLocation == product.rackLocation)) return;
-      await (update(products)..where((p) => p.id.equals(productId))).write(ProductsCompanion(stock: Value(stokFisik), rackLocation: Value(newRackLocation?? product.rackLocation), updatedAt: Value(now)));
-      final sign = selisih > 0? '+$selisih' : '$selisih';
+      final opDate = customDate ?? now;
+      final prod = await (select(products)..where((p) => p.id.equals(productId))).getSingleOrNull();
+      if (prod == null) return;
+      final sebelum = prod.stock;
+      final selisih = stokFisik - sebelum;
+      if (selisih == 0) return;
+      await (update(products)..where((p) => p.id.equals(productId))).write(ProductsCompanion(stock: Value(stokFisik), rackLocation: Value(newRackLocation ?? prod.rackLocation), updatedAt: Value(now)));
       await into(stockMutations).insert(StockMutationsCompanion.insert(
         id: 'MUT-${now.microsecondsSinceEpoch}',
         productId: productId,
         type: StockMutationType.opname,
         quantity: selisih,
-        stockBefore: stokSebelum,
+        stockBefore: sebelum,
         stockAfter: stokFisik,
-        hppSnapshot: product.buyPrice,
+        hppSnapshot: prod.buyPrice,
         currentStockSnapshot: Value(stokFisik),
-        referenceNo: 'OPN-${opnameDate.microsecondsSinceEpoch}',
-        date: Value(opnameDate),
+        referenceNo: 'OPN-${opDate.microsecondsSinceEpoch}',
+        date: Value(opDate),
         userId: Value(userId),
-        notes: Value('Opname: $keterangan Selisih $sign'),
+        notes: Value(keterangan),
         createdAt: Value(now),
         isSynced: const Value(false),
       ));
@@ -106,31 +92,27 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
   }
 
   Future<void> catatMutasiManual({required String productId, required double qty, required String type, required String refNo, required String userId, String? notes, String? rackLocation}) async {
-    if (type!= StockMutationType.itemMasuk && type!= StockMutationType.itemKeluar) throw Exception('Tipe tidak valid');
     await transaction(() async {
       final now = DateTime.now();
-      final product = await (select(products)..where((p) => p.id.equals(productId))).getSingleOrNull();
-      if (product == null) throw Exception('Produk tidak ditemukan');
-      final stokSebelum = product.stock;
-      final qtyPerubahan = type == StockMutationType.itemMasuk? qty.abs() : -qty.abs();
-      final stokSesudah = stokSebelum + qtyPerubahan;
-      if (stokSesudah < 0 && product.allowMinusStock == false) {
-        throw Exception('Stok ${product.name} tidak cukup Sisa $stokSebelum');
-      }
-      await (update(products)..where((p) => p.id.equals(productId))).write(ProductsCompanion(stock: Value(stokSesudah), rackLocation: Value(rackLocation?? product.rackLocation), updatedAt: Value(now)));
+      final prod = await (select(products)..where((p) => p.id.equals(productId))).getSingleOrNull();
+      if (prod == null) return;
+      final sebelum = prod.stock;
+      final perubahan = type == StockMutationType.itemMasuk ? qty.abs() : -qty.abs();
+      final sesudah = sebelum + perubahan;
+      await (update(products)..where((p) => p.id.equals(productId))).write(ProductsCompanion(stock: Value(sesudah), rackLocation: Value(rackLocation ?? prod.rackLocation), updatedAt: Value(now)));
       await into(stockMutations).insert(StockMutationsCompanion.insert(
         id: 'MUT-${now.microsecondsSinceEpoch}',
         productId: productId,
         type: type,
-        quantity: qtyPerubahan,
-        stockBefore: stokSebelum,
-        stockAfter: stokSesudah,
-        hppSnapshot: product.buyPrice,
-        currentStockSnapshot: Value(stokSesudah),
+        quantity: perubahan,
+        stockBefore: sebelum,
+        stockAfter: sesudah,
+        hppSnapshot: prod.buyPrice,
+        currentStockSnapshot: Value(sesudah),
         referenceNo: refNo,
         date: Value(now),
         userId: Value(userId),
-        notes: Value(notes?? 'Manual'),
+        notes: Value(notes ?? 'Manual'),
         createdAt: Value(now),
         isSynced: const Value(false),
       ));
@@ -138,53 +120,49 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
   }
 
   Future<void> eksekusiPerakitanProduk({required String finishedProductId, required double finishedQtyToProduce, required List<AssemblyMaterialItem> materials, required String userId, String? notes}) async {
-    if (finishedQtyToProduce <= 0) throw Exception('Qty harus lebih dari 0');
     await transaction(() async {
       final now = DateTime.now();
       final refNo = 'ASM-${now.microsecondsSinceEpoch}';
       for (final mat in materials) {
-        final rawProduct = await (select(products)..where((p) => p.id.equals(mat.rawProductId))).getSingleOrNull();
-        if (rawProduct == null) throw Exception('Bahan ${mat.rawProductId} tidak ditemukan');
-        final totalNeeded = mat.quantityRequiredPerUnit * finishedQtyToProduce;
-        final rawSebelum = rawProduct.stock;
-        final rawSesudah = rawSebelum - totalNeeded;
-        if (rawSesudah < 0 && rawProduct.allowMinusStock == false) throw Exception('Stok bahan ${rawProduct.name} tidak cukup');
-        await (update(products)..where((p) => p.id.equals(mat.rawProductId))).write(ProductsCompanion(stock: Value(rawSesudah), updatedAt: Value(now)));
+        final raw = await (select(products)..where((p) => p.id.equals(mat.rawProductId))).getSingleOrNull();
+        if (raw == null) continue;
+        final need = mat.quantityRequiredPerUnit * finishedQtyToProduce;
+        final sesudah = raw.stock - need;
+        await (update(products)..where((p) => p.id.equals(raw.id))).write(ProductsCompanion(stock: Value(sesudah), updatedAt: Value(now)));
         await into(stockMutations).insert(StockMutationsCompanion.insert(
-          id: 'MUT-RAW-${now.microsecondsSinceEpoch}-${mat.rawProductId}',
-          productId: mat.rawProductId,
+          id: 'MUT-RAW-${now.microsecondsSinceEpoch}-${raw.id}',
+          productId: raw.id,
           type: StockMutationType.perakitanBahan,
-          quantity: -totalNeeded,
-          stockBefore: rawSebelum,
-          stockAfter: rawSesudah,
-          hppSnapshot: rawProduct.buyPrice,
-          currentStockSnapshot: Value(rawSesudah),
+          quantity: -need,
+          stockBefore: raw.stock,
+          stockAfter: sesudah,
+          hppSnapshot: raw.buyPrice,
+          currentStockSnapshot: Value(sesudah),
           referenceNo: refNo,
           date: Value(now),
           userId: Value(userId),
-          notes: Value('Pakai bahan Ref $refNo'),
+          notes: Value('Bahan $refNo'),
           createdAt: Value(now),
           isSynced: const Value(false),
         ));
       }
-      final finishedProduct = await (select(products)..where((p) => p.id.equals(finishedProductId))).getSingleOrNull();
-      if (finishedProduct == null) throw Exception('Produk jadi tidak ditemukan');
-      final finSebelum = finishedProduct.stock;
-      final finSesudah = finSebelum + finishedQtyToProduce;
-      await (update(products)..where((p) => p.id.equals(finishedProductId))).write(ProductsCompanion(stock: Value(finSesudah), updatedAt: Value(now)));
+      final fin = await (select(products)..where((p) => p.id.equals(finishedProductId))).getSingleOrNull();
+      if (fin == null) return;
+      final sesudah = fin.stock + finishedQtyToProduce;
+      await (update(products)..where((p) => p.id.equals(fin.id))).write(ProductsCompanion(stock: Value(sesudah), updatedAt: Value(now)));
       await into(stockMutations).insert(StockMutationsCompanion.insert(
         id: 'MUT-FIN-${now.microsecondsSinceEpoch}',
-        productId: finishedProductId,
+        productId: fin.id,
         type: StockMutationType.prosesJadi,
         quantity: finishedQtyToProduce,
-        stockBefore: finSebelum,
-        stockAfter: finSesudah,
-        hppSnapshot: finishedProduct.buyPrice,
-        currentStockSnapshot: Value(finSesudah),
+        stockBefore: fin.stock,
+        stockAfter: sesudah,
+        hppSnapshot: fin.buyPrice,
+        currentStockSnapshot: Value(sesudah),
         referenceNo: refNo,
         date: Value(now),
         userId: Value(userId),
-        notes: Value(notes?? 'Hasil Perakitan'),
+        notes: Value(notes ?? 'Jadi'),
         createdAt: Value(now),
         isSynced: const Value(false),
       ));
@@ -197,22 +175,21 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
 
   Future<void> prosesPerbaikanSaldo(String productId) async {
     await transaction(() async {
-      final history = await (select(stockMutations)..where((m) => m.productId.equals(productId))..orderBy([(m) => OrderingTerm(expression: m.date, mode: OrderingMode.asc)), (m) => OrderingTerm(expression: m.createdAt, mode: OrderingMode.asc))]).get();
-      if (history.isEmpty) return;
-      double runningStock = 0.0;
-      for (final mut in history) {
-        double stockBefore = runningStock;
-        double stockAfter = stockBefore + mut.quantity;
-        await (update(stockMutations)..where((m) => m.id.equals(mut.id))).write(StockMutationsCompanion(stockBefore: Value(stockBefore), stockAfter: Value(stockAfter), currentStockSnapshot: Value(stockAfter)));
-        runningStock = stockAfter;
+      final list = await (select(stockMutations)..where((m) => m.productId.equals(productId))..orderBy([(m) => OrderingTerm(expression: m.date)])).get();
+      double run = 0;
+      for (final mut in list) {
+        final before = run;
+        final after = before + mut.quantity;
+        await (update(stockMutations)..where((m) => m.id.equals(mut.id))).write(StockMutationsCompanion(stockBefore: Value(before), stockAfter: Value(after), currentStockSnapshot: Value(after)));
+        run = after;
       }
-      await (update(products)..where((p) => p.id.equals(productId))).write(ProductsCompanion(stock: Value(runningStock), updatedAt: Value(DateTime.now())));
+      await (update(products)..where((p) => p.id.equals(productId))).write(ProductsCompanion(stock: Value(run), updatedAt: Value(DateTime.now())));
     });
   }
 
   Future<void> addMutation({required String productId, required String type, required double quantity, required double stockAfter, required double hpp, String? variantId, String refNo = 'ADJUST', String? notes, String? userId}) async {
     final prod = await (select(products)..where((p) => p.id.equals(productId))).getSingleOrNull();
-    final before = prod?.stock?? (stockAfter - quantity);
+    final before = prod != null ? prod.stock : stockAfter - quantity;
     await into(stockMutations).insert(StockMutationsCompanion.insert(
       id: 'MUT-${DateTime.now().microsecondsSinceEpoch}',
       productId: productId,
@@ -239,11 +216,9 @@ final stockMutationDaoProvider = Provider<StockMutationDao>((ref) {
 });
 
 final kartuStokStreamProvider = StreamProvider.family<List<StockCardItemData>, String>((ref, productId) {
-  final dao = ref.watch(stockMutationDaoProvider);
-  return dao.watchKartuStok(productId);
+  return ref.watch(stockMutationDaoProvider).watchKartuStok(productId);
 });
 
 final allStockMutationsStreamProvider = StreamProvider<List<StockCardItemData>>((ref) {
-  final dao = ref.watch(stockMutationDaoProvider);
-  return dao.watchAllStockMutations();
+  return ref.watch(stockMutationDaoProvider).watchAllStockMutations();
 });
