@@ -45,7 +45,11 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
       q.where(stockMutations.date.isBetweenValues(s, e));
     }
     q.orderBy([OrderingTerm(expression: stockMutations.date, mode: OrderingMode.desc)]);
-    return q.watch().map((rows) => rows.map((r) => StockCardItemData(mutation: r.readTable(stockMutations), productName: r.readTable(products).name, productCode: r.readTable(products).code ?? r.readTable(products).id, rackLocation: r.readTable(products).rackLocation)).toList());
+    return q.watch().map((rows) => rows.map((r) => StockCardItemData(
+      mutation: r.readTable(stockMutations),
+      productName: r.readTable(products).name,
+      productCode: r.readTable(products).code ?? r.readTable(products).id,
+      rackLocation: r.readTable(products).rackLocation)).toList());
   }
 
   Stream<List<StockCardItemData>> watchAllStockMutations({DateTime? startDate, DateTime? endDate, String? mutationTypeFilter}) {
@@ -59,7 +63,11 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
       q.where(stockMutations.type.equals(mutationTypeFilter));
     }
     q.orderBy([OrderingTerm(expression: stockMutations.date, mode: OrderingMode.desc)]);
-    return q.watch().map((rows) => rows.map((r) => StockCardItemData(mutation: r.readTable(stockMutations), productName: r.readTable(products).name, productCode: r.readTable(products).code ?? '', rackLocation: r.readTable(products).rackLocation)).toList());
+    return q.watch().map((rows) => rows.map((r) => StockCardItemData(
+      mutation: r.readTable(stockMutations),
+      productName: r.readTable(products).name,
+      productCode: r.readTable(products).code ?? '',
+      rackLocation: r.readTable(products).rackLocation)).toList());
   }
 
   Future<void> eksekusiStokOpname({required String productId, required double stokFisik, required String userId, required String keterangan, String? newRackLocation, DateTime? customDate}) async {
@@ -77,9 +85,9 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
         productId: productId,
         type: StockMutationType.opname,
         quantity: selisih,
-        stockBefore: sebelum,
-        stockAfter: stokFisik,
-        hppSnapshot: prod.buyPrice,
+        stockBefore: Value(sebelum),
+        stockAfter: Value(stokFisik),
+        hppSnapshot: Value(prod.buyPrice),
         currentStockSnapshot: Value(stokFisik),
         referenceNo: 'OPN-${opDate.microsecondsSinceEpoch}',
         date: Value(opDate),
@@ -105,9 +113,9 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
         productId: productId,
         type: type,
         quantity: perubahan,
-        stockBefore: sebelum,
-        stockAfter: sesudah,
-        hppSnapshot: prod.buyPrice,
+        stockBefore: Value(sebelum),
+        stockAfter: Value(sesudah),
+        hppSnapshot: Value(prod.buyPrice),
         currentStockSnapshot: Value(sesudah),
         referenceNo: refNo,
         date: Value(now),
@@ -134,9 +142,9 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
           productId: raw.id,
           type: StockMutationType.perakitanBahan,
           quantity: -need,
-          stockBefore: raw.stock,
-          stockAfter: sesudah,
-          hppSnapshot: raw.buyPrice,
+          stockBefore: Value(raw.stock),
+          stockAfter: Value(sesudah),
+          hppSnapshot: Value(raw.buyPrice),
           currentStockSnapshot: Value(sesudah),
           referenceNo: refNo,
           date: Value(now),
@@ -155,9 +163,9 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
         productId: fin.id,
         type: StockMutationType.prosesJadi,
         quantity: finishedQtyToProduce,
-        stockBefore: fin.stock,
-        stockAfter: sesudah,
-        hppSnapshot: fin.buyPrice,
+        stockBefore: Value(fin.stock),
+        stockAfter: Value(sesudah),
+        hppSnapshot: Value(fin.buyPrice),
         currentStockSnapshot: Value(sesudah),
         referenceNo: refNo,
         date: Value(now),
@@ -196,9 +204,9 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
       variantId: Value(variantId),
       type: type,
       quantity: quantity,
-      stockBefore: before,
-      stockAfter: stockAfter,
-      hppSnapshot: hpp,
+      stockBefore: Value(before),
+      stockAfter: Value(stockAfter),
+      hppSnapshot: Value(hpp),
       currentStockSnapshot: Value(stockAfter),
       referenceNo: refNo,
       date: Value(DateTime.now()),
