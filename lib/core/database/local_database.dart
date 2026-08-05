@@ -13,6 +13,7 @@ import 'tables/purchase_table.dart';
 import 'tables/audit_log_table.dart';
 import 'constant/constant_debt_status.dart';
 
+// JANGAN HAPUS INI - PENTING
 import 'daos/user_dao.dart';
 import 'daos/dashboard_dao.dart';
 import 'daos/category_dao.dart';
@@ -32,6 +33,7 @@ part 'local_database.g.dart';
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
 
+  // INI WAJIB ADA - JANGAN DIHAPUS
   late final UserDao userDao = UserDao(this);
   late final DashboardDao dashboardDao = DashboardDao(this);
   late final CategoryDao categoryDao = CategoryDao(this);
@@ -41,7 +43,7 @@ class LocalDatabase extends _$LocalDatabase {
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -115,6 +117,12 @@ class LocalDatabase extends _$LocalDatabase {
           await m.addColumn(stockMutations, stockMutations.userId);
           await m.addColumn(stockMutations, stockMutations.notes);
         } catch (_) {}
+      }
+      if (from < 15) {
+        try {
+          await m.addColumn(stockMutations, stockMutations.hppSnapshot);
+          await m.addColumn(stockMutations, stockMutations.rackLocation);
+        } catch (_) {}
         final cats = await select(categories).get();
         if (cats.isEmpty) await categoryDao.seedDefaults();
       }
@@ -134,19 +142,11 @@ class LocalDatabase extends _$LocalDatabase {
       await into(transactions).insert(dataTransaksi);
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        final prod = await (select(products)..where((t) => t.id.equals(item.productId.value))).getSingle();
-        final newStock = prod.stock - item.quantity.value;
-        await (update(products)..where((t) => t.id.equals(item.productId.value))).write(
-          ProductsCompanion(stock: Value(newStock)),
-        );
-        await stockMutationDao.addMutation(
-          productId: prod.id,
-          type: StockMutationType.penjualan,
-          quantity: -item.quantity.value,
-          stockAfter: newStock,
-          hpp: prod.buyPrice,
+        await stockMutationDao.catatPenjualan(
+          productId: item.productId.value,
+          qty: item.quantity.value,
           refNo: dataTransaksi.id.value,
-          notes: 'Penjualan POS',
+          userId: dataTransaksi.userId.value,
         );
       }
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
@@ -171,10 +171,39 @@ class LocalDatabase extends _$LocalDatabase {
       }
     });
   }
+
+  Future<void> prosesPembelianPenyimpanan({
+    required PurchasesCompanion dataPembelian,
+    required List<PurchaseItemsCompanion> itemPembelian,
+  }) async {
+    await transaction(() async {
+      await into(purchases).insert(dataPembelian);
+      for (final item in itemPembelian) {
+        await into(purchaseItems).insert(item);
+        await stockMutationDao.catatPembelian(
+          productId: item.productId.value,
+          qty: item.quantity.value,
+          hargaBeli: item.buyPrice.value,
+          refNo: dataPembelian.id.value,
+          userId: dataPembelian.userId.value,
+        );
+      }
+    });
+  }
 }
 
 final localDatabaseProvider = Provider<LocalDatabase>((ref) {
   final db = LocalDatabase();
   ref.onDispose(() => db.close());
   return db;
+});
+
+final stockMutationDaoProvider = Provider<StockMutationDao>((ref) {
+  return ref.watch(localDatabaseProvider).stockMutationDao;
+});
+final productDaoProvider = Provider<ProductDao>((ref) {
+  return ref.watch(localDatabaseProvider).productDao;
+});
+final categoryDaoProvider = Provider<CategoryDao>((ref) {
+  return ref.watch(localDatabaseProvider).categoryDao;
 });
