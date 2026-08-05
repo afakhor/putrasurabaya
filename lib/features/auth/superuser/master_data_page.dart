@@ -91,6 +91,14 @@ class MasterDataPage extends StatelessWidget {
         'page': null,
       },
       {
+        'title': 'Stok Opname',
+        'subtitle': 'Fisik vs Program',
+        'icon': Icons.rule_rounded,
+        'color': Colors.orange.shade800,
+        'type': 'page',
+        'page': const OpnameStockPage(),
+      },
+      {
         'title': 'Mutasi & Kartu',
         'subtitle': 'Besar + Per Barang',
         'icon': Icons.history_edu_rounded,
