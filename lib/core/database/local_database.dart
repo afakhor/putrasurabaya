@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
 // TABLES
 import 'tables/user_table.dart';
@@ -23,6 +22,7 @@ import 'daos/category_dao.dart';
 import 'daos/product_dao.dart';
 import 'daos/customer_dao.dart';
 import 'daos/supplier_dao.dart';
+import 'daos/finance_dao.dart'; // FIX: ini yang ada PayablesDao & ReceivablesDao
 import 'daos/stock_mutation_dao.dart';
 import 'daos/audit_log_dao.dart';
 
@@ -37,25 +37,25 @@ part 'local_database.g.dart';
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
 
-  // Singleton DAOs - INI KUNCI 1 PINTU
+  // Singleton DAOs - 1 PINTU
   late final UserDao userDao = UserDao(this);
   late final DashboardDao dashboardDao = DashboardDao(this);
   late final CategoryDao categoryDao = CategoryDao(this);
   late final ProductDao productDao = ProductDao(this);
   late final CustomerDao customerDao = CustomerDao(this);
-late final PayablesDao payablesDao = PayablesDao(this);
   late final SupplierDao supplierDao = SupplierDao(this);
+  late final PayablesDao payablesDao = PayablesDao(this); // FIX: dari finance_dao
+  late final ReceivablesDao receivablesDao = ReceivablesDao(this);
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
   late final AuditLogDao auditLogDao = AuditLogDao(this);
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17; // FIX: naikkan jadi 17 biar migration baru jalan
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
-      // SEED OWNER
       await into(users).insert(UsersCompanion.insert(
         id: 'owner-01', name: 'Owner Putra Surabaya', role: 'owner',
         username: Value('owner'), passwordHash: Value('owner'), pinCode: Value('123456'),
@@ -118,11 +118,13 @@ late final PayablesDao payablesDao = PayablesDao(this);
         try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch(_){}
         try { await m.addColumn(stockMutations, stockMutations.rackLocation); } catch(_){}
       }
-      if (from < 16) {
-        try { await m.createTable(auditLogs); } catch(_){}
-        try { await m.createTable(fraudAlerts); } catch(_){}
+      if (from < 17) {
+        // FIX: Jangan createTable lagi, cukup add column isSynced
         try { await m.addColumn(auditLogs, auditLogs.isSynced); } catch(_){}
         try { await m.addColumn(fraudAlerts, fraudAlerts.isSynced); } catch(_){}
+        try { await m.addColumn(fraudAlerts, fraudAlerts.auditLogId); } catch(_){}
+        try { await m.addColumn(auditLogs, auditLogs.oldValue); } catch(_){}
+        try { await m.addColumn(auditLogs, auditLogs.newValue); } catch(_){}
       }
     },
     beforeOpen: (details) async {
@@ -132,35 +134,28 @@ late final PayablesDao payablesDao = PayablesDao(this);
 
   Future<List<ProductData>> getAllProducts() => select(products).get();
 
-  // ========== ORCHESTRATOR POS - 1 PINTU, ANTI DOUBLE STOCK ==========
-  // INI DIPAKAI DI POS PAGE - JANGAN PANGGIL DAO LANGSUNG DARI UI POS
+  // ========== ORCHESTRATOR POS - 1 PINTU ANTI DOUBLE ==========
   Future<void> prosesTransaksiPenyimpanan({
     required TransactionsCompanion dataTransaksi,
     required List<TransactionItemsCompanion> itemTransaksi,
   }) async {
     await transaction(() async {
-      // 1. Insert header dulu
       await into(transactions).insert(dataTransaksi);
-      
-      // 2. Loop item -> insert detail + mutasi stok via CORE (tanpa transaction baru)
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        // PAKAI CORE BIAR TIDAK NESTED TRANSACTION ERROR
         await stockMutationDao.catatPenjualanCore(
           productId: item.productId.value,
           qty: item.quantity.value,
-          refNo: dataTransaksi.invoiceNo.value, // pakai invoiceNo biar readable di kartu stok
+          refNo: dataTransaksi.invoiceNo.value,
           userId: dataTransaksi.salesId.value ?? 'kasir',
-          notes: 'POS: ${dataTransaksi.invoiceNo.value}',
+          notes: 'POS: ' + dataTransaksi.invoiceNo.value,
           variantId: item.variantId.value,
         );
       }
-
-      // 3. Handle piutang jika ada sisa
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
         await into(receivables).insert(
           ReceivablesCompanion.insert(
-            id: 'RC-${dataTransaksi.id.value}',
+            id: 'RC-' + dataTransaksi.id.value,
             transactionId: dataTransaksi.id.value,
             customerId: dataTransaksi.customerId.value!,
             totalAmount: dataTransaksi.grandTotal.value,
@@ -188,20 +183,18 @@ late final PayablesDao payablesDao = PayablesDao(this);
       await into(purchases).insert(dataPembelian);
       for (final item in itemPembelian) {
         await into(purchaseItems).insert(item);
-        // HPP Moving Avg pakai buyPrice asli, qty dikali conversionFactor sudah di-handle di UI
         await stockMutationDao.catatPembelianCore(
           productId: item.productId.value,
           qty: item.quantity.value * item.conversionFactor.value,
-          hargaBeli: item.buyPrice.value, // harga per Pcs dasar
+          hargaBeli: item.buyPrice.value,
           refNo: dataPembelian.invoiceNo.value,
           userId: dataPembelian.userId.value,
-          notes: 'Beli: ${dataPembelian.invoiceNo.value}',
+          notes: 'Beli: ' + dataPembelian.invoiceNo.value,
         );
       }
-      // Handle hutang supplier jika credit
       if (dataPembelian.debtAmount.value > 0) {
         await into(payables).insert(PayablesCompanion.insert(
-          id: 'PY-${dataPembelian.id.value}',
+          id: 'PY-' + dataPembelian.id.value,
           purchaseId: dataPembelian.id.value,
           supplierId: dataPembelian.supplierId.value,
           totalAmount: dataPembelian.totalAmount.value,
@@ -215,7 +208,6 @@ late final PayablesDao payablesDao = PayablesDao(this);
   }
 }
 
-// PROVIDERS GLOBAL - PAKAI INI DI SEMUA PAGE
 final localDatabaseProvider = Provider<LocalDatabase>((ref) {
   final db = LocalDatabase();
   ref.onDispose(() => db.close());
