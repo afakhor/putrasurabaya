@@ -1,19 +1,22 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
+// TABLES
 import 'tables/user_table.dart';
 import 'tables/product_table.dart';
-import 'tables/stock_mutation_table.dart'; // <-- WAJIB TAMBAH INI, JANGAN LUPA
+import 'tables/stock_mutation_table.dart';
 import 'tables/customer_table.dart';
 import 'tables/transaction_table.dart';
 import 'tables/finance_table.dart';
 import 'tables/supplier_table.dart';
 import 'tables/category_table.dart';
 import 'tables/purchase_table.dart';
-import 'tables/audit_log_table.dart'; // sudah ada isSynced
+import 'tables/audit_log_table.dart';
 import 'constant/constant_debt_status.dart';
 
+// DAOS
 import 'daos/user_dao.dart';
 import 'daos/dashboard_dao.dart';
 import 'daos/category_dao.dart';
@@ -21,7 +24,7 @@ import 'daos/product_dao.dart';
 import 'daos/customer_dao.dart';
 import 'daos/supplier_dao.dart';
 import 'daos/stock_mutation_dao.dart';
-import 'daos/audit_log_dao.dart'; // <-- TAMBAH
+import 'daos/audit_log_dao.dart';
 
 part 'local_database.g.dart';
 
@@ -34,6 +37,7 @@ part 'local_database.g.dart';
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
 
+  // Singleton DAOs - INI KUNCI 1 PINTU
   late final UserDao userDao = UserDao(this);
   late final DashboardDao dashboardDao = DashboardDao(this);
   late final CategoryDao categoryDao = CategoryDao(this);
@@ -41,7 +45,7 @@ class LocalDatabase extends _$LocalDatabase {
   late final CustomerDao customerDao = CustomerDao(this);
   late final SupplierDao supplierDao = SupplierDao(this);
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
-  late final AuditLogDao auditLogDao = AuditLogDao(this); // <-- CCTV
+  late final AuditLogDao auditLogDao = AuditLogDao(this);
 
   @override
   int get schemaVersion => 16;
@@ -50,6 +54,7 @@ class LocalDatabase extends _$LocalDatabase {
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
+      // SEED OWNER
       await into(users).insert(UsersCompanion.insert(
         id: 'owner-01', name: 'Owner Putra Surabaya', role: 'owner',
         username: Value('owner'), passwordHash: Value('owner'), pinCode: Value('123456'),
@@ -62,69 +67,61 @@ class LocalDatabase extends _$LocalDatabase {
     },
     onUpgrade: (Migrator m, int from, int to) async {
       if (from < 10) {
-        await m.createAll(); // createAll aman untuk drift
+        try { await m.createTable(auditLogs); } catch(_){}
+        try { await m.createTable(fraudAlerts); } catch(_){}
       }
       if (from < 12) {
-        try {
-          await m.addColumn(categories, categories.code);
-          await m.addColumn(categories, categories.slug);
-          await m.addColumn(categories, categories.iconName);
-          await m.addColumn(categories, categories.colorHex);
-          await m.addColumn(categories, categories.imageUrl);
-          await m.addColumn(categories, categories.parentId);
-          await m.addColumn(categories, categories.level);
-          await m.addColumn(categories, categories.sortOrder);
-          await m.addColumn(categories, categories.productCount);
-          await m.addColumn(categories, categories.usageCount);
-          await m.addColumn(categories, categories.isFavorite);
-          await m.addColumn(categories, categories.isSystem);
-        } catch (_) {}
+        try { await m.addColumn(categories, categories.code); } catch(_){}
+        try { await m.addColumn(categories, categories.slug); } catch(_){}
+        try { await m.addColumn(categories, categories.iconName); } catch(_){}
+        try { await m.addColumn(categories, categories.colorHex); } catch(_){}
+        try { await m.addColumn(categories, categories.imageUrl); } catch(_){}
+        try { await m.addColumn(categories, categories.parentId); } catch(_){}
+        try { await m.addColumn(categories, categories.level); } catch(_){}
+        try { await m.addColumn(categories, categories.sortOrder); } catch(_){}
+        try { await m.addColumn(categories, categories.productCount); } catch(_){}
+        try { await m.addColumn(categories, categories.usageCount); } catch(_){}
+        try { await m.addColumn(categories, categories.isFavorite); } catch(_){}
+        try { await m.addColumn(categories, categories.isSystem); } catch(_){}
       }
       if (from < 13) {
-        try {
-          await m.addColumn(products, products.shortName);
-          await m.addColumn(products, products.barcode);
-          await m.addColumn(products, products.description);
-          await m.addColumn(products, products.subCategory);
-          await m.addColumn(products, products.brand);
-          await m.addColumn(products, products.warehouseLocation);
-          await m.addColumn(products, products.tags);
-          await m.addColumn(products, products.sellPriceGeneral);
-          await m.addColumn(products, products.sellPriceTier1);
-          await m.addColumn(products, products.sellPriceTier2);
-          await m.addColumn(products, products.sellPriceTier3);
-          await m.addColumn(products, products.maxDiscountSales);
-          await m.addColumn(products, products.isPriceLocked);
-          await m.addColumn(products, products.minStock);
-          await m.addColumn(products, products.maxStock);
-          await m.addColumn(products, products.allowMinusStock);
-          await m.addColumn(products, products.unit);
-          await m.addColumn(products, products.rackLocation);
-          await m.addColumn(products, products.isSynced);
-        } catch (_) {}
+        try { await m.addColumn(products, products.shortName); } catch(_){}
+        try { await m.addColumn(products, products.barcode); } catch(_){}
+        try { await m.addColumn(products, products.description); } catch(_){}
+        try { await m.addColumn(products, products.subCategory); } catch(_){}
+        try { await m.addColumn(products, products.brand); } catch(_){}
+        try { await m.addColumn(products, products.warehouseLocation); } catch(_){}
+        try { await m.addColumn(products, products.tags); } catch(_){}
+        try { await m.addColumn(products, products.sellPriceGeneral); } catch(_){}
+        try { await m.addColumn(products, products.sellPriceTier1); } catch(_){}
+        try { await m.addColumn(products, products.sellPriceTier2); } catch(_){}
+        try { await m.addColumn(products, products.sellPriceTier3); } catch(_){}
+        try { await m.addColumn(products, products.maxDiscountSales); } catch(_){}
+        try { await m.addColumn(products, products.isPriceLocked); } catch(_){}
+        try { await m.addColumn(products, products.minStock); } catch(_){}
+        try { await m.addColumn(products, products.maxStock); } catch(_){}
+        try { await m.addColumn(products, products.allowMinusStock); } catch(_){}
+        try { await m.addColumn(products, products.unit); } catch(_){}
+        try { await m.addColumn(products, products.rackLocation); } catch(_){}
+        try { await m.addColumn(products, products.isSynced); } catch(_){}
       }
       if (from < 14) {
-        try {
-          await m.addColumn(stockMutations, stockMutations.stockBefore);
-          await m.addColumn(stockMutations, stockMutations.stockAfter);
-          await m.addColumn(stockMutations, stockMutations.currentStockSnapshot);
-          await m.addColumn(stockMutations, stockMutations.variantId);
-          await m.addColumn(stockMutations, stockMutations.userId);
-          await m.addColumn(stockMutations, stockMutations.notes);
-        } catch (_) {}
+        try { await m.addColumn(stockMutations, stockMutations.stockBefore); } catch(_){}
+        try { await m.addColumn(stockMutations, stockMutations.stockAfter); } catch(_){}
+        try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){}
+        try { await m.addColumn(stockMutations, stockMutations.variantId); } catch(_){}
+        try { await m.addColumn(stockMutations, stockMutations.userId); } catch(_){}
+        try { await m.addColumn(stockMutations, stockMutations.notes); } catch(_){}
       }
       if (from < 15) {
-        try {
-          await m.addColumn(stockMutations, stockMutations.hppSnapshot);
-          await m.addColumn(stockMutations, stockMutations.rackLocation);
-        } catch (_) {}
+        try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch(_){}
+        try { await m.addColumn(stockMutations, stockMutations.rackLocation); } catch(_){}
       }
       if (from < 16) {
-        try { await m.createTable(auditLogs); } catch (_) {}
-        try { await m.createTable(fraudAlerts); } catch (_) {}
-        try { await m.addColumn(auditLogs, auditLogs.isSynced); } catch (_) {}
-        try { await m.addColumn(fraudAlerts, fraudAlerts.isSynced); } catch (_) {}
-        try { await m.addColumn(stockMutations, stockMutations.rackLocation); } catch (_) {}
+        try { await m.createTable(auditLogs); } catch(_){}
+        try { await m.createTable(fraudAlerts); } catch(_){}
+        try { await m.addColumn(auditLogs, auditLogs.isSynced); } catch(_){}
+        try { await m.addColumn(fraudAlerts, fraudAlerts.isSynced); } catch(_){}
       }
     },
     beforeOpen: (details) async {
@@ -134,22 +131,31 @@ class LocalDatabase extends _$LocalDatabase {
 
   Future<List<ProductData>> getAllProducts() => select(products).get();
 
+  // ========== ORCHESTRATOR POS - 1 PINTU, ANTI DOUBLE STOCK ==========
+  // INI DIPAKAI DI POS PAGE - JANGAN PANGGIL DAO LANGSUNG DARI UI POS
   Future<void> prosesTransaksiPenyimpanan({
     required TransactionsCompanion dataTransaksi,
     required List<TransactionItemsCompanion> itemTransaksi,
   }) async {
     await transaction(() async {
+      // 1. Insert header dulu
       await into(transactions).insert(dataTransaksi);
+      
+      // 2. Loop item -> insert detail + mutasi stok via CORE (tanpa transaction baru)
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        await stockMutationDao.catatPenjualan(
+        // PAKAI CORE BIAR TIDAK NESTED TRANSACTION ERROR
+        await stockMutationDao.catatPenjualanCore(
           productId: item.productId.value,
           qty: item.quantity.value,
-          refNo: dataTransaksi.id.value,
-          userId: dataTransaksi.userId.value,
-          notes: 'POS: ${dataTransaksi.id.value}',
+          refNo: dataTransaksi.invoiceNo.value, // pakai invoiceNo biar readable di kartu stok
+          userId: dataTransaksi.salesId.value ?? 'kasir',
+          notes: 'POS: ${dataTransaksi.invoiceNo.value}',
+          variantId: item.variantId.value,
         );
       }
+
+      // 3. Handle piutang jika ada sisa
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
         await into(receivables).insert(
           ReceivablesCompanion.insert(
@@ -166,7 +172,7 @@ class LocalDatabase extends _$LocalDatabase {
         final cust = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
         if(cust!=null){
           await (update(customers)..where((t)=> t.id.equals(cust.id))).write(
-            CustomersCompanion(totalDebt: Value(cust.totalDebt + dataTransaksi.remainingDebt.value))
+            CustomersCompanion(totalDebt: Value(cust.totalDebt + dataTransaksi.remainingDebt.value), updatedAt: Value(DateTime.now()))
           );
         }
       }
@@ -181,19 +187,34 @@ class LocalDatabase extends _$LocalDatabase {
       await into(purchases).insert(dataPembelian);
       for (final item in itemPembelian) {
         await into(purchaseItems).insert(item);
-        await stockMutationDao.catatPembelian(
+        // HPP Moving Avg pakai buyPrice asli, qty dikali conversionFactor sudah di-handle di UI
+        await stockMutationDao.catatPembelianCore(
           productId: item.productId.value,
-          qty: item.quantity.value,
-          hargaBeli: item.buyPrice.value,
-          refNo: dataPembelian.id.value,
+          qty: item.quantity.value * item.conversionFactor.value,
+          hargaBeli: item.buyPrice.value, // harga per Pcs dasar
+          refNo: dataPembelian.invoiceNo.value,
           userId: dataPembelian.userId.value,
-          notes: 'Beli: ${dataPembelian.id.value}',
+          notes: 'Beli: ${dataPembelian.invoiceNo.value}',
         );
+      }
+      // Handle hutang supplier jika credit
+      if (dataPembelian.debtAmount.value > 0) {
+        await into(payables).insert(PayablesCompanion.insert(
+          id: 'PY-${dataPembelian.id.value}',
+          purchaseId: dataPembelian.id.value,
+          supplierId: dataPembelian.supplierId.value,
+          totalAmount: dataPembelian.totalAmount.value,
+          paidAmount: Value(dataPembelian.paidAmount.value),
+          remainingAmount: dataPembelian.debtAmount.value,
+          dueDate: dataPembelian.dueDate.value ?? DateTime.now().add(const Duration(days: 30)),
+          status: Value(DebtStatus.tentukanStatus(dataPembelian.debtAmount.value, dataPembelian.paidAmount.value)),
+        ));
       }
     });
   }
 }
 
+// PROVIDERS GLOBAL - PAKAI INI DI SEMUA PAGE
 final localDatabaseProvider = Provider<LocalDatabase>((ref) {
   final db = LocalDatabase();
   ref.onDispose(() => db.close());
