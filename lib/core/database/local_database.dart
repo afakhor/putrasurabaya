@@ -4,14 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'tables/user_table.dart';
 import 'tables/product_table.dart';
-import 'tables/stock_mutation_table.dart';
+import 'tables/stock_mutation_table.dart'; // <-- WAJIB TAMBAH INI, JANGAN LUPA
 import 'tables/customer_table.dart';
 import 'tables/transaction_table.dart';
 import 'tables/finance_table.dart';
 import 'tables/supplier_table.dart';
 import 'tables/category_table.dart';
 import 'tables/purchase_table.dart';
-import 'tables/audit_log_table.dart';
+import 'tables/audit_log_table.dart'; // sudah ada isSynced
 import 'constant/constant_debt_status.dart';
 
 import 'daos/user_dao.dart';
@@ -21,6 +21,7 @@ import 'daos/product_dao.dart';
 import 'daos/customer_dao.dart';
 import 'daos/supplier_dao.dart';
 import 'daos/stock_mutation_dao.dart';
+import 'daos/audit_log_dao.dart'; // <-- TAMBAH
 
 part 'local_database.g.dart';
 
@@ -32,6 +33,7 @@ part 'local_database.g.dart';
 ])
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
+
   late final UserDao userDao = UserDao(this);
   late final DashboardDao dashboardDao = DashboardDao(this);
   late final CategoryDao categoryDao = CategoryDao(this);
@@ -39,10 +41,13 @@ class LocalDatabase extends _$LocalDatabase {
   late final CustomerDao customerDao = CustomerDao(this);
   late final SupplierDao supplierDao = SupplierDao(this);
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
+  late final AuditLogDao auditLogDao = AuditLogDao(this); // <-- CCTV
 
-  @override int get schemaVersion => 16;
+  @override
+  int get schemaVersion => 16;
 
-  @override MigrationStrategy get migration => MigrationStrategy(
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
       await into(users).insert(UsersCompanion.insert(
@@ -56,7 +61,9 @@ class LocalDatabase extends _$LocalDatabase {
       await categoryDao.seedDefaults();
     },
     onUpgrade: (Migrator m, int from, int to) async {
-      if (from < 10) { await m.createAll(); }
+      if (from < 10) {
+        await m.createAll(); // createAll aman untuk drift
+      }
       if (from < 12) {
         try {
           await m.addColumn(categories, categories.code);
@@ -115,40 +122,85 @@ class LocalDatabase extends _$LocalDatabase {
       if (from < 16) {
         try { await m.createTable(auditLogs); } catch (_) {}
         try { await m.createTable(fraudAlerts); } catch (_) {}
+        try { await m.addColumn(auditLogs, auditLogs.isSynced); } catch (_) {}
+        try { await m.addColumn(fraudAlerts, fraudAlerts.isSynced); } catch (_) {}
         try { await m.addColumn(stockMutations, stockMutations.rackLocation); } catch (_) {}
       }
     },
-    beforeOpen: (details) async => await customStatement('PRAGMA foreign_keys = ON;'),
+    beforeOpen: (details) async {
+      await customStatement('PRAGMA foreign_keys = ON;');
+    },
   );
+
   Future<List<ProductData>> getAllProducts() => select(products).get();
 
-  Future<void> prosesTransaksiPenyimpanan({required TransactionsCompanion dataTransaksi, required List<TransactionItemsCompanion> itemTransaksi}) async {
+  Future<void> prosesTransaksiPenyimpanan({
+    required TransactionsCompanion dataTransaksi,
+    required List<TransactionItemsCompanion> itemTransaksi,
+  }) async {
     await transaction(() async {
       await into(transactions).insert(dataTransaksi);
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        await stockMutationDao.catatPenjualan(productId: item.productId.value, qty: item.quantity.value, refNo: dataTransaksi.id.value, userId: dataTransaksi.userId.value);
+        await stockMutationDao.catatPenjualan(
+          productId: item.productId.value,
+          qty: item.quantity.value,
+          refNo: dataTransaksi.id.value,
+          userId: dataTransaksi.userId.value,
+          notes: 'POS: ${dataTransaksi.id.value}',
+        );
       }
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
-        await into(receivables).insert(ReceivablesCompanion.insert(id: 'RC-${dataTransaksi.id.value}', transactionId: dataTransaksi.id.value, customerId: dataTransaksi.customerId.value!, totalAmount: dataTransaksi.grandTotal.value, paidAmount: Value(dataTransaksi.payAmount.value), remainingAmount: dataTransaksi.remainingDebt.value, dueDate: DateTime.now().add(const Duration(days: 14)), status: Value(DebtStatus.tentukanStatus(dataTransaksi.remainingDebt.value, dataTransaksi.payAmount.value))));
+        await into(receivables).insert(
+          ReceivablesCompanion.insert(
+            id: 'RC-${dataTransaksi.id.value}',
+            transactionId: dataTransaksi.id.value,
+            customerId: dataTransaksi.customerId.value!,
+            totalAmount: dataTransaksi.grandTotal.value,
+            paidAmount: Value(dataTransaksi.payAmount.value),
+            remainingAmount: dataTransaksi.remainingDebt.value,
+            dueDate: DateTime.now().add(const Duration(days: 14)),
+            status: Value(DebtStatus.tentukanStatus(dataTransaksi.remainingDebt.value, dataTransaksi.payAmount.value)),
+          ),
+        );
         final cust = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
-        if(cust!=null){ await (update(customers)..where((t)=> t.id.equals(cust.id))).write(CustomersCompanion(totalDebt: Value(cust.totalDebt + dataTransaksi.remainingDebt.value))); }
+        if(cust!=null){
+          await (update(customers)..where((t)=> t.id.equals(cust.id))).write(
+            CustomersCompanion(totalDebt: Value(cust.totalDebt + dataTransaksi.remainingDebt.value))
+          );
+        }
       }
     });
   }
 
-  Future<void> prosesPembelianPenyimpanan({required PurchasesCompanion dataPembelian, required List<PurchaseItemsCompanion> itemPembelian}) async {
+  Future<void> prosesPembelianPenyimpanan({
+    required PurchasesCompanion dataPembelian,
+    required List<PurchaseItemsCompanion> itemPembelian,
+  }) async {
     await transaction(() async {
       await into(purchases).insert(dataPembelian);
       for (final item in itemPembelian) {
         await into(purchaseItems).insert(item);
-        await stockMutationDao.catatPembelian(productId: item.productId.value, qty: item.quantity.value, hargaBeli: item.buyPrice.value, refNo: dataPembelian.id.value, userId: dataPembelian.userId.value);
+        await stockMutationDao.catatPembelian(
+          productId: item.productId.value,
+          qty: item.quantity.value,
+          hargaBeli: item.buyPrice.value,
+          refNo: dataPembelian.id.value,
+          userId: dataPembelian.userId.value,
+          notes: 'Beli: ${dataPembelian.id.value}',
+        );
       }
     });
   }
 }
 
-final localDatabaseProvider = Provider<LocalDatabase>((ref) { final db = LocalDatabase(); ref.onDispose(() => db.close()); return db; });
+final localDatabaseProvider = Provider<LocalDatabase>((ref) {
+  final db = LocalDatabase();
+  ref.onDispose(() => db.close());
+  return db;
+});
+
 final stockMutationDaoProvider = Provider<StockMutationDao>((ref) => ref.watch(localDatabaseProvider).stockMutationDao);
 final productDaoProvider = Provider<ProductDao>((ref) => ref.watch(localDatabaseProvider).productDao);
 final categoryDaoProvider = Provider<CategoryDao>((ref) => ref.watch(localDatabaseProvider).categoryDao);
+final auditLogDaoProvider = Provider<AuditLogDao>((ref) => ref.watch(localDatabaseProvider).auditLogDao);
