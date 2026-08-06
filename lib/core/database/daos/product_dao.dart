@@ -6,37 +6,21 @@ import 'package:ud_putra_kasir/core/database/tables/category_table.dart';
 
 part 'product_dao.g.dart';
 
-@DriftAccessor(tables: [Products, ProductUnits, ProductVariants, ProductAssets, Categories, StockMutations])
+@DriftAccessor(tables: [Products, ProductUnits, ProductVariants, ProductAssets, Categories])
 class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin {
   ProductDao(LocalDatabase db) : super(db);
 
   Stream<List<ProductData>> watchActiveProducts() {
-    return (select(products)
-          ..where((tbl) => tbl.statusActive.equals('aktif'))
-          ..orderBy([(tbl) => OrderingTerm(expression: tbl.name, mode: OrderingMode.asc)]))
-        .watch();
+    return (select(products)..where((tbl) => tbl.statusActive.equals('aktif'))..orderBy([(tbl) => OrderingTerm(expression: tbl.name)])).watch();
   }
-
   Stream<List<ProductData>> searchProducts(String query) {
     if (query.trim().isEmpty) return watchActiveProducts();
     final cleanQuery = '%${query.trim().toLowerCase()}%';
-    return (select(products)
-          ..where((tbl) =>
-              tbl.statusActive.equals('aktif') &
-              (tbl.name.lower().like(cleanQuery) |
-               tbl.barcode.like(cleanQuery) |
-               (tbl.code.isNotNull() & tbl.code.like(cleanQuery))))
-          ..orderBy([(tbl) => OrderingTerm(expression: tbl.name)]))
-        .watch();
+    return (select(products)..where((tbl) => tbl.statusActive.equals('aktif') & (tbl.name.lower().like(cleanQuery) | tbl.barcode.like(cleanQuery) | (tbl.code.isNotNull() & tbl.code.like(cleanQuery))))..orderBy([(tbl) => OrderingTerm(expression: tbl.name)])).watch();
   }
-
   Stream<List<ProductData>> watchProductsByCategory(String categoryId) {
-    return (select(products)
-          ..where((tbl) => tbl.categoryId.equals(categoryId) & tbl.statusActive.equals('aktif'))
-          ..orderBy([(tbl) => OrderingTerm(expression: tbl.name)]))
-        .watch();
+    return (select(products)..where((tbl) => tbl.categoryId.equals(categoryId) & tbl.statusActive.equals('aktif'))..orderBy([(tbl) => OrderingTerm(expression: tbl.name)])).watch();
   }
-
   Future<ProductData?> getProductByBarcode(String barcode) => (select(products)..where((tbl) => tbl.barcode.equals(barcode) & tbl.statusActive.equals('aktif'))).getSingleOrNull();
   Future<ProductData?> getProductById(String id) => (select(products)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
   Stream<ProductData?> watchProductById(String id) => (select(products)..where((tbl) => tbl.id.equals(id))).watchSingleOrNull();
@@ -55,8 +39,7 @@ class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin 
       }
     });
   }
-
-  Future<void> saveFullProduct({required ProductsCompanion product, List<ProductUnitsCompanion> units = const [], List<ProductVariantsCompanion> variants = const [], List<ProductAssetData> assets = const []}) async {
+  Future<void> saveFullProduct({required ProductsCompanion product, List<ProductUnitsCompanion> units = const [], List<ProductVariantsCompanion> variants = const []}) async {
     await transaction(() async {
       final pid = product.id.value;
       await into(products).insertOnConflictUpdate(product.copyWith(isSynced: const Value(false), updatedAt: Value(DateTime.now())));
@@ -71,27 +54,18 @@ class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin 
     });
   }
 
-  Future<void> updateStock(String productId, double deltaQuantity) async {
-    final product = await getProductById(productId);
-    if (product != null) {
-      double newStock = product.stock + deltaQuantity;
-      if (newStock < 0 && !product.allowMinusStock) newStock = 0;
-      await (update(products)..where((tbl) => tbl.id.equals(productId))).write(ProductsCompanion(stock: Value(newStock), isSynced: const Value(false), updatedAt: Value(DateTime.now())));
-    }
-  }
+  // updateStock DIHAPUS - LANGGAR 1 PINTU!
 
   Future<void> softDeleteProduct(String id) => (update(products)..where((tbl) => tbl.id.equals(id))).write(ProductsCompanion(statusActive: const Value('nonaktif'), isSynced: const Value(false), updatedAt: Value(DateTime.now())));
-
   Future<void> hardDeleteProduct(String id) async {
     await transaction(() async {
       await (delete(productAssets)..where((t) => t.productId.equals(id))).go();
       await (delete(productUnits)..where((t) => t.productId.equals(id))).go();
       await (delete(productVariants)..where((t) => t.productId.equals(id))).go();
-      await (delete(stockMutations)..where((t) => t.productId.equals(id))).go();
+      // JANGAN HAPUS stockMutations - itu buku besar audit
       await (delete(products)..where((t) => t.id.equals(id))).go();
     });
   }
-
   Future<List<ProductData>> getAllProducts() => select(products).get();
   Stream<List<ProductData>> watchAll() => select(products).watch();
 }
