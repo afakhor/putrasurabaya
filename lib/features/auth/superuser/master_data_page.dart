@@ -5,12 +5,12 @@ import '../../../core/utils/config.dart';
 import 'product/product_page.dart';
 
 // PERSEDIAAN - 6 PAGE IPOS 5
-import '../../persediaan/presentation/pages/master_barang_page.dart';
-import '../../persediaan/presentation/pages/item_masuk_page.dart';
-import '../../persediaan/presentation/pages/item_keluar_page.dart';
-import '../../persediaan/presentation/pages/opname_stock_page.dart';
-import '../../persediaan/presentation/pages/perakitan_page.dart';
-import '../../persediaan/presentation/pages/mutasi_stok_page.dart';
+import 'stock/master_barang_page.dart';
+import 'stock/item_masuk_page.dart';
+import 'stock/item_keluar_page.dart';
+import 'stock/opname_stock_page.dart';
+import 'stock/perakitan_page.dart';
+import 'stock/mutasi_stok_page.dart';
 
 class MasterDataPage extends StatelessWidget {
   const MasterDataPage({super.key});
