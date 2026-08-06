@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,7 +14,6 @@ import 'tables/purchase_table.dart';
 import 'tables/audit_log_table.dart';
 import 'constant/constant_debt_status.dart';
 
-// JANGAN HAPUS INI - PENTING
 import 'daos/user_dao.dart';
 import 'daos/dashboard_dao.dart';
 import 'daos/category_dao.dart';
@@ -33,7 +33,6 @@ part 'local_database.g.dart';
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
 
-  // INI WAJIB ADA - JANGAN DIHAPUS
   late final UserDao userDao = UserDao(this);
   late final DashboardDao dashboardDao = DashboardDao(this);
   late final CategoryDao categoryDao = CategoryDao(this);
@@ -43,7 +42,7 @@ class LocalDatabase extends _$LocalDatabase {
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16; // <-- WAJIB 16
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -123,8 +122,18 @@ class LocalDatabase extends _$LocalDatabase {
           await m.addColumn(stockMutations, stockMutations.hppSnapshot);
           await m.addColumn(stockMutations, stockMutations.rackLocation);
         } catch (_) {}
-        final cats = await select(categories).get();
-        if (cats.isEmpty) await categoryDao.seedDefaults();
+      }
+      // MIGRASI BARU V16 - CCTV FINAL
+      if (from < 16) {
+        try { await m.createTable(auditLogs); } catch (_) {}
+        try { await m.createTable(fraudAlerts); } catch (_) {}
+        // Pastikan kolom v14 & v15 ada kalau upgrade loncat
+        try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch (_) {}
+        try { await m.addColumn(stockMutations, stockMutations.rackLocation); } catch (_) {}
+        try { await m.addColumn(stockMutations, stockMutations.stockBefore); } catch (_) {}
+        try { await m.addColumn(stockMutations, stockMutations.stockAfter); } catch (_) {}
+        try { await m.addColumn(stockMutations, stockMutations.userId); } catch (_) {}
+        try { await m.addColumn(stockMutations, stockMutations.notes); } catch (_) {}
       }
     },
     beforeOpen: (details) async {
@@ -134,6 +143,7 @@ class LocalDatabase extends _$LocalDatabase {
 
   Future<List<ProductData>> getAllProducts() => select(products).get();
 
+  // INI SUDAH 1 PINTU - JANGAN UPDATE STOCK MANUAL
   Future<void> prosesTransaksiPenyimpanan({
     required TransactionsCompanion dataTransaksi,
     required List<TransactionItemsCompanion> itemTransaksi,
@@ -142,11 +152,13 @@ class LocalDatabase extends _$LocalDatabase {
       await into(transactions).insert(dataTransaksi);
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
+        // qty di transactionItems itu positif (misal 2), di DAO akan jadi -2
         await stockMutationDao.catatPenjualan(
           productId: item.productId.value,
-          qty: item.quantity.value,
+          qty: item.quantity.value, 
           refNo: dataTransaksi.id.value,
           userId: dataTransaksi.userId.value,
+          notes: 'POS: ${dataTransaksi.id.value}',
         );
       }
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
@@ -186,6 +198,7 @@ class LocalDatabase extends _$LocalDatabase {
           hargaBeli: item.buyPrice.value,
           refNo: dataPembelian.id.value,
           userId: dataPembelian.userId.value,
+          notes: 'Beli: ${dataPembelian.id.value}',
         );
       }
     });
