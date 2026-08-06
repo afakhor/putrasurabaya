@@ -43,6 +43,7 @@ class LocalDatabase extends _$LocalDatabase {
   late final CategoryDao categoryDao = CategoryDao(this);
   late final ProductDao productDao = ProductDao(this);
   late final CustomerDao customerDao = CustomerDao(this);
+late final PayablesDao payablesDao = PayablesDao(this);
   late final SupplierDao supplierDao = SupplierDao(this);
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
   late final AuditLogDao auditLogDao = AuditLogDao(this);
