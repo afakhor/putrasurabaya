@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/database/local_database.dart';
-import '../../../../core/utils/config.dart';
+import '../../../core/database/local_database.dart';
+import '../../../core/utils/config.dart';
 import 'kartu_stok_page.dart';
 import 'mutasi_stok_page.dart';
-import '../product/product_page.dart';
+import 'product/product_page.dart';
 
 class MasterBarangPageFinal extends ConsumerStatefulWidget {
   const MasterBarangPageFinal({super.key});
