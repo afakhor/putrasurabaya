@@ -1,10 +1,10 @@
-import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'tables/user_table.dart';
 import 'tables/product_table.dart';
+import 'tables/stock_mutation_table.dart';
 import 'tables/customer_table.dart';
 import 'tables/transaction_table.dart';
 import 'tables/finance_table.dart';
@@ -32,7 +32,6 @@ part 'local_database.g.dart';
 ])
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
-
   late final UserDao userDao = UserDao(this);
   late final DashboardDao dashboardDao = DashboardDao(this);
   late final CategoryDao categoryDao = CategoryDao(this);
@@ -41,11 +40,9 @@ class LocalDatabase extends _$LocalDatabase {
   late final SupplierDao supplierDao = SupplierDao(this);
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
 
-  @override
-  int get schemaVersion => 16; // <-- WAJIB 16
+  @override int get schemaVersion => 16;
 
-  @override
-  MigrationStrategy get migration => MigrationStrategy(
+  @override MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
       await into(users).insert(UsersCompanion.insert(
@@ -59,13 +56,7 @@ class LocalDatabase extends _$LocalDatabase {
       await categoryDao.seedDefaults();
     },
     onUpgrade: (Migrator m, int from, int to) async {
-      if (from < 10) {
-        await m.createTable(categories);
-        await m.createTable(purchases);
-        await m.createTable(purchaseItems);
-        await m.createTable(auditLogs);
-        await m.createTable(fraudAlerts);
-      }
+      if (from < 10) { await m.createAll(); }
       if (from < 12) {
         try {
           await m.addColumn(categories, categories.code);
@@ -104,8 +95,6 @@ class LocalDatabase extends _$LocalDatabase {
           await m.addColumn(products, products.rackLocation);
           await m.addColumn(products, products.isSynced);
         } catch (_) {}
-        final cats = await select(categories).get();
-        if (cats.isEmpty) await categoryDao.seedDefaults();
       }
       if (from < 14) {
         try {
@@ -123,100 +112,43 @@ class LocalDatabase extends _$LocalDatabase {
           await m.addColumn(stockMutations, stockMutations.rackLocation);
         } catch (_) {}
       }
-      // MIGRASI BARU V16 - CCTV FINAL
       if (from < 16) {
         try { await m.createTable(auditLogs); } catch (_) {}
         try { await m.createTable(fraudAlerts); } catch (_) {}
-        // Pastikan kolom v14 & v15 ada kalau upgrade loncat
-        try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch (_) {}
         try { await m.addColumn(stockMutations, stockMutations.rackLocation); } catch (_) {}
-        try { await m.addColumn(stockMutations, stockMutations.stockBefore); } catch (_) {}
-        try { await m.addColumn(stockMutations, stockMutations.stockAfter); } catch (_) {}
-        try { await m.addColumn(stockMutations, stockMutations.userId); } catch (_) {}
-        try { await m.addColumn(stockMutations, stockMutations.notes); } catch (_) {}
       }
     },
-    beforeOpen: (details) async {
-      await customStatement('PRAGMA foreign_keys = ON;');
-    },
+    beforeOpen: (details) async => await customStatement('PRAGMA foreign_keys = ON;'),
   );
-
   Future<List<ProductData>> getAllProducts() => select(products).get();
 
-  // INI SUDAH 1 PINTU - JANGAN UPDATE STOCK MANUAL
-  Future<void> prosesTransaksiPenyimpanan({
-    required TransactionsCompanion dataTransaksi,
-    required List<TransactionItemsCompanion> itemTransaksi,
-  }) async {
+  Future<void> prosesTransaksiPenyimpanan({required TransactionsCompanion dataTransaksi, required List<TransactionItemsCompanion> itemTransaksi}) async {
     await transaction(() async {
       await into(transactions).insert(dataTransaksi);
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        // qty di transactionItems itu positif (misal 2), di DAO akan jadi -2
-        await stockMutationDao.catatPenjualan(
-          productId: item.productId.value,
-          qty: item.quantity.value, 
-          refNo: dataTransaksi.id.value,
-          userId: dataTransaksi.userId.value,
-          notes: 'POS: ${dataTransaksi.id.value}',
-        );
+        await stockMutationDao.catatPenjualan(productId: item.productId.value, qty: item.quantity.value, refNo: dataTransaksi.id.value, userId: dataTransaksi.userId.value);
       }
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
-        await into(receivables).insert(
-          ReceivablesCompanion.insert(
-            id: 'RC-${dataTransaksi.id.value}',
-            transactionId: dataTransaksi.id.value,
-            customerId: dataTransaksi.customerId.value!,
-            totalAmount: dataTransaksi.grandTotal.value,
-            paidAmount: Value(dataTransaksi.payAmount.value),
-            remainingAmount: dataTransaksi.remainingDebt.value,
-            dueDate: DateTime.now().add(const Duration(days: 14)),
-            status: Value(DebtStatus.tentukanStatus(dataTransaksi.remainingDebt.value, dataTransaksi.payAmount.value)),
-          ),
-        );
+        await into(receivables).insert(ReceivablesCompanion.insert(id: 'RC-${dataTransaksi.id.value}', transactionId: dataTransaksi.id.value, customerId: dataTransaksi.customerId.value!, totalAmount: dataTransaksi.grandTotal.value, paidAmount: Value(dataTransaksi.payAmount.value), remainingAmount: dataTransaksi.remainingDebt.value, dueDate: DateTime.now().add(const Duration(days: 14)), status: Value(DebtStatus.tentukanStatus(dataTransaksi.remainingDebt.value, dataTransaksi.payAmount.value))));
         final cust = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
-        if(cust!=null){
-          await (update(customers)..where((t)=> t.id.equals(cust.id))).write(
-            CustomersCompanion(totalDebt: Value(cust.totalDebt + dataTransaksi.remainingDebt.value))
-          );
-        }
+        if(cust!=null){ await (update(customers)..where((t)=> t.id.equals(cust.id))).write(CustomersCompanion(totalDebt: Value(cust.totalDebt + dataTransaksi.remainingDebt.value))); }
       }
     });
   }
 
-  Future<void> prosesPembelianPenyimpanan({
-    required PurchasesCompanion dataPembelian,
-    required List<PurchaseItemsCompanion> itemPembelian,
-  }) async {
+  Future<void> prosesPembelianPenyimpanan({required PurchasesCompanion dataPembelian, required List<PurchaseItemsCompanion> itemPembelian}) async {
     await transaction(() async {
       await into(purchases).insert(dataPembelian);
       for (final item in itemPembelian) {
         await into(purchaseItems).insert(item);
-        await stockMutationDao.catatPembelian(
-          productId: item.productId.value,
-          qty: item.quantity.value,
-          hargaBeli: item.buyPrice.value,
-          refNo: dataPembelian.id.value,
-          userId: dataPembelian.userId.value,
-          notes: 'Beli: ${dataPembelian.id.value}',
-        );
+        await stockMutationDao.catatPembelian(productId: item.productId.value, qty: item.quantity.value, hargaBeli: item.buyPrice.value, refNo: dataPembelian.id.value, userId: dataPembelian.userId.value);
       }
     });
   }
 }
 
-final localDatabaseProvider = Provider<LocalDatabase>((ref) {
-  final db = LocalDatabase();
-  ref.onDispose(() => db.close());
-  return db;
-});
-
-final stockMutationDaoProvider = Provider<StockMutationDao>((ref) {
-  return ref.watch(localDatabaseProvider).stockMutationDao;
-});
-final productDaoProvider = Provider<ProductDao>((ref) {
-  return ref.watch(localDatabaseProvider).productDao;
-});
-final categoryDaoProvider = Provider<CategoryDao>((ref) {
-  return ref.watch(localDatabaseProvider).categoryDao;
-});
+final localDatabaseProvider = Provider<LocalDatabase>((ref) { final db = LocalDatabase(); ref.onDispose(() => db.close()); return db; });
+final stockMutationDaoProvider = Provider<StockMutationDao>((ref) => ref.watch(localDatabaseProvider).stockMutationDao);
+final productDaoProvider = Provider<ProductDao>((ref) => ref.watch(localDatabaseProvider).productDao);
+final categoryDaoProvider = Provider<CategoryDao>((ref) => ref.watch(localDatabaseProvider).categoryDao);
