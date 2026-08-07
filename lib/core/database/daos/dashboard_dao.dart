@@ -5,14 +5,19 @@ import '../local_database.dart';
 import '../tables/finance_table.dart';
 import '../tables/transaction_table.dart';
 import '../tables/product_table.dart';
+import '../tables/audit_log_table.dart';
 import 'dashboard_finance_summary.dart';
-// HAPUS 2 baris ini biar gak No such file
-// import '../tables/audit_log_table.dart';
-// import '../tables/fraud_alert_table.dart';
+
+// INI YANG BIKIN ERROR KEMARIN - CEK NAMA FILE ASLI KAMU
+// Kalau di folder kamu namanya fraud_alerts_table.dart (pakai S) ganti jadi itu
+// Kalau tidak ada file nya, COMMENT BARIS INI
+import '../tables/fraud_alert_table.dart';
 
 part 'dashboard_dao.g.dart';
 
-@DriftAccessor(tables: [Payables, Receivables, Transactions, TransactionItems, Expenses, Products, AuditLogs, FraudAlerts])
+@DriftAccessor(tables: [
+  Payables, Receivables, Transactions, TransactionItems, Expenses, Products, AuditLogs, FraudAlerts,
+])
 class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMixin {
   DashboardDao(LocalDatabase db) : super(db);
 
@@ -36,8 +41,28 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
     final lowStockStream = (selectOnly(products)..addColumns([productCount])..where(products.stock.isSmallerThanValue(5))).watchSingle().map((r) => r.read(productCount)?? 0);
     return Rx.combineLatest6(payablesStream, receivablesStream, salesStream, profitStream, expenseStream, lowStockStream, (p, r, s, profit, expense, low) => DashboardFinanceSummary(totalSisaHutang: (p['total'] as num).toDouble(), jumlahHutangAktif: p['count'] as int, totalSisaPiutang: (r['total'] as num).toDouble(), jumlahPiutangAktif: r['count'] as int, omsetHariIni: (s['omset'] as num).toDouble(), jumlahTransaksiHariIni: s['jumlah'] as int, labaKotorHariIni: profit, pengeluaranHariIni: expense, stokMenipisCount: low));
   }
-  Stream<List<FraudAlertData>> watchActiveFraudAlerts() => (select(fraudAlerts)..where((t) => t.isResolved.equals(false))..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)])).watch();
-  Stream<List<AuditLogData>> watchRecentAuditLogs(int limit) => (select(auditLogs)..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)])..limit(limit)).watch();
-  Stream<String> watchOwnerRiskStatus() => watchFinanceSummary().map((s) { if (s.totalSisaHutang > s.totalSisaPiutang * 2) return 'RISIKO TINGGI'; if (s.stokMenipisCount > 10) return 'STOK KRITIS'; return 'AMAN'; });
-  Future<List<ProductData>> getLowStockProducts() => (select(products)..where((t) => t.stock.isSmallerThanValue(5))).get();
+
+  Stream<List<FraudAlertData>> watchActiveFraudAlerts() {
+    return (select(fraudAlerts)..where((t) => t.isResolved.equals(false))..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)])).watch();
+  }
+
+  Stream<List<AuditLogData>> watchRecentAuditLogs(int limit) {
+    return (select(auditLogs)..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)])..limit(limit)).watch();
+  }
+
+  Stream<String> watchOwnerRiskStatus() {
+    return watchFinanceSummary().map((s) {
+      if (s.totalSisaHutang > s.totalSisaPiutang * 2) return 'RISIKO TINGGI';
+      if (s.stokMenipisCount > 10) return 'STOK KRITIS';
+      return 'AMAN';
+    });
+  }
+
+  Future<List<ProductData>> getLowStockProducts() {
+    return (select(products)..where((t) => t.stock.isSmallerThanValue(5))).get();
+  }
 }
+
+final dashboardDaoProvider = Provider<DashboardDao>((ref) {
+  return ref.watch(localDatabaseProvider).dashboardDao;
+});
