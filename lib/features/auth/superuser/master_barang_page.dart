@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/utils/config.dart';
-import 'stock/kartu_stok_page.dart';
-import 'stock/mutasi_stok_page.dart';
+import 'stock/kartu_stock_page.dart';
+import 'stock/mutasi_stock_page.dart';
 import 'product/product_page.dart';
 
 class MasterBarangPageFinal extends ConsumerStatefulWidget {
