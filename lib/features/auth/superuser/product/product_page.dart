@@ -16,10 +16,12 @@ final filterCategoryProvider = StateProvider<String?>((ref) => null);
 final filterStockStatusProvider = StateProvider<String?>((ref) => null);
 final sortByProvider = StateProvider<String>((ref) => 'name_asc');
 
+// Provider yang hilang
 final allProductsStreamProvider = StreamProvider.autoDispose<List<ProductData>>((ref) {
   final db = ref.watch(localDatabaseProvider);
   return db.select(db.products).watch();
 });
+final productsStreamProvider = allProductsStreamProvider; // alias biar file lama gak error
 
 class ProductPage extends ConsumerStatefulWidget {
   const ProductPage({super.key});
@@ -29,16 +31,13 @@ class ProductPage extends ConsumerStatefulWidget {
 class _ProductPageState extends ConsumerState<ProductPage> {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce;
-
   @override void dispose(){ _searchCtrl.dispose(); _debounce?.cancel(); super.dispose(); }
-
   void _onSearchChanged(String q){
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), (){
       ref.read(searchQueryProvider.notifier).state = q.toLowerCase();
     });
   }
-
   Future<void> _openForm(BuildContext context, {ProductData? product}) async {
     final notifier = ref.read(productFormProvider.notifier);
     final db = ref.read(localDatabaseProvider);
@@ -52,9 +51,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
     }
     if(context.mounted){
       showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
+        context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         builder: (ctx)=> FractionallySizedBox(heightFactor: 0.92, child: const FormMasterBarangSheet()),
       );
@@ -83,7 +80,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
             if(stockFilter=='aman') ms = p.stock > p.minStock;
             return mq && mc && ms;
           }).toList();
-
           filtered.sort((a,b){
             switch(sortRule){
               case 'name_desc': return b.name.compareTo(a.name);
@@ -94,7 +90,6 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               default: return a.name.compareTo(b.name);
             }
           });
-
           return Column(children: [
             _buildTopBar(context),
             Padding(padding: const EdgeInsets.symmetric(horizontal:12, vertical:8), child: Row(children: [
@@ -103,8 +98,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
               _statChip('Filter: ${filtered.length}', Colors.green),
             ])),
             Expanded(
-              child: filtered.isEmpty
-                ? Center(child: GlassCard(child: const Text('Tidak ada perkakas', style: TextStyle(fontFamily:'Poppins'))))
+              child: filtered.isEmpty ? Center(child: GlassCard(child: const Text('Tidak ada perkakas', style: TextStyle(fontFamily:'Poppins'))))
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12,0,12,90),
                     itemCount: filtered.length,
@@ -121,20 +115,18 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                             const SizedBox(width:10),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(prod.name, maxLines:1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:13, fontFamily:'Poppins')),
-                              const SizedBox(height:2),
-                              Text('${prod.categoryId} • ${prod.rackLocation??'-'} • ${formatRupiah(prod.sellPriceGeneral)} • ${prod.sellPriceTier1>0? 'T1:${formatRupiah(prod.sellPriceTier1)}':''}', maxLines:1, style: const TextStyle(fontSize:10, color: Colors.black54, fontFamily:'Poppins')),
-                              const SizedBox(height:2),
+                              Text('${prod.categoryId} • ${prod.rackLocation??'-'} • ${formatRupiah(prod.sellPriceGeneral)}', maxLines:1, style: const TextStyle(fontSize:10, color: Colors.black54, fontFamily:'Poppins')),
                               Text('SKU: ${prod.code?? prod.id.substring(0,8)} • ${prod.stock.toStringAsFixed(0)} ${prod.unit} • HPP:${prod.buyPrice.toStringAsFixed(0)}', style: TextStyle(fontSize:10, color: sc, fontWeight: FontWeight.bold, fontFamily:'Poppins')),
                             ])),
                             PopupMenuButton(itemBuilder: (_)=>[
-                              PopupMenuItem(value:'edit', child: Text('Edit')),
-                              PopupMenuItem(value:'kartu', child: Text('Kartu Stok')),
-                              PopupMenuItem(value:'hapus', child: Text('Hapus', style: TextStyle(color: Colors.red))),
+                              const PopupMenuItem(value:'edit', child: Text('Edit')),
+                              const PopupMenuItem(value:'kartu', child: Text('Kartu Stok')),
+                              const PopupMenuItem(value:'hapus', child: Text('Hapus', style: TextStyle(color: Colors.red))),
                             ], onSelected: (v) async {
                               if(v=='edit') _openForm(context, product: prod);
-                              if(v=='kartu') Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStokPage(productId: prod.id)));
+                              if(v=='kartu') Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStockPage(productId: prod.id)));
                               if(v=='hapus'){
-                                final ok = await showDialog<bool>(context: context, builder: (_)=> AlertDialog(title: Text('Hapus ${prod.name}?'), content: Text('Stok mutasi tidak dihapus (audit).'), actions: [TextButton(onPressed: ()=> Navigator.pop(context,false), child: Text('Batal')), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: ()=> Navigator.pop(context,true), child: Text('Hapus', style: TextStyle(color: Colors.white)))]));
+                                final ok = await showDialog<bool>(context: context, builder: (_)=> AlertDialog(title: Text('Hapus ${prod.name}?'), content: const Text('Stok mutasi tidak dihapus (audit).'), actions: [TextButton(onPressed: ()=> Navigator.pop(context,false), child: const Text('Batal')), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: ()=> Navigator.pop(context,true), child: const Text('Hapus', style: TextStyle(color: Colors.white)))]));
                                 if(ok==true) await ref.read(productFormProvider.notifier).deleteProduct(prod.id);
                               }
                             }, child: const Icon(Icons.more_vert, size:18)),
@@ -172,31 +164,13 @@ class _ProductPageState extends ConsumerState<ProductPage> {
         SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
           _filterChip(label:'Semua', selected: ref.watch(filterCategoryProvider)==null, onTap: ()=> ref.read(filterCategoryProvider.notifier).state=null),
           const SizedBox(width:6),
-          _filterChip(label:'Menipis', selected: ref.watch(filterStockStatusProvider)=='menipis', onTap: (){
-            final cur=ref.read(filterStockStatusProvider);
-            ref.read(filterStockStatusProvider.notifier).state = cur=='menipis'? null : 'menipis';
-          }, color: Colors.orange),
+          _filterChip(label:'Menipis', selected: ref.watch(filterStockStatusProvider)=='menipis', onTap: (){ final cur=ref.read(filterStockStatusProvider); ref.read(filterStockStatusProvider.notifier).state = cur=='menipis'? null : 'menipis'; }, color: Colors.orange),
           const SizedBox(width:6),
-          _filterChip(label:'Habis', selected: ref.watch(filterStockStatusProvider)=='habis', onTap: (){
-            final cur=ref.read(filterStockStatusProvider);
-            ref.read(filterStockStatusProvider.notifier).state = cur=='habis'? null : 'habis';
-          }, color: Colors.red),
-          const SizedBox(width:6),
-          StreamBuilder<List<CategoryData>>(
-            stream: ref.read(localDatabaseProvider).categoryDao.watchByType(CategoryType.product),
-            builder: (c,snap){
-              final cats = snap.data?? [];
-              return Row(children: cats.take(8).map((cat){
-                final sel = ref.watch(filterCategoryProvider)==cat.name;
-                return Padding(padding: const EdgeInsets.only(right:6), child: _filterChip(label:cat.name, selected: sel, onTap: ()=> ref.read(filterCategoryProvider.notifier).state = sel? null : cat.name));
-              }).toList());
-            },
-          ),
+          _filterChip(label:'Habis', selected: ref.watch(filterStockStatusProvider)=='habis', onTap: (){ final cur=ref.read(filterStockStatusProvider); ref.read(filterStockStatusProvider.notifier).state = cur=='habis'? null : 'habis'; }, color: Colors.red),
         ])),
       ]),
     );
   }
-
   Widget _filterChip({required String label, required bool selected, required VoidCallback onTap, Color? color}){
     return ChoiceChip(label: Text(label, style: TextStyle(fontSize:11, fontFamily:'Poppins', color: selected? Colors.white : Colors.black87)), selected: selected, selectedColor: color?? const Color(0xFF00A65A), backgroundColor: Colors.white.withOpacity(0.9), onSelected: (_)=> onTap(), visualDensity: VisualDensity.compact);
   }
@@ -209,13 +183,11 @@ class FormMasterBarangSheet extends ConsumerStatefulWidget {
   const FormMasterBarangSheet({super.key});
   @override ConsumerState<FormMasterBarangSheet> createState()=> _FormMasterBarangSheetState();
 }
-
 class _FormMasterBarangSheetState extends ConsumerState<FormMasterBarangSheet> {
   @override Widget build(BuildContext context){
     final state = ref.watch(productFormProvider);
     final notifier = ref.read(productFormProvider.notifier);
     final categoryStream = ref.read(localDatabaseProvider).categoryDao.watchByType(CategoryType.product);
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(backgroundColor: Colors.white, title: Text(state.isEditMode? 'Edit ${state.name}' : 'Tambah Perkakas Baru', style: const TextStyle(fontSize:14, fontWeight: FontWeight.bold, fontFamily:'Poppins')), actions: [IconButton(icon: const Icon(Icons.close), onPressed: ()=> Navigator.pop(context))]),
@@ -223,7 +195,6 @@ class _FormMasterBarangSheetState extends ConsumerState<FormMasterBarangSheet> {
         GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('1. Identitas + Auto SKU', style: TextStyle(fontWeight: FontWeight.bold, fontFamily:'Poppins', fontSize:12, color: Color(0xFF007F00))),
           const SizedBox(height:10),
-          // AUTO COMPLETE
           Autocomplete<ProductData>(
             optionsBuilder: (textEditingValue) async {
               if(textEditingValue.text.length<2) return [];
@@ -233,7 +204,7 @@ class _FormMasterBarangSheetState extends ConsumerState<FormMasterBarangSheet> {
             onSelected: (p){ notifier.setProduct(p, [], [], []); },
             fieldViewBuilder: (ctx, ctrl, focus, onSubmit){
               ctrl.text = state.name;
-              return TextFormField(controller: ctrl, focusNode: focus, style: const TextStyle(fontFamily:'Poppins'), decoration: const InputDecoration(labelText:'Nama Perkakas Lengkap * (ketik untuk auto complete)', border: OutlineInputBorder()), onChanged: (v)=> notifier.updateField(name: v));
+              return TextFormField(controller: ctrl, focusNode: focus, style: const TextStyle(fontFamily:'Poppins'), decoration: const InputDecoration(labelText:'Nama Perkakas Lengkap *', border: OutlineInputBorder()), onChanged: (v)=> notifier.updateField(name: v));
             },
           ),
           const SizedBox(height:10),
@@ -252,58 +223,26 @@ class _FormMasterBarangSheetState extends ConsumerState<FormMasterBarangSheet> {
         ])),
         const SizedBox(height:12),
         GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('2. HPP + Harga Jual Tier + % Margin', style: TextStyle(fontWeight: FontWeight.bold, fontFamily:'Poppins', fontSize:12, color: Color(0xFF007F00))),
+          const Text('2. HPP + Harga Jual Tier', style: TextStyle(fontWeight: FontWeight.bold, fontFamily:'Poppins', fontSize:12, color: Color(0xFF007F00))),
           const SizedBox(height:10),
           Row(children: [
             Expanded(child: TextFormField(initialValue: state.buyPrice.toStringAsFixed(0), keyboardType: TextInputType.number, style: const TextStyle(fontFamily:'Poppins'), decoration: const InputDecoration(labelText:'HPP Modal', prefixText:'Rp ', border: OutlineInputBorder()), onChanged: (v)=> notifier.updateField(buyPrice: double.tryParse(v)??0))),
             const SizedBox(width:8),
-            Expanded(child: Column(children: [
-              TextFormField(initialValue: state.sellPriceGeneral.toStringAsFixed(0), keyboardType: TextInputType.number, style: const TextStyle(fontFamily:'Poppins'), decoration: InputDecoration(labelText:'Jual Umum', prefixText:'Rp ', suffixText: '${state.marginGeneral.toStringAsFixed(0)}%', border: OutlineInputBorder()), onChanged: (v)=> notifier.updateField(sellPriceGeneral: double.tryParse(v)??0)),
-              Text('${state.marginGeneral.toStringAsFixed(1)}% margin', style: TextStyle(fontSize:9, color: state.marginGeneral<10? Colors.red : Colors.green, fontWeight: FontWeight.bold)),
-            ])),
-          ]),
-          const SizedBox(height:10),
-          Row(children: [
-            Expanded(child: Column(children: [TextFormField(initialValue: state.sellPriceTier1.toStringAsFixed(0), keyboardType: TextInputType.number, style: const TextStyle(fontFamily:'Poppins', fontSize:12), decoration: InputDecoration(labelText:'Tier 1 Grosir', prefixText:'Rp ', suffixText: '${state.marginTier1.toStringAsFixed(0)}%', border: OutlineInputBorder()), onChanged: (v)=> notifier.updateField(sellPriceTier1: double.tryParse(v)??0)), Text('${state.marginTier1.toStringAsFixed(1)}%', style: TextStyle(fontSize:9, color: Colors.blue))])), 
-            const SizedBox(width:6),
-            Expanded(child: Column(children: [TextFormField(initialValue: state.sellPriceTier2.toStringAsFixed(0), keyboardType: TextInputType.number, style: const TextStyle(fontFamily:'Poppins', fontSize:12), decoration: InputDecoration(labelText:'Tier 2 Reseller', prefixText:'Rp ', suffixText: '${state.marginTier2.toStringAsFixed(0)}%', border: OutlineInputBorder()), onChanged: (v)=> notifier.updateField(sellPriceTier2: double.tryParse(v)??0)), Text('${state.marginTier2.toStringAsFixed(1)}%', style: TextStyle(fontSize:9, color: Colors.purple))])), 
-            const SizedBox(width:6),
-            Expanded(child: Column(children: [TextFormField(initialValue: state.sellPriceTier3.toStringAsFixed(0), keyboardType: TextInputType.number, style: const TextStyle(fontFamily:'Poppins', fontSize:12), decoration: InputDecoration(labelText:'Tier 3 VIP', prefixText:'Rp ', suffixText: '${state.marginTier3.toStringAsFixed(0)}%', border: OutlineInputBorder()), onChanged: (v)=> notifier.updateField(sellPriceTier3: double.tryParse(v)??0)), Text('${state.marginTier3.toStringAsFixed(1)}%', style: TextStyle(fontSize:9, color: Colors.orange))])), 
-          ]),
-        ])),
-        const SizedBox(height:12),
-        GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('3. Stok + Satuan', style: TextStyle(fontWeight: FontWeight.bold, fontFamily:'Poppins', fontSize:12, color: Color(0xFF007F00))),
-          const SizedBox(height:10),
-          Row(children: [
-            Expanded(child: TextFormField(initialValue: state.stock.toStringAsFixed(0), keyboardType: TextInputType.number, style: const TextStyle(fontFamily:'Poppins'), decoration: InputDecoration(labelText: state.isEditMode? 'Stok Saat Ini (edit via Opname)':'Stok Awal', border: OutlineInputBorder()), onChanged: (v)=> notifier.updateField(stock: double.tryParse(v)??0), enabled: !state.isEditMode)),
-            const SizedBox(width:8),
-            Expanded(child: TextFormField(initialValue: state.unit, style: const TextStyle(fontFamily:'Poppins'), decoration: const InputDecoration(labelText:'Satuan', border: OutlineInputBorder()), onChanged: (v)=> notifier.updateField(unit: v))),
+            Expanded(child: TextFormField(initialValue: state.sellPriceGeneral.toStringAsFixed(0), keyboardType: TextInputType.number, style: const TextStyle(fontFamily:'Poppins'), decoration: InputDecoration(labelText:'Jual Umum', prefixText:'Rp ', suffixText: '${state.marginGeneral.toStringAsFixed(0)}%', border: const OutlineInputBorder()), onChanged: (v)=> notifier.updateField(sellPriceGeneral: double.tryParse(v)??0))),
           ]),
         ])),
         const SizedBox(height:20),
         SizedBox(width: double.infinity, height:48, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A)), onPressed: () async {
           final ok = await notifier.saveProduct();
-          if(ok && context.mounted){
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.isEditMode? 'Perkakas diupdate' : 'Perkakas disimpan & kartu stok tercatat (HPP MA)')));
-          }
+          if(ok && context.mounted){ Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.isEditMode? 'Perkakas diupdate' : 'Perkakas disimpan'))); }
         }, child: Text(state.isEditMode? 'UPDATE PERKAKAS' : 'SIMPAN PERKAKAS', style: const TextStyle(color:Colors.white, fontWeight: FontWeight.bold, fontFamily:'Poppins')))),
         if(state.isEditMode) ...[
           const SizedBox(height:10),
           Row(children: [
-            Expanded(child: OutlinedButton.icon(icon: Icon(Icons.receipt_long), label: Text('Kartu Stok'), onPressed: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStokPage(productId: state.id))))),
+            Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.receipt_long), label: const Text('Kartu Stok'), onPressed: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStockPage(productId: state.id))))),
             const SizedBox(width:8),
-            Expanded(child: OutlinedButton.icon(icon: Icon(Icons.history), label: Text('Mutasi'), onPressed: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> MutasiStokPage())))),
+            Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.history), label: const Text('Mutasi'), onPressed: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> MutasiStockPage())))),
           ]),
-          const SizedBox(height:10),
-          SizedBox(width: double.infinity, child: OutlinedButton.icon(style: OutlinedButton.styleFrom(foregroundColor: Colors.red), icon: Icon(Icons.delete, color: Colors.red), label: Text('Hapus Produk (Soft Delete)', style: TextStyle(color: Colors.red)), onPressed: () async {
-            final ok = await showDialog<bool>(context: context, builder: (_)=> AlertDialog(title: Text('Hapus ${state.name}?'), content: Text('Produk jadi nonaktif, mutasi tetap ada untuk audit.'), actions: [TextButton(onPressed: ()=> Navigator.pop(context,false), child: Text('Batal')), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: ()=> Navigator.pop(context,true), child: Text('Hapus', style: TextStyle(color: Colors.white)))]));
-            if(ok==true){
-              await notifier.softDeleteProduct(state.id);
-              if(context.mounted) Navigator.pop(context);
-            }
-          })),
         ],
       ]),
     );
