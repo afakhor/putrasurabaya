@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/local_database.dart';
 import '../../../../core/database/daos/stock_mutation_dao.dart';
-import 'kartu_stok_page.dart';
+import 'kartu_stock_page.dart';
 
 final warningOnlyProvider = StateProvider<bool>((ref)=> false);
 
