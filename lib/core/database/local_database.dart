@@ -22,7 +22,8 @@ import 'daos/category_dao.dart';
 import 'daos/product_dao.dart';
 import 'daos/customer_dao.dart';
 import 'daos/supplier_dao.dart';
-import 'daos/finance_dao.dart'; // FIX: ini yang ada PayablesDao & ReceivablesDao
+import 'daos/payables_dao.dart';
+import 'daos/receivables_dao.dart';
 import 'daos/stock_mutation_dao.dart';
 import 'daos/audit_log_dao.dart';
 
