@@ -1,7 +1,3 @@
-import 'dart:async';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:drift/drift.dart' hide Column;
 import '../../../../core/database/local_database.dart';
 import '../../../../core/database/tables/category_table.dart';
 import '../../../../core/utils/config.dart';
@@ -11,17 +7,16 @@ import '../stock/mutasi_stock_page.dart';
 import 'master_fab_perkakas.dart';
 import 'product_form_provider.dart';
 
+// PROVIDER DITARO DISINI SAJA, JANGAN DI providers.dart
 final searchQueryProvider = StateProvider<String>((ref) => '');
 final filterCategoryProvider = StateProvider<String?>((ref) => null);
 final filterStockStatusProvider = StateProvider<String?>((ref) => null);
 final sortByProvider = StateProvider<String>((ref) => 'name_asc');
-
-// Provider yang hilang
 final allProductsStreamProvider = StreamProvider.autoDispose<List<ProductData>>((ref) {
   final db = ref.watch(localDatabaseProvider);
-  return db.select(db.products).watch();
+  return db.select(db.products).watch(); // pakai db.products bukan watchAllProducts
 });
-final productsStreamProvider = allProductsStreamProvider; // alias biar file lama gak error
+final productsStreamProvider = allProductsStreamProvider;
 
 class ProductPage extends ConsumerStatefulWidget {
   const ProductPage({super.key});
