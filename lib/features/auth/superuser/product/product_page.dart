@@ -6,8 +6,8 @@ import '../../../../core/database/local_database.dart';
 import '../../../../core/database/tables/category_table.dart';
 import '../../../../core/utils/config.dart';
 import '../../../../core/utils/format_rupiah.dart';
-import '../stock/kartu_stok_page.dart';
-import '../stock/mutasi_stok_page.dart';
+import '../stock/kartu_stock_page.dart';
+import '../stock/mutasi_stock_page.dart';
 import 'master_fab_perkakas.dart';
 import 'product_form_provider.dart';
 
