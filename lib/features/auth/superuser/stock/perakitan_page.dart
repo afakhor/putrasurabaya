@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/local_database.dart';
-import '../../../../core/database/providers.dart'; // <-- WAJIB, ini yang ada productDaoProvider & stockMutationDaoProvider
 import '../../../../core/database/daos/stock_mutation_dao.dart';
 import 'persediaan_stock_barang.dart';
 
