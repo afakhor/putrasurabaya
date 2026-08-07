@@ -5,8 +5,8 @@ import 'package:drift/drift.dart' hide Column;
 import '../../../../core/database/local_database.dart';
 import '../../../../core/database/tables/category_table.dart';
 import '../stock/opname_stock_page.dart';
-import '../stock/mutasi_stok_page.dart';
-import '../stock/kartu_stok_page.dart';
+import '../stock/mutasi_stock_page.dart';
+import '../stock/kartu_stock_page.dart';
 import '../stock/persediaan_stock_barang.dart';
 import 'product_form_provider.dart';
 
