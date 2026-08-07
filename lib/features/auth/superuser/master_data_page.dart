@@ -5,7 +5,7 @@ import '../../../core/utils/config.dart';
 import 'product/product_page.dart';
 
 // PERSEDIAAN - 6 PAGE IPOS 5
-import 'stock/master_barang_page.dart';
+import 'master_barang_page.dart';
 import 'stock/item_masuk_page.dart';
 import 'stock/item_keluar_page.dart';
 import 'stock/opname_stock_page.dart';
