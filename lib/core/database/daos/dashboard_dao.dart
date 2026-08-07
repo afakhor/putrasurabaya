@@ -8,6 +8,7 @@ import '../tables/transaction_table.dart';
 import '../tables/product_table.dart';
 import '../tables/audit_log_table.dart';
 import 'dashboard_finance_summary.dart';
+import '../tables/fraud_alert_table.dart';
 
 part 'dashboard_dao.g.dart';
 
@@ -101,14 +102,14 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
     );
   }
 
-  Stream<List<FraudAlert>> watchActiveFraudAlerts() {
+  Stream<List<FraudAlertData>> watchActiveFraudAlerts() {
     return (select(fraudAlerts)
           ..where((t) => t.isResolved.equals(false))
           ..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)]))
         .watch();
   }
 
-  Stream<List<AuditLog>> watchRecentAuditLogs(int limit) {
+  Stream<List<AuditLogData>> watchRecentAuditLogs(int limit) {
     return (select(auditLogs)
           ..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)])
           ..limit(limit))
