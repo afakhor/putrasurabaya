@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/local_database.dart';
 import '../../../../core/utils/config.dart';
-import 'kartu_stok_page.dart';
+import 'kartu_stock_page.dart';
 
 class PersediaanStockBarangPage extends ConsumerStatefulWidget {
   final bool isPickMode;
