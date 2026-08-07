@@ -5,19 +5,12 @@ import '../local_database.dart';
 import '../tables/finance_table.dart';
 import '../tables/transaction_table.dart';
 import '../tables/product_table.dart';
-import '../tables/audit_log_table.dart';
+import '../tables/audit_log_table.dart'; // <-- INI SUDAH INCLUDE AuditLogs + FraudAlerts
 import 'dashboard_finance_summary.dart';
-
-// INI YANG BIKIN ERROR KEMARIN - CEK NAMA FILE ASLI KAMU
-// Kalau di folder kamu namanya fraud_alerts_table.dart (pakai S) ganti jadi itu
-// Kalau tidak ada file nya, COMMENT BARIS INI
-import '../tables/fraud_alert_table.dart';
 
 part 'dashboard_dao.g.dart';
 
-@DriftAccessor(tables: [
-  Payables, Receivables, Transactions, TransactionItems, Expenses, Products, AuditLogs, FraudAlerts,
-])
+@DriftAccessor(tables: [Payables, Receivables, Transactions, TransactionItems, Expenses, Products, AuditLogs, FraudAlerts])
 class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMixin {
   DashboardDao(LocalDatabase db) : super(db);
 
@@ -63,6 +56,4 @@ class DashboardDao extends DatabaseAccessor<LocalDatabase> with _$DashboardDaoMi
   }
 }
 
-final dashboardDaoProvider = Provider<DashboardDao>((ref) {
-  return ref.watch(localDatabaseProvider).dashboardDao;
-});
+final dashboardDaoProvider = Provider<DashboardDao>((ref) => ref.watch(localDatabaseProvider).dashboardDao);
