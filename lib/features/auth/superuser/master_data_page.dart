@@ -10,7 +10,7 @@ import 'stock/item_masuk_page.dart';
 import 'stock/item_keluar_page.dart';
 import 'stock/opname_stock_page.dart';
 import 'stock/perakitan_page.dart';
-import 'stock/mutasi_stok_page.dart';
+import 'stock/mutasi_stock_page.dart';
 
 class MasterDataPage extends StatelessWidget {
   const MasterDataPage({super.key});
