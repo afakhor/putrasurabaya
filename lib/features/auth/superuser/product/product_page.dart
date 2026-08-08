@@ -16,7 +16,8 @@ final filterCategoryProvider = StateProvider<String?>((ref) => null);
 final filterStockStatusProvider = StateProvider<String?>((ref) => null);
 final sortByProvider = StateProvider<String>((ref) => 'name_asc');
 
-final allProductsStreamProvider = StreamProvider.autoDispose<List<ProductData>>((ref) {
+// PROVIDER GLOBAL - TARUH DISINI 1x AJA BIAR GAK LOADING
+final allProductsStreamProvider = StreamProvider<List<ProductData>>((ref) {
   final db = ref.watch(localDatabaseProvider);
   return db.select(db.products).watch();
 });
@@ -114,11 +115,12 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                             const SizedBox(width:10),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(prod.name, maxLines:1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:13, fontFamily:'Poppins')),
-                              Text('${prod.categoryId} • ${prod.rackLocation??'-'} • ${formatRupiah(prod.sellPriceGeneral)}', maxLines:1, style: const TextStyle(fontSize:10, color: Colors.black54, fontFamily:'Poppins')),
-                              Text('SKU: ${prod.code?? prod.id.substring(0,8)} • ${prod.stock.toStringAsFixed(0)} ${prod.unit}', style: TextStyle(fontSize:10, color: sc, fontWeight: FontWeight.bold, fontFamily:'Poppins')),
+                              // BEDAIN DISINI
+                              Text('Umum: ${formatRupiah(prod.sellPriceGeneral)} • T1:${formatRupiah(prod.sellPriceTier1)}', maxLines:1, style: const TextStyle(fontSize:10, color: Colors.black87, fontFamily:'Poppins', fontWeight: FontWeight.bold)),
+                              Text('T2:${formatRupiah(prod.sellPriceTier2)} • T3:${formatRupiah(prod.sellPriceTier3)} | SKU: ${prod.code?? prod.id.substring(0,8)}', style: TextStyle(fontSize:9, color: sc, fontWeight: FontWeight.w500, fontFamily:'Poppins')),
                             ])),
                             PopupMenuButton(itemBuilder: (_)=>[
-                              const PopupMenuItem(value:'edit', child: Text('Edit')),
+                              const PopupMenuItem(value:'edit', child: Text('Edit Harga')),
                               const PopupMenuItem(value:'kartu', child: Text('Kartu Stok')),
                               const PopupMenuItem(value:'hapus', child: Text('Hapus', style: TextStyle(color: Colors.red))),
                             ], onSelected: (v) async {
@@ -148,19 +150,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       padding: const EdgeInsets.fromLTRB(12,12,12,12),
       child: Column(children: [
         TextField(controller: _searchCtrl, onChanged: _onSearchChanged, style: const TextStyle(fontFamily:'Poppins', fontSize:13), decoration: InputDecoration(hintText: 'Cari Perkakas, SKU, Barcode...', prefixIcon: const Icon(Icons.search, color: Color(0xFF00A65A)), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true, fillColor: Colors.white.withOpacity(0.9))),
-        const SizedBox(height:10),
-        SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
-          _filterChip(label:'Semua', selected: ref.watch(filterCategoryProvider)==null, onTap: ()=> ref.read(filterCategoryProvider.notifier).state=null),
-          const SizedBox(width:6),
-          _filterChip(label:'Menipis', selected: ref.watch(filterStockStatusProvider)=='menipis', onTap: (){ final cur=ref.read(filterStockStatusProvider); ref.read(filterStockStatusProvider.notifier).state = cur=='menipis'? null : 'menipis'; }, color: Colors.orange),
-          const SizedBox(width:6),
-          _filterChip(label:'Habis', selected: ref.watch(filterStockStatusProvider)=='habis', onTap: (){ final cur=ref.read(filterStockStatusProvider); ref.read(filterStockStatusProvider.notifier).state = cur=='habis'? null : 'habis'; }, color: Colors.red),
-        ])),
       ]),
     );
-  }
-  Widget _filterChip({required String label, required bool selected, required VoidCallback onTap, Color? color}){
-    return ChoiceChip(label: Text(label, style: TextStyle(fontSize:11, fontFamily:'Poppins', color: selected? Colors.white : Colors.black87)), selected: selected, selectedColor: color?? const Color(0xFF00A65A), backgroundColor: Colors.white.withOpacity(0.9), onSelected: (_)=> onTap(), visualDensity: VisualDensity.compact);
   }
   Widget _statChip(String text, Color color){
     return Container(padding: const EdgeInsets.symmetric(horizontal:10, vertical:4), decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.3))), child: Text(text, style: TextStyle(fontSize:10, fontWeight: FontWeight.bold, color: color, fontFamily:'Poppins')));
@@ -196,8 +187,27 @@ class _FormMasterBarangSheetState extends ConsumerState<FormMasterBarangSheet> {
             return DropdownButtonFormField<String>(value: cats.any((e)=> e.name==state.categoryId)? state.categoryId : null, hint: const Text('Pilih Kategori', style: TextStyle(fontFamily:'Poppins', fontSize:12)), items: cats.map((e)=> DropdownMenuItem(value: e.name, child: Text(e.name, style: const TextStyle(fontFamily:'Poppins', fontSize:12)))).toList(), onChanged: (v)=> notifier.updateField(categoryId: v), decoration: const InputDecoration(labelText:'Kategori', border: OutlineInputBorder()));
           }),
         ])),
+        const SizedBox(height:16),
+        // HARGA JUAL BEDA INPUT
+        GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('2. Harga Jual', style: TextStyle(fontWeight: FontWeight.bold, fontFamily:'Poppins', fontSize:12, color: Color(0xFF007F00))),
+          const SizedBox(height:12),
+          // JUAL UMUM
+          TextFormField(initialValue: state.sellPriceGeneral.toStringAsFixed(0), keyboardType: TextInputType.number, style: const TextStyle(fontFamily:'Poppins', fontWeight: FontWeight.bold), decoration: InputDecoration(labelText:'Harga Jual Umum *', prefixText: 'Rp ', border: const OutlineInputBorder(), filled: true, fillColor: const Color(0xFF00A65A).withOpacity(0.08)), onChanged: (v)=> notifier.updateField(sellPriceGeneral: double.tryParse(v)??0)),
+          const SizedBox(height:6),
+          Text('Margin Umum: ${state.marginGeneral.toStringAsFixed(1)}%', style: const TextStyle(fontSize:10, color: Colors.green, fontFamily:'Poppins')),
+          const SizedBox(height:16),
+          const Divider(),
+          const Text('Harga Tier (Grosir)', style: TextStyle(fontWeight: FontWeight.bold, fontFamily:'Poppins', fontSize:11, color: Colors.orange)),
+          const SizedBox(height:10),
+          TextFormField(initialValue: state.sellPriceTier1.toStringAsFixed(0), keyboardType: TextInputType.number, style: const TextStyle(fontFamily:'Poppins'), decoration: const InputDecoration(labelText:'Tier 1 - Ecer Member', prefixText: 'Rp ', border: OutlineInputBorder()), onChanged: (v)=> notifier.updateField(sellPriceTier1: double.tryParse(v)??0)),
+          const SizedBox(height:8),
+          TextFormField(initialValue: state.sellPriceTier2.toStringAsFixed(0), keyboardType: TextInputType.number, style: const TextStyle(fontFamily:'Poppins'), decoration: const InputDecoration(labelText:'Tier 2 - Grosir', prefixText: 'Rp ', border: OutlineInputBorder(), helperText: '>10 pcs'), onChanged: (v)=> notifier.updateField(sellPriceTier2: double.tryParse(v)??0)),
+          const SizedBox(height:8),
+          TextFormField(initialValue: state.sellPriceTier3.toStringAsFixed(0), keyboardType: TextInputType.number, style: const TextStyle(fontFamily:'Poppins'), decoration: const InputDecoration(labelText:'Tier 3 - Distributor', prefixText: 'Rp ', border: OutlineInputBorder(), helperText: '>50 pcs'), onChanged: (v)=> notifier.updateField(sellPriceTier3: double.tryParse(v)??0)),
+        ])),
         const SizedBox(height:20),
-        SizedBox(width: double.infinity, height:48, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A)), onPressed: () async { final ok = await notifier.saveProduct(); if(ok && context.mounted){ Navigator.pop(context); } }, child: Text(state.isEditMode? 'UPDATE' : 'SIMPAN', style: const TextStyle(color:Colors.white, fontWeight: FontWeight.bold, fontFamily:'Poppins')))),
+        SizedBox(width: double.infinity, height:48, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A)), onPressed: () async { final ok = await notifier.saveProduct(); if(ok && context.mounted){ Navigator.pop(context); } }, child: Text(state.isEditMode? 'UPDATE HARGA' : 'SIMPAN', style: const TextStyle(color:Colors.white, fontWeight: FontWeight.bold, fontFamily:'Poppins')))),
       ]),
     );
   }
