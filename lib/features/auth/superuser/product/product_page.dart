@@ -9,9 +9,6 @@ import 'product_form_provider.dart';
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
-// HAPUS allProductsStreamProvider DARI SINI - PAKAI YANG GLOBAL DARI local_database.dart
-// final allProductsStreamProvider = ... <-- INI PENYEBAB LOADING MUTER TERUS KEMARIN
-
 class ProductPage extends ConsumerStatefulWidget {
   const ProductPage({super.key});
   @override ConsumerState<ProductPage> createState() => _ProductPageState();
@@ -21,7 +18,10 @@ class _ProductPageState extends ConsumerState<ProductPage> {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce;
   @override void dispose(){ _searchCtrl.dispose(); _debounce?.cancel(); super.dispose(); }
-  void _onSearchChanged(String q){ _debounce?.cancel(); _debounce=Timer(const Duration(milliseconds: 300), ()=> ref.read(searchQueryProvider.notifier).state=q.toLowerCase()); }
+  void _onSearchChanged(String q){
+    _debounce?.cancel();
+    _debounce=Timer(const Duration(milliseconds: 300), ()=> ref.read(searchQueryProvider.notifier).state=q.toLowerCase());
+  }
 
   Future<void> _openForm(BuildContext context, {ProductData? product}) async {
     final notifier=ref.read(productFormProvider.notifier);
@@ -39,14 +39,21 @@ class _ProductPageState extends ConsumerState<ProductPage> {
 
   @override Widget build(BuildContext context){
     final query=ref.watch(searchQueryProvider);
-    final productsAsync=ref.watch(allProductsStreamProvider); // DARI local_database.dart GLOBAL - CUMA 1
+    final productsAsync=ref.watch(allProductsStreamProvider);
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: productsAsync.when(
         loading: ()=> const Center(child: CircularProgressIndicator()),
         error: (e,s)=> Center(child: Text('Error: $e')),
         data: (raw){
-          var filtered=raw.where((p)=> p.name.toLowerCase().contains(query) || (p.code??'').toLowerCase().contains(query)).toList();
+          // FIX: JANGAN PAKAI 1 BARIS LAMBDA
+          var filtered = raw.where((p){
+            final nameOk = p.name.toLowerCase().contains(query);
+            final code = p.code ?? '';
+            final codeOk = code.toLowerCase().contains(query);
+            return nameOk || codeOk;
+          }).toList();
+          
           if(filtered.isEmpty) return const Center(child: Text('Belum ada produk'));
           return Column(children: [
             GlassCard(radius:0, padding: const EdgeInsets.all(12), child: TextField(controller: _searchCtrl, onChanged: _onSearchChanged, decoration: InputDecoration(hintText:'Cari Perkakas...', prefixIcon: const Icon(Icons.search, color: Color(0xFF00A65A)), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled:true, fillColor: Colors.white.withOpacity(0.9)))),
@@ -88,7 +95,7 @@ class _FormMasterBarangSheetState extends ConsumerState<FormMasterBarangSheet> {
             child: Text('${margin.toStringAsFixed(1)}%', style: TextStyle(fontSize:11,fontWeight: FontWeight.bold,color: col)))),
         onChanged: (v)=> onChanged(double.tryParse(v)??0)),
       const SizedBox(height:4),
-      Row(children: [Icon(margin<0?Icons.warning:Icons.trending_up,size:12,color: col), const SizedBox(width:4), Text('Laba ${formatRupiah(laba)} • Margin ${margin.toStringAsFixed(1)}% • HPP ${formatRupiah(ref.read(productFormProvider).buyPrice)}', style: TextStyle(fontSize:10,color: col)))]),
+      Row(children: [Icon(margin<0?Icons.warning:Icons.trending_up,size:12,color: col), const SizedBox(width:4), Text('Laba ${formatRupiah(laba)} • Margin ${margin.toStringAsFixed(1)}% • HPP ${formatRupiah(ref.read(productFormProvider).buyPrice)}', style: TextStyle(fontSize:10,color: col))]),
       const SizedBox(height:12),
     ]);
   }
