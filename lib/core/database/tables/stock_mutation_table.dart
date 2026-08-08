@@ -5,7 +5,7 @@ import 'product_table.dart';
 class StockMutations extends Table {
   TextColumn get id => text()();
   TextColumn get productId => text().references(Products, #id)();
-  TextColumn get variantId => text().nullable();
+  TextColumn get variantId => text().nullable()();
   TextColumn get type => text()(); // PEMBELIAN, ITEM_MASUK, PENJUALAN, ITEM_KELUAR, OPNAME, PERBAIKAN_SALDO
   RealColumn get quantity => real()(); // + masuk - keluar
   RealColumn get stockBefore => real().withDefault(const Constant(0))();
