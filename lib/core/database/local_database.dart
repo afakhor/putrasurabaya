@@ -31,27 +31,26 @@ part 'local_database.g.dart';
 
 @DriftDatabase(tables: [
   Users, ShiftKasir, Categories, Products, ProductAssets, ProductUnits,
-  ProductVariants, ProductPromos, Suppliers, StockMutations, Purchases,
+  ProductVariants, Suppliers, StockMutations, Purchases,
   PurchaseItems, Transactions, TransactionItems, Customers, Payables,
   Receivables, DebtPayments, Expenses, AuditLogs, FraudAlerts,
 ])
 class LocalDatabase extends _$LocalDatabase {
-  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v10'));
+  LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v21'));
 
-  // Singleton DAOs - 1 PINTU
   late final UserDao userDao = UserDao(this);
   late final DashboardDao dashboardDao = DashboardDao(this);
   late final CategoryDao categoryDao = CategoryDao(this);
   late final ProductDao productDao = ProductDao(this);
   late final CustomerDao customerDao = CustomerDao(this);
   late final SupplierDao supplierDao = SupplierDao(this);
-  late final PayablesDao payablesDao = PayablesDao(this); // FIX: dari finance_dao
+  late final PayablesDao payablesDao = PayablesDao(this);
   late final ReceivablesDao receivablesDao = ReceivablesDao(this);
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
   late final AuditLogDao auditLogDao = AuditLogDao(this);
 
   @override
-  int get schemaVersion => 17; // FIX: naikkan jadi 17 biar migration baru jalan
+  int get schemaVersion => 21;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -68,6 +67,7 @@ class LocalDatabase extends _$LocalDatabase {
       await categoryDao.seedDefaults();
     },
     onUpgrade: (Migrator m, int from, int to) async {
+      // MIGRASI LAMA KAMU TETAP
       if (from < 10) {
         try { await m.createTable(auditLogs); } catch(_){}
         try { await m.createTable(fraudAlerts); } catch(_){}
@@ -107,25 +107,42 @@ class LocalDatabase extends _$LocalDatabase {
         try { await m.addColumn(products, products.rackLocation); } catch(_){}
         try { await m.addColumn(products, products.isSynced); } catch(_){}
       }
-      if (from < 14) {
-        try { await m.addColumn(stockMutations, stockMutations.stockBefore); } catch(_){}
-        try { await m.addColumn(stockMutations, stockMutations.stockAfter); } catch(_){}
-        try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){}
-        try { await m.addColumn(stockMutations, stockMutations.variantId); } catch(_){}
-        try { await m.addColumn(stockMutations, stockMutations.userId); } catch(_){}
-        try { await m.addColumn(stockMutations, stockMutations.notes); } catch(_){}
-      }
       if (from < 15) {
         try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch(_){}
         try { await m.addColumn(stockMutations, stockMutations.rackLocation); } catch(_){}
       }
       if (from < 17) {
-        // FIX: Jangan createTable lagi, cukup add column isSynced
         try { await m.addColumn(auditLogs, auditLogs.isSynced); } catch(_){}
         try { await m.addColumn(fraudAlerts, fraudAlerts.isSynced); } catch(_){}
-        try { await m.addColumn(fraudAlerts, fraudAlerts.auditLogId); } catch(_){}
-        try { await m.addColumn(auditLogs, auditLogs.oldValue); } catch(_){}
-        try { await m.addColumn(auditLogs, auditLogs.newValue); } catch(_){}
+      }
+      // MIGRASI BARU v18-v21 - HPP AUTO + SUPPLIER CUSTOMER LENGKAP
+      if (from < 20) {
+        try { await m.addColumn(stockMutations, stockMutations.hppBefore); } catch(_){}
+        try { await m.addColumn(stockMutations, stockMutations.hppAfter); } catch(_){}
+        try { await m.addColumn(stockMutations, stockMutations.buyPriceAtThatTime); } catch(_){}
+        try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){}
+        
+        // SUPPLIER LENGKAP
+        try { await m.addColumn(suppliers, suppliers.code); } catch(_){}
+        try { await m.addColumn(suppliers, suppliers.wa); } catch(_){}
+        try { await m.addColumn(suppliers, suppliers.kelurahan); } catch(_){}
+        try { await m.addColumn(suppliers, suppliers.kota); } catch(_){}
+        try { await m.addColumn(suppliers, suppliers.picName); } catch(_){}
+        try { await m.addColumn(suppliers, suppliers.category); } catch(_){}
+        try { await m.addColumn(suppliers, suppliers.type); } catch(_){}
+        try { await m.addColumn(suppliers, suppliers.paymentTerm); } catch(_){}
+      }
+      if (from < 21) {
+        // CUSTOMER LENGKAP
+        try { await m.addColumn(customers, customers.code); } catch(_){}
+        try { await m.addColumn(customers, customers.wa); } catch(_){}
+        try { await m.addColumn(customers, customers.kelurahan); } catch(_){}
+        try { await m.addColumn(customers, customers.kota); } catch(_){}
+        try { await m.addColumn(customers, customers.kelas); } catch(_){}
+        try { await m.addColumn(customers, customers.paymentType); } catch(_){}
+        try { await m.addColumn(customers, customers.tierHarga); } catch(_){}
+        try { await m.addColumn(customers, customers.plafonHutang); } catch(_){}
+        try { await m.addColumn(customers, customers.sisaHutang); } catch(_){}
       }
     },
     beforeOpen: (details) async {
@@ -133,9 +150,7 @@ class LocalDatabase extends _$LocalDatabase {
     },
   );
 
-  Future<List<ProductData>> getAllProducts() => select(products).get();
-
-  // ========== ORCHESTRATOR POS - 1 PINTU ANTI DOUBLE ==========
+  // ORCHESTRATOR 1 PINTU - POS
   Future<void> prosesTransaksiPenyimpanan({
     required TransactionsCompanion dataTransaksi,
     required List<TransactionItemsCompanion> itemTransaksi,
@@ -144,19 +159,17 @@ class LocalDatabase extends _$LocalDatabase {
       await into(transactions).insert(dataTransaksi);
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        await stockMutationDao.catatPenjualanCore(
+        await stockMutationDao.catatPenjualan(
           productId: item.productId.value,
-          qty: item.quantity.value,
+          qty: item.quantity.value * item.conversionFactor.value,
           refNo: dataTransaksi.invoiceNo.value,
           userId: dataTransaksi.salesId.value ?? 'kasir',
-          notes: 'POS: ' + dataTransaksi.invoiceNo.value,
-          variantId: item.variantId.value,
         );
       }
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
         await into(receivables).insert(
           ReceivablesCompanion.insert(
-            id: 'RC-' + dataTransaksi.id.value,
+            id: 'RC-${dataTransaksi.id.value}',
             transactionId: dataTransaksi.id.value,
             customerId: dataTransaksi.customerId.value!,
             totalAmount: dataTransaksi.grandTotal.value,
@@ -169,13 +182,14 @@ class LocalDatabase extends _$LocalDatabase {
         final cust = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
         if(cust!=null){
           await (update(customers)..where((t)=> t.id.equals(cust.id))).write(
-            CustomersCompanion(totalDebt: Value(cust.totalDebt + dataTransaksi.remainingDebt.value), updatedAt: Value(DateTime.now()))
+            CustomersCompanion(sisaHutang: Value(cust.sisaHutang + dataTransaksi.remainingDebt.value), updatedAt: Value(DateTime.now()))
           );
         }
       }
     });
   }
 
+  // ORCHESTRATOR PEMBELIAN - HPP AUTO WEIGHTED
   Future<void> prosesPembelianPenyimpanan({
     required PurchasesCompanion dataPembelian,
     required List<PurchaseItemsCompanion> itemPembelian,
@@ -184,18 +198,17 @@ class LocalDatabase extends _$LocalDatabase {
       await into(purchases).insert(dataPembelian);
       for (final item in itemPembelian) {
         await into(purchaseItems).insert(item);
-        await stockMutationDao.catatPembelianCore(
+        await stockMutationDao.catatMasuk(
           productId: item.productId.value,
-          qty: item.quantity.value * item.conversionFactor.value,
-          hargaBeli: item.buyPrice.value,
+          qtyMasuk: item.quantity.value * item.conversionFactor.value,
+          hargaBeliPerPcs: item.buyPrice.value,
           refNo: dataPembelian.invoiceNo.value,
           userId: dataPembelian.userId.value,
-          notes: 'Beli: ' + dataPembelian.invoiceNo.value,
         );
       }
       if (dataPembelian.debtAmount.value > 0) {
         await into(payables).insert(PayablesCompanion.insert(
-          id: 'PY-' + dataPembelian.id.value,
+          id: 'PY-${dataPembelian.id.value}',
           purchaseId: dataPembelian.id.value,
           supplierId: dataPembelian.supplierId.value,
           totalAmount: dataPembelian.totalAmount.value,
@@ -209,13 +222,16 @@ class LocalDatabase extends _$LocalDatabase {
   }
 }
 
+// PROVIDER GLOBAL - CUMA 1, ANTI LOADING MUTER
 final localDatabaseProvider = Provider<LocalDatabase>((ref) {
   final db = LocalDatabase();
   ref.onDispose(() => db.close());
   return db;
 });
 
-final stockMutationDaoProvider = Provider<StockMutationDao>((ref) => ref.watch(localDatabaseProvider).stockMutationDao);
-final productDaoProvider = Provider<ProductDao>((ref) => ref.watch(localDatabaseProvider).productDao);
-final categoryDaoProvider = Provider<CategoryDao>((ref) => ref.watch(localDatabaseProvider).categoryDao);
-final auditLogDaoProvider = Provider<AuditLogDao>((ref) => ref.watch(localDatabaseProvider).auditLogDao);
+// STREAM GLOBAL UNTUK PILIH BARANG - INI YANG FIX LOADING DI SCREENSHOT KAMU
+final allProductsStreamProvider = StreamProvider<List<ProductData>>((ref) {
+  final db = ref.watch(localDatabaseProvider);
+  return db.productDao.watchActiveProducts();
+});
+final productsStreamProvider = allProductsStreamProvider;
