@@ -13,12 +13,12 @@ class Products extends Table {
   TextColumn get brand => text().nullable()();
   TextColumn get warehouseLocation => text().nullable()();
   TextColumn get tags => text().nullable()();
-  RealColumn get buyPrice => real().withDefault(const Constant(0))();
+  RealColumn get buyPrice => real().withDefault(const Constant(0))(); // HPP AUTO WEIGHTED
   RealColumn get sellPriceGeneral => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier1 => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier2 => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier3 => real().withDefault(const Constant(0))();
-  RealColumn get sellPrice => real().withDefault(const Constant(0))();
+  RealColumn get sellPrice => real().withDefault(const Constant(0))(); // legacy
   RealColumn get maxDiscountSales => real().withDefault(const Constant(0))();
   BoolColumn get isPriceLocked => boolean().withDefault(const Constant(true))();
   RealColumn get stock => real().withDefault(const Constant(0))();
@@ -70,12 +70,5 @@ class ProductVariants extends Table {
   TextColumn get barcode => text().nullable()();
   RealColumn get stock => real().withDefault(const Constant(0))();
   RealColumn get sellPrice => real().withDefault(const Constant(0))();
-  @override Set<Column> get primaryKey => {id};
-}
-
-class ProductPromos extends Table {
-  TextColumn get id => text()();
-  TextColumn get productId => text().references(Products, #id)();
-  TextColumn get promoName => text()();
   @override Set<Column> get primaryKey => {id};
 }
