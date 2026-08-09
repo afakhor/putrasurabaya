@@ -32,7 +32,7 @@ class _MasukState extends ConsumerState<ItemMasukPage> {
               pid=id;
               pname=prod?.name;
               rakC.text=prod?.rackLocation??'';
-              hargaC.text=prod?.buyPrice.toStringAsFixed(0);
+              hargaC.text = (prod?.buyPrice ?? 0).toStringAsFixed(0); // FIX DISINI
             });
           }
         }, child: Text(pname??'Pilih Barang')),
