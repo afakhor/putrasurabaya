@@ -1,4 +1,4 @@
-// lib/features/auth/superuser/product/product_form_provider.dart - FINAL v22 FIX HPP
+// lib/features/auth/superuser/product/product_form_provider.dart - FINAL v23 BUILD OK
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import '../../../../core/database/local_database.dart';
@@ -24,6 +24,18 @@ class ProductFormState {
 
   double marginPercent(double jual) => (buyPrice<=0||jual<=0)?0:((jual-buyPrice)/jual)*100;
   double laba(double jual) => jual-buyPrice;
+
+  // FIX BUILD: getter yang dipakai product_page.dart
+  double get marginGeneral => marginPercent(sellPriceGeneral);
+  double get marginTier1 => marginPercent(sellPriceTier1);
+  double get marginTier2 => marginPercent(sellPriceTier2);
+  double get marginTier3 => marginPercent(sellPriceTier3);
+
+  double get labaGeneral => laba(sellPriceGeneral);
+  double get labaTier1 => laba(sellPriceTier1);
+  double get labaTier2 => laba(sellPriceTier2);
+  double get labaTier3 => laba(sellPriceTier3);
+
   ProductFormState copyWith({
     String? id, code, name, shortName, barcode, description, categoryId, brand, unit, rackLocation, statusActive,
     double? buyPrice, sellPriceGeneral, sellPriceTier1, sellPriceTier2, sellPriceTier3, stock, minStock, maxStock,
@@ -64,8 +76,7 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
     try{
       final existing = await (_db.select(_db.products)..where((t)=> t.id.equals(state.id))).getSingleOrNull();
       final isNew = existing==null;
-      final finalBuyPrice = isNew? state.buyPrice : existing!.buyPrice; // HPP jangan ditimpa manual
-
+      final finalBuyPrice = isNew? state.buyPrice : existing!.buyPrice;
       await _db.into(_db.products).insertOnConflictUpdate(ProductsCompanion(
         id: Value(state.id), code: Value(state.code.isEmpty? 'SKU-${state.id.substring(4,9)}': state.code),
         name: Value(state.name), shortName: Value(state.shortName.isEmpty? state.name: state.shortName),
