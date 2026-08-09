@@ -5,6 +5,22 @@ import 'package:ud_putra_kasir/core/database/tables/category_table.dart';
 
 part 'category_dao.g.dart';
 
+// FIX: definisikan disini biar gak perlu file app_constants.dart
+class CategoryStatus {
+  static const aktif = 'aktif';
+  static const nonaktif = 'nonaktif';
+}
+class CategorySort {
+  static const manual = 'manual';
+  static const az = 'az';
+  static const za = 'za';
+  static const newest = 'newest';
+  static const mostUsed = 'most_used';
+}
+class CategoryType {
+  static const product = 'product';
+}
+
 @DriftAccessor(tables: [Categories])
 class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixin {
   CategoryDao(LocalDatabase db) : super(db);
@@ -22,7 +38,6 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
     final id = 'CAT-${DateTime.now().millisecondsSinceEpoch}-$sortOrder';
     final code = 'PRK-${1000 + sortOrder}';
     final slug = name.toLowerCase().replaceAll(' & ', '-').replaceAll(' ', '-').replaceAll('/', '-');
-
     await into(categories).insert(
       CategoriesCompanion.insert(
         id: id,
@@ -91,7 +106,6 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
     );
   }
 
-  // INI YANG BIKIN BUILD KAMU GAGAL KEMARIN - BELUM ADA
   Future<void> incrementUsage(String id) async {
     final cat = await (select(categories)..where((t) => t.id.equals(id))).getSingleOrNull();
     if (cat!= null) {
@@ -110,11 +124,9 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
     }
   }
 
-  // SEED 24 KATEGORI PERKAKAS
   Future<void> seedDefaults() async {
     final existing = await (select(categories)..where((t) => t.type.equals(CategoryType.product))).get();
     if (existing.isNotEmpty) return;
-
     final productSeeds = [
       {'name': 'Perkakas Tangan', 'icon': 'handyman', 'color': '#FF9800'},
       {'name': 'Perkakas Listrik & Mesin', 'icon': 'power', 'color': '#FFC107'},
@@ -141,7 +153,6 @@ class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixi
       {'name': 'Alat Instalasi Listrik & Tes', 'icon': 'electrical_services', 'color': '#FFC107'},
       {'name': 'Alat Plumbing & Sanitasi', 'icon': 'plumbing', 'color': '#2196F3'},
     ];
-
     for (int i = 0; i < productSeeds.length; i++) {
       final d = productSeeds[i];
       await createCategory(name: d['name']!, type: CategoryType.product, iconName: d['icon'], colorHex: d['color'], sortOrder: i, isFavorite: i < 5);
