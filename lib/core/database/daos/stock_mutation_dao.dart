@@ -37,9 +37,9 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     final prod = await (select(products)..where((p)=> p.id.equals(productId))).getSingleOrNull();
     if(prod==null) throw Exception('Produk $productId tidak ada');
     final sebelum = prod.stock; final hppLama = prod.buyPrice; final sesudah = sebelum + qty;
-    if(!skipMinus && !prod.allowMinusStock && sesudah < 0) throw Exception('Stok minus ${prod.name} sisa $sebelum');
+    if(!skipMinus &&!prod.allowMinusStock && sesudah < 0) throw Exception('Stok minus ${prod.name} sisa $sebelum');
     double hppBaru = hppLama;
-    if(qty>0 && hargaBeliMasuk>0){ hppBaru = sebelum <=0 ? hargaBeliMasuk : ((sebelum*hppLama)+(qty*hargaBeliMasuk))/sesudah; }
+    if(qty>0 && hargaBeliMasuk>0){ hppBaru = sebelum <=0? hargaBeliMasuk : ((sebelum*hppLama)+(qty*hargaBeliMasuk))/sesudah; }
     await (update(products)..where((p)=> p.id.equals(productId))).write(
       ProductsCompanion(stock: Value(sesudah), buyPrice: Value(hppBaru), rackLocation: newRack!=null? Value(newRack): const Value.absent(), updatedAt: Value(DateTime.now()), isSynced: const Value(false))
     );
@@ -77,12 +77,11 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
         totalHppBahan += raw.buyPrice * need;
         await _coreMutation(productId: m.rawProductId, type: StockMutationType.perakitan, qty: -need, hargaBeliMasuk: 0, refNo: 'RAKIT-BAHAN-$finishedProductId', userId: userId, notes: notes);
       }
-      final hppPerJadi = finishedQtyToProduce>0 ? totalHppBahan / finishedQtyToProduce : 0;
+      final hppPerJadi = finishedQtyToProduce>0? totalHppBahan / finishedQtyToProduce : 0;
       await _coreMutation(productId: finishedProductId, type: StockMutationType.perakitan, qty: finishedQtyToProduce, hargaBeliMasuk: hppPerJadi.toDouble(), refNo: 'RAKIT-JADI-$finishedProductId', userId: userId, notes: notes);
     });
   }
 
-  // FIX INI YANG HILANG KEMARIN
   Future<void> prosesPerbaikanSaldo(String productId) async {
     final mutasi = await (select(stockMutations)..where((t)=> t.productId.equals(productId))..orderBy([(t)=> OrderingTerm.asc(t.date)])).get();
     double running = 0;
@@ -91,20 +90,13 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
   }
 
   Stream<List<StockCardItemData>> watchAllStockMutations({String? mutationTypeFilter, String? keyword}) {
-    // FIX: pakai code bukan sku
-    if(keyword!=null && keyword.isNotEmpty){
-      final k = '%$keyword%';
-      var q = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
-      if(mutationTypeFilter!=null && mutationTypeFilter.isNotEmpty) q.where(stockMutations.type.equals(mutationTypeFilter));
-      q.where(products.name.like(k) | products.code.like(k) | stockMutations.referenceNo.like(k) | products.barcode.like(k));
-      q.orderBy([OrderingTerm.desc(stockMutations.date)]);
-      return q.watch().map((rows)=> rows.map((r)=> StockCardItemData(r.readTable(stockMutations), r.readTable(products))).toList());
-    } else {
-      var query = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
-      if(mutationTypeFilter!=null && mutationTypeFilter.isNotEmpty) query.where(stockMutations.type.equals(mutationTypeFilter));
-      query.orderBy([OrderingTerm.desc(stockMutations.date)]);
-      return query.watch().map((rows) => rows.map((r) => StockCardItemData(r.readTable(stockMutations), r.readTable(products))).toList());
-    }
+    // FIX: tidak pakai sku, pakai code + barcode
+    final k = keyword==null || keyword.isEmpty? null : '%$keyword%';
+    var q = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
+    if(mutationTypeFilter!=null && mutationTypeFilter.isNotEmpty) q.where(stockMutations.type.equals(mutationTypeFilter));
+    if(k!=null) q.where(products.name.like(k) | products.code.like(k) | products.barcode.like(k) | stockMutations.referenceNo.like(k));
+    q.orderBy([OrderingTerm.desc(stockMutations.date)]);
+    return q.watch().map((rows)=> rows.map((r)=> StockCardItemData(r.readTable(stockMutations), r.readTable(products))).toList());
   }
 
   Stream<List<StockCardItemData>> watchKartuStok(String productId) {
