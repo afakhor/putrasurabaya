@@ -18,7 +18,6 @@ class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin 
   Future<List<ProductData>> getLowStockProducts() => (select(products)..where((t)=> t.stock.isSmallerThan(t.minStock) & t.statusActive.equals('aktif'))).get();
   Future<void> saveProduct(ProductsCompanion p) => into(products).insertOnConflictUpdate(p.copyWith(isSynced: const Value(false), updatedAt: Value(DateTime.now())));
 
-  // FIX 1: Bikin perkakas baru tanpa kejebak HPP item masuk
   Future<String> createProductQuick({
     required String name,
     String? code,
@@ -32,7 +31,7 @@ class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin 
     await into(products).insert(ProductsCompanion.insert(
       id: id,
       name: name,
-      code: Value(code?? 'SKU-${id.substring(4,9)}'),
+      code: Value(code ?? 'SKU-${id.substring(4,9)}'),
       shortName: Value(name),
       brand: Value(brand),
       stock: Value(stock),
@@ -44,7 +43,7 @@ class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin 
       minStock: const Value(5),
       maxStock: const Value(100),
       rackLocation: Value(rackLocation),
-      categoryId: categoryId?? 'Perkakas Tangan',
+      categoryId: Value(categoryId ?? 'Perkakas Tangan'), // FIX BUILD
       unit: const Value('pcs'),
       statusActive: const Value('aktif'),
       allowMinusStock: const Value(false),
@@ -63,7 +62,6 @@ class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin 
     ));
   }
 
-  // FIX 2: Inventory Turnover untuk Fast Moving
   Future<Map<String, double>> getTurnover30Days() async {
     final thirty = DateTime.now().subtract(const Duration(days: 30));
     final q = await (select(stockMutations)..where((t)=> t.type.equals('penjualan') & t.date.isBiggerOrEqualValue(thirty))).get();
