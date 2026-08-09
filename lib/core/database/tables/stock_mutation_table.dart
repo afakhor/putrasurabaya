@@ -7,9 +7,10 @@ class StockMutations extends Table {
   TextColumn get productId => text().references(Products, #id)();
   TextColumn get variantId => text().nullable()();
   TextColumn get type => text()(); // PEMBELIAN, ITEM_MASUK, PENJUALAN, ITEM_KELUAR, OPNAME, PERBAIKAN_SALDO
-  RealColumn get quantity => real()(); // + masuk - keluar
+  RealColumn get quantity => real()();
   RealColumn get stockBefore => real().withDefault(const Constant(0))();
   RealColumn get stockAfter => real().withDefault(const Constant(0))();
+  RealColumn get currentStockSnapshot => real().withDefault(const Constant(0))(); // <--- FIX INI YANG HILANG
   RealColumn get hppBefore => real().withDefault(const Constant(0))();
   RealColumn get hppAfter => real().withDefault(const Constant(0))();
   RealColumn get hppSnapshot => real().withDefault(const Constant(0))();
