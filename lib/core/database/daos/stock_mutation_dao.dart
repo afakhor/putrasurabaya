@@ -6,17 +6,6 @@ import 'package:ud_putra_kasir/core/database/tables/audit_log_table.dart';
 
 part 'stock_mutation_dao.g.dart';
 
-// FIX: definisi yang hilang
-class StockMutationType {
-  static const masuk = 'masuk';
-  static const keluar = 'keluar';
-  static const opname = 'opname';
-  static const penjualan = 'penjualan';
-  static const pembelian = 'pembelian';
-  static const perakitan = 'perakitan';
-  static const all = [masuk, keluar, opname, penjualan, pembelian, perakitan];
-}
-
 class StockCardItemData {
   final StockMutationData mutation;
   final ProductData product;
@@ -28,6 +17,17 @@ class AssemblyMaterialItem {
   final String rawProductId;
   final double quantityRequiredPerUnit;
   AssemblyMaterialItem({required this.rawProductId, required this.quantityRequiredPerUnit});
+}
+
+// Pakai yang dari table biar gak duplikat, tapi kalau mau disini pakai ini:
+abstract class StockMutationType {
+  static const String pembelian = 'PEMBELIAN';
+  static const String penjualan = 'PENJUALAN';
+  static const String masuk = 'ITEM_MASUK';
+  static const String keluar = 'ITEM_KELUAR';
+  static const String opname = 'OPNAME';
+  static const String perakitan = 'PERAKITAN';
+  static const String perbaikan = 'PERBAIKAN_SALDO';
 }
 
 @DriftAccessor(tables: [Products, StockMutations, AuditLogs, FraudAlerts])
@@ -47,7 +47,7 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     if(!skipMinus &&!prod.allowMinusStock && sesudah < 0) throw Exception('Stok minus ${prod.name} sisa $sebelum');
     double hppBaru = hppLama;
     if(qty>0 && hargaBeliMasuk>0){
-      hppBaru = sebelum <=0? hargaBeliMasuk : ((sebelum*hppLama)+(qty*hargaBeliMasuk))/sesudah;
+      hppBaru = sebelum <=0 ? hargaBeliMasuk : ((sebelum*hppLama)+(qty*hargaBeliMasuk))/sesudah;
     }
     await (update(products)..where((p)=> p.id.equals(productId))).write(
       ProductsCompanion(stock: Value(sesudah), buyPrice: Value(hppBaru), rackLocation: newRack!=null? Value(newRack): const Value.absent(), updatedAt: Value(DateTime.now()), isSynced: const Value(false))
@@ -55,8 +55,10 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     await into(stockMutations).insert(StockMutationsCompanion.insert(
       id: 'MUT-${DateTime.now().microsecondsSinceEpoch}', productId: productId, variantId: Value(variantId),
       type: type, quantity: qty, stockBefore: Value(sebelum), stockAfter: Value(sesudah),
-      hppBefore: Value(hppLama), hppAfter: Value(hppBaru), hppSnapshot: Value(hppBaru), currentStockSnapshot: Value(sesudah),
-      referenceNo: Value(refNo), date: customDate?? DateTime.now(), userId: Value(userId), notes: Value(notes), rackLocation: Value(newRack?? prod.rackLocation),
+      currentStockSnapshot: Value(sesudah), // FIX: sekarang valid
+      hppBefore: Value(hppLama), hppAfter: Value(hppBaru), hppSnapshot: Value(hppBaru), 
+      buyPriceAtThatTime: Value(hargaBeliMasuk),
+      referenceNo: Value(refNo), date: Value(customDate?? DateTime.now()), userId: Value(userId), notes: Value(notes), rackLocation: Value(newRack?? prod.rackLocation),
     ));
   }
 
@@ -80,18 +82,14 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     return transaction(()=> _coreMutation(productId: productId, type: StockMutationType.opname, qty: selisih, hargaBeliMasuk: prod.buyPrice, refNo: refNo, userId: userId, notes: notes, newRack: newRack, customDate: date, skipMinus: true));
   }
 
-  Future<void> eksekusiPerakitanProduk({required String finishedProductId, required double finishedQtyToProduce, required List<AssemblyMaterialItem> materials, required String userId, String? notes}) async {
-    await transaction(() async {
-      double totalHppBahan = 0;
-      for(final m in materials){
-        final raw = await (select(products)..where((p)=> p.id.equals(m.rawProductId))).getSingle();
-        final need = m.quantityRequiredPerUnit * finishedQtyToProduce;
-        totalHppBahan += raw.buyPrice * need;
-        await _coreMutation(productId: m.rawProductId, type: StockMutationType.perakitan, qty: -need, hargaBeliMasuk: 0, refNo: 'RAKIT-BAHAN-$finishedProductId', userId: userId, notes: notes);
-      }
-      final hppPerJadi = finishedQtyToProduce>0? totalHppBahan / finishedQtyToProduce : 0;
-      await _coreMutation(productId: finishedProductId, type: StockMutationType.perakitan, qty: finishedQtyToProduce, hargaBeliMasuk: hppPerJadi.toDouble(), refNo: 'RAKIT-JADI-$finishedProductId', userId: userId, notes: notes);
-    });
+  Future<void> prosesPerbaikanSaldo(String productId) async {
+    final mutasi = await (select(stockMutations)..where((t)=> t.productId.equals(productId))..orderBy([(t)=> OrderingTerm.asc(t.date)])).get();
+    double running = 0;
+    for(final m in mutasi){
+      running += m.quantity;
+      await (update(stockMutations)..where((t)=> t.id.equals(m.id))).write(StockMutationsCompanion(currentStockSnapshot: Value(running), stockAfter: Value(running)));
+    }
+    await (update(products)..where((p)=> p.id.equals(productId))).write(ProductsCompanion(stock: Value(running)));
   }
 
   Stream<List<StockCardItemData>> watchAllStockMutations({String? mutationTypeFilter, String? keyword}) {
@@ -105,16 +103,6 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
   Stream<List<StockCardItemData>> watchKartuStok(String productId) {
     final query = (select(stockMutations)..where((t)=> t.productId.equals(productId))..orderBy([(t)=> OrderingTerm.desc(t.date)])).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
     return query.watch().map((rows) => rows.map((r) => StockCardItemData(r.readTable(stockMutations), r.readTable(products))).toList());
-  }
-
-  Future<void> prosesPerbaikanSaldo(String productId) async {
-    final mutasi = await (select(stockMutations)..where((t)=> t.productId.equals(productId))..orderBy([(t)=> OrderingTerm.asc(t.date)])).get();
-    double running = 0;
-    for(final m in mutasi){
-      running += m.quantity;
-      await (update(stockMutations)..where((t)=> t.id.equals(m.id))).write(StockMutationsCompanion(currentStockSnapshot: Value(running), stockAfter: Value(running)));
-    }
-    await (update(products)..where((p)=> p.id.equals(productId))).write(ProductsCompanion(stock: Value(running)));
   }
 
   Stream<List<ProductData>> watchAllProducts() => select(products).watch();
