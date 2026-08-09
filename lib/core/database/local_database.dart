@@ -49,8 +49,7 @@ class LocalDatabase extends _$LocalDatabase {
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
   late final AuditLogDao auditLogDao = AuditLogDao(this);
 
-  @override
-  int get schemaVersion => 21;
+  @override int get schemaVersion => 21;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -67,99 +66,42 @@ class LocalDatabase extends _$LocalDatabase {
       await categoryDao.seedDefaults();
     },
     onUpgrade: (Migrator m, int from, int to) async {
-      if (from < 10) {
-        try { await m.createTable(auditLogs); } catch(_){}
-        try { await m.createTable(fraudAlerts); } catch(_){}
-      }
-      if (from < 12) {
-        try { await m.addColumn(categories, categories.code); } catch(_){}
-        try { await m.addColumn(categories, categories.slug); } catch(_){}
-        try { await m.addColumn(categories, categories.iconName); } catch(_){}
-        try { await m.addColumn(categories, categories.colorHex); } catch(_){}
-        try { await m.addColumn(categories, categories.imageUrl); } catch(_){}
-        try { await m.addColumn(categories, categories.parentId); } catch(_){}
-        try { await m.addColumn(categories, categories.level); } catch(_){}
-        try { await m.addColumn(categories, categories.sortOrder); } catch(_){}
-        try { await m.addColumn(categories, categories.productCount); } catch(_){}
-        try { await m.addColumn(categories, categories.usageCount); } catch(_){}
-        try { await m.addColumn(categories, categories.isFavorite); } catch(_){}
-        try { await m.addColumn(categories, categories.isSystem); } catch(_){}
-      }
-      if (from < 13) {
-        try { await m.addColumn(products, products.shortName); } catch(_){}
-        try { await m.addColumn(products, products.barcode); } catch(_){}
-        try { await m.addColumn(products, products.description); } catch(_){}
-        try { await m.addColumn(products, products.subCategory); } catch(_){}
-        try { await m.addColumn(products, products.brand); } catch(_){}
-        try { await m.addColumn(products, products.warehouseLocation); } catch(_){}
-        try { await m.addColumn(products, products.tags); } catch(_){}
-        try { await m.addColumn(products, products.sellPriceGeneral); } catch(_){}
-        try { await m.addColumn(products, products.sellPriceTier1); } catch(_){}
-        try { await m.addColumn(products, products.sellPriceTier2); } catch(_){}
-        try { await m.addColumn(products, products.sellPriceTier3); } catch(_){}
-        try { await m.addColumn(products, products.maxDiscountSales); } catch(_){}
-        try { await m.addColumn(products, products.isPriceLocked); } catch(_){}
-        try { await m.addColumn(products, products.minStock); } catch(_){}
-        try { await m.addColumn(products, products.maxStock); } catch(_){}
-        try { await m.addColumn(products, products.allowMinusStock); } catch(_){}
-        try { await m.addColumn(products, products.unit); } catch(_){}
-        try { await m.addColumn(products, products.rackLocation); } catch(_){}
-        try { await m.addColumn(products, products.isSynced); } catch(_){}
-        try { await m.addColumn(products, products.code); } catch(_){}
-      }
-      if (from < 15) {
-        try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch(_){}
-        try { await m.addColumn(stockMutations, stockMutations.rackLocation); } catch(_){}
-      }
-      if (from < 17) {
-        try { await m.addColumn(auditLogs, auditLogs.isSynced); } catch(_){}
-        try { await m.addColumn(fraudAlerts, fraudAlerts.isSynced); } catch(_){}
-      }
-      if (from < 20) {
-        try { await m.addColumn(stockMutations, stockMutations.hppBefore); } catch(_){}
-        try { await m.addColumn(stockMutations, stockMutations.hppAfter); } catch(_){}
-        try { await m.addColumn(stockMutations, stockMutations.buyPriceAtThatTime); } catch(_){}
-        try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){}
-        try { await m.addColumn(suppliers, suppliers.code); } catch(_){}
-        try { await m.addColumn(suppliers, suppliers.wa); } catch(_){}
-        try { await m.addColumn(suppliers, suppliers.kelurahan); } catch(_){}
-        try { await m.addColumn(suppliers, suppliers.kota); } catch(_){}
-        try { await m.addColumn(suppliers, suppliers.picName); } catch(_){}
-        try { await m.addColumn(suppliers, suppliers.category); } catch(_){}
-        try { await m.addColumn(suppliers, suppliers.type); } catch(_){}
-        try { await m.addColumn(suppliers, suppliers.paymentTerm); } catch(_){}
-      }
-      if (from < 21) {
-        try { await m.addColumn(customers, customers.code); } catch(_){}
-        try { await m.addColumn(customers, customers.wa); } catch(_){}
-        try { await m.addColumn(customers, customers.kelurahan); } catch(_){}
-        try { await m.addColumn(customers, customers.kota); } catch(_){}
-        try { await m.addColumn(customers, customers.kelas); } catch(_){}
-        try { await m.addColumn(customers, customers.paymentType); } catch(_){}
-        try { await m.addColumn(customers, customers.tierHarga); } catch(_){}
-        try { await m.addColumn(customers, customers.plafonHutang); } catch(_){}
-        try { await m.addColumn(customers, customers.sisaHutang); } catch(_){}
-      }
+      if (from < 10) { try { await m.createTable(auditLogs); } catch(_){} try { await m.createTable(fraudAlerts); } catch(_){} }
+      if (from < 13) { try { await m.addColumn(products, products.sellPriceTier1); } catch(_){} try { await m.addColumn(products, products.sellPriceTier2); } catch(_){} try { await m.addColumn(products, products.sellPriceTier3); } catch(_){} }
+      if (from < 15) { try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch(_){} }
+      if (from < 20) { try { await m.addColumn(stockMutations, stockMutations.hppBefore); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.hppAfter); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.buyPriceAtThatTime); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){} }
+      if (from < 21) { try { await m.addColumn(customers, customers.tierHarga); } catch(_){} try { await m.addColumn(customers, customers.sisaHutang); } catch(_){} }
     },
-    beforeOpen: (details) async {
-      await customStatement('PRAGMA foreign_keys = ON;');
-    },
+    beforeOpen: (details) async { await customStatement('PRAGMA foreign_keys = ON;'); },
   );
 
-  // ORCHESTRATOR POS - 1 PINTU
+  // ORCHESTRATOR POS - 1 PINTU - FINAL CCTV TIER + CUSTOMER + LUNAS/HUTANG
   Future<void> prosesTransaksiPenyimpanan({
     required TransactionsCompanion dataTransaksi,
     required List<TransactionItemsCompanion> itemTransaksi,
   }) async {
     await transaction(() async {
       await into(transactions).insert(dataTransaksi);
+      
+      // ambil nama customer untuk CCTV
+      String custName = 'Umum';
+      if(dataTransaksi.customerId.value != null){
+        final c = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
+        if(c != null) custName = c.name;
+      }
+
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
         await stockMutationDao.catatPenjualan(
           productId: item.productId.value,
           qty: item.quantity.value * item.conversionFactor.value,
           refNo: dataTransaksi.invoiceNo.value,
-          userId: dataTransaksi.salesId.value ?? 'kasir',
+          userId: dataTransaksi.salesId.value ?? 'kasir-01',
+          customerName: custName,
+          paymentStatus: dataTransaksi.status.value.toUpperCase(), // paid, partial, unpaid
+          tier: item.selectedTier.value, // 1,2,3 - INI YANG KAMU TANYA
+          hargaJual: item.appliedTierPrice.value,
+          total: item.subtotal.value,
         );
       }
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
@@ -185,7 +127,7 @@ class LocalDatabase extends _$LocalDatabase {
     });
   }
 
-  // ORCHESTRATOR PEMBELIAN - HPP AUTO WEIGHTED AVERAGE
+  // ORCHESTRATOR PEMBELIAN - HPP MA + CCTV AUTO
   Future<void> prosesPembelianPenyimpanan({
     required PurchasesCompanion dataPembelian,
     required List<PurchaseItemsCompanion> itemPembelian,
@@ -218,10 +160,9 @@ class LocalDatabase extends _$LocalDatabase {
   }
 }
 
-// PROVIDER GLOBAL - FIX ANTI MUTER
 final localDatabaseProvider = Provider<LocalDatabase>((ref) {
   final db = LocalDatabase();
-  ref.keepAlive(); // JANGAN di close di onDispose, ini penyebab blank
+  ref.keepAlive();
   return db;
 });
 
@@ -229,6 +170,5 @@ final allProductsStreamProvider = StreamProvider<List<ProductData>>((ref) {
   final db = ref.watch(localDatabaseProvider);
   return db.productDao.watchActiveProducts();
 });
-
 final productsStreamProvider = allProductsStreamProvider;
 final activeProductsStreamProvider = allProductsStreamProvider;
