@@ -4,8 +4,8 @@ abstract class AuditAction {
   static const String createStore = 'CREATE_STORE';
   static const String voidTransaction = 'VOID_TRANSACTION';
   static const String mutationPayment = 'MUTATION_PAYMENT';
-  
-  // CCTV PER ITEM AUTO
+
+  // CCTV PER ITEM AUTO - UNTUK MATA ELANG
   static const String kulakHppMa = 'KULAK_HPP_MA';
   static const String jualTier1 = 'JUAL_TIER_1';
   static const String jualTier2 = 'JUAL_TIER_2';
@@ -29,4 +29,5 @@ abstract class FraudCategory {
 abstract class FraudSeverity {
   static const String kuning = 'kuning';
   static const String merah = 'merah';
+  static const String hijau = 'hijau';
 }
