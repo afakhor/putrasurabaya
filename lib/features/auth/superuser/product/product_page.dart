@@ -17,58 +17,116 @@ class ProductPage extends ConsumerStatefulWidget {
 class _ProductPageState extends ConsumerState<ProductPage> {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce;
-  @override void dispose(){ _searchCtrl.dispose(); _debounce?.cancel(); super.dispose(); }
+
+  @override void dispose(){
+    _searchCtrl.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
   void _onSearchChanged(String q){
     _debounce?.cancel();
-    _debounce=Timer(const Duration(milliseconds: 300), ()=> ref.read(searchQueryProvider.notifier).state=q.toLowerCase());
+    _debounce = Timer(const Duration(milliseconds: 300), (){
+      ref.read(searchQueryProvider.notifier).state = q.toLowerCase().trim();
+    });
   }
 
   Future<void> _openForm(BuildContext context, {ProductData? product}) async {
-    final notifier=ref.read(productFormProvider.notifier);
-    final db=ref.read(localDatabaseProvider);
+    final notifier = ref.read(productFormProvider.notifier);
+    final db = ref.read(localDatabaseProvider);
     if(product!=null){
-      final units=await (db.select(db.productUnits)..where((t)=> t.productId.equals(product.id))).get();
-      final variants=await (db.select(db.productVariants)..where((t)=> t.productId.equals(product.id))).get();
-      final assets=await (db.select(db.productAssets)..where((t)=> t.productId.equals(product.id))).get();
+      final units = await (db.select(db.productUnits)..where((t)=> t.productId.equals(product.id))).get();
+      final variants = await (db.select(db.productVariants)..where((t)=> t.productId.equals(product.id))).get();
+      final assets = await (db.select(db.productAssets)..where((t)=> t.productId.equals(product.id))).get();
       notifier.setProduct(product, units, variants, assets.map((e)=> e.imagePath).toList());
-    }else{ notifier.resetForm(); }
+    }else{
+      notifier.resetForm();
+    }
     if(context.mounted){
-      showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (ctx)=> FractionallySizedBox(heightFactor: 0.92, child: const FormMasterBarangSheet()));
+      showModalBottomSheet(
+        context: context, 
+        isScrollControlled: true, 
+        backgroundColor: Colors.transparent, 
+        builder: (ctx)=> const FractionallySizedBox(heightFactor: 0.92, child: FormMasterBarangSheet())
+      );
     }
   }
 
   @override Widget build(BuildContext context){
-    final query=ref.watch(searchQueryProvider);
-    final productsAsync=ref.watch(allProductsStreamProvider);
+    final query = ref.watch(searchQueryProvider);
+    final productsAsync = ref.watch(allProductsStreamProvider);
+
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF2F2F2), // FIX: jangan transparent
       body: productsAsync.when(
-        loading: ()=> const Center(child: CircularProgressIndicator()),
-        error: (e,s)=> Center(child: Text('Error: $e')),
+        loading: ()=> const Center(child: CircularProgressIndicator(color: Color(0xFF00A65A))),
+        error: (e,s)=> Center(child: Padding(padding: const EdgeInsets.all(16), child: Text('Error DB: $e', textAlign: TextAlign.center))),
         data: (raw){
-          // FIX: JANGAN PAKAI 1 BARIS LAMBDA
+          // FIX FILTER: support kosong, sku, barcode, brand
           var filtered = raw.where((p){
+            if(query.isEmpty) return true;
             final nameOk = p.name.toLowerCase().contains(query);
-            final code = p.code ?? '';
-            final codeOk = code.toLowerCase().contains(query);
-            return nameOk || codeOk;
+            final code = (p.code ?? '').toLowerCase();
+            final sku = (p.sku ?? '').toLowerCase();
+            final barcode = (p.barcode ?? '').toLowerCase();
+            final brand = (p.brand ?? '').toLowerCase();
+            return nameOk || code.contains(query) || sku.contains(query) || barcode.contains(query) || brand.contains(query);
           }).toList();
-          
-          if(filtered.isEmpty) return const Center(child: Text('Belum ada produk'));
+
           return Column(children: [
-            GlassCard(radius:0, padding: const EdgeInsets.all(12), child: TextField(controller: _searchCtrl, onChanged: _onSearchChanged, decoration: InputDecoration(hintText:'Cari Perkakas...', prefixIcon: const Icon(Icons.search, color: Color(0xFF00A65A)), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled:true, fillColor: Colors.white.withOpacity(0.9)))),
-            Expanded(child: ListView.builder(padding: const EdgeInsets.fromLTRB(12,0,12,90), itemCount: filtered.length, itemBuilder: (c,i){
-              final p=filtered[i];
-              return Padding(padding: const EdgeInsets.only(bottom:8), child: GlassCard(padding: const EdgeInsets.all(12), onTap: ()=> _openForm(context, product: p), child: Row(children: [
-                Container(width:42,height:42,decoration: BoxDecoration(color: const Color(0xFF00A65A).withOpacity(0.12), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.handyman, color: Color(0xFF00A65A))),
-                const SizedBox(width:10),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:13, fontFamily:'Poppins')),
-                  Text('HPP:${formatRupiah(p.buyPrice)} | Umum:${formatRupiah(p.sellPriceGeneral)} | Stok:${p.stock} ${p.unit}', style: const TextStyle(fontSize:9, color: Colors.black54)),
-                  Text('T1:${formatRupiah(p.sellPriceTier1)} T2:${formatRupiah(p.sellPriceTier2)} T3:${formatRupiah(p.sellPriceTier3)}', style: const TextStyle(fontSize:9, color: Colors.black54)),
-                ])),
-              ])));
-            })),
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: _onSearchChanged,
+                decoration: InputDecoration(
+                  hintText:'Cari Perkakas / SKU / Barcode...',
+                  prefixIcon: const Icon(Icons.search, color: Color(0xFF00A65A)),
+                  suffixIcon: query.isNotEmpty ? IconButton(icon: const Icon(Icons.clear), onPressed: (){ _searchCtrl.clear(); ref.read(searchQueryProvider.notifier).state=''; }) : null,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled:true,
+                  fillColor: const Color(0xFFF5F5F5),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+                )
+              ),
+            ),
+            if(filtered.isEmpty)
+              const Expanded(child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey), SizedBox(height: 8), Text('Belum ada produk / tidak ketemu')])))
+            else
+              Expanded(child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(12,8,12,90),
+                itemCount: filtered.length,
+                itemBuilder: (c,i){
+                  final p=filtered[i];
+                  final lowStock = p.stock <= p.minStock;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom:8),
+                    child: GlassCard(
+                      padding: const EdgeInsets.all(12),
+                      onTap: ()=> _openForm(context, product: p),
+                      child: Row(children: [
+                        Container(
+                          width:42,height:42,
+                          decoration: BoxDecoration(
+                            color: lowStock ? Colors.red.withOpacity(0.12) : const Color(0xFF00A65A).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12)
+                          ),
+                          child: Icon(lowStock ? Icons.warning_amber : Icons.handyman, color: lowStock ? Colors.red : const Color(0xFF00A65A))
+                        ),
+                        const SizedBox(width:10),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:13, fontFamily:'Poppins')),
+                          const SizedBox(height: 2),
+                          Text('HPP:${formatRupiah(p.buyPrice)} | Umum:${formatRupiah(p.sellPriceGeneral)} | Stok:${p.stock} ${p.unit} ${lowStock ? "(MENIPIS)" : ""}', style: TextStyle(fontSize:9, color: lowStock ? Colors.red : Colors.black54, fontWeight: lowStock ? FontWeight.bold : FontWeight.normal)),
+                          Text('T1:${formatRupiah(p.sellPriceTier1)} T2:${formatRupiah(p.sellPriceTier2)} T3:${formatRupiah(p.sellPriceTier3)} • Rak:${p.rackLocation ?? "-"}', style: const TextStyle(fontSize:9, color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ])),
+                        const Icon(Icons.chevron_right, size: 16, color: Colors.grey)
+                      ])
+                    ),
+                  );
+                }
+              )),
           ]);
         },
       ),
