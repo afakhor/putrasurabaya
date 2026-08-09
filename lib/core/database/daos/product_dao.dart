@@ -11,11 +11,19 @@ class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin 
   ProductDao(LocalDatabase db) : super(db);
 
   Stream<List<ProductData>> watchAll() => select(products).watch();
-  Stream<List<ProductData>> watchActiveProducts() => (select(products)..where((t)=> t.statusActive.equals('aktif'))).watch();
+
+  // FIX ANTI BLANK: tampilkan yang status null juga (data lama)
+  Stream<List<ProductData>> watchActiveProducts() {
+    return (select(products)
+     ..where((t) => t.statusActive.equals('aktif') | t.statusActive.isNull() | t.statusActive.equals('') )
+     ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
+    ).watch();
+  }
+
   Future<ProductData?> getProductById(String id) => (select(products)..where((t)=> t.id.equals(id))).getSingleOrNull();
   Future<ProductData?> getByCode(String code) => (select(products)..where((t)=> t.code.equals(code))).getSingleOrNull();
   Stream<ProductData?> watchProductById(String id) => (select(products)..where((t)=> t.id.equals(id))).watchSingleOrNull();
-  Future<List<ProductData>> getLowStockProducts() => (select(products)..where((t)=> t.stock.isSmallerThan(t.minStock) & t.statusActive.equals('aktif'))).get();
+  Future<List<ProductData>> getLowStockProducts() => (select(products)..where((t)=> t.stock.isSmallerThan(t.minStock) & (t.statusActive.equals('aktif') | t.statusActive.isNull()))).get();
   Future<void> saveProduct(ProductsCompanion p) => into(products).insertOnConflictUpdate(p.copyWith(isSynced: const Value(false), updatedAt: Value(DateTime.now())));
 
   Future<String> createProductQuick({
@@ -31,7 +39,7 @@ class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin 
     await into(products).insert(ProductsCompanion.insert(
       id: id,
       name: name,
-      code: Value(code ?? 'SKU-${id.substring(4,9)}'),
+      code: Value(code?? 'SKU-${id.substring(4,9)}'),
       shortName: Value(name),
       brand: Value(brand),
       stock: Value(stock),
@@ -43,7 +51,7 @@ class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin 
       minStock: const Value(5),
       maxStock: const Value(100),
       rackLocation: Value(rackLocation),
-      categoryId: Value(categoryId ?? 'Perkakas Tangan'), // FIX BUILD
+      categoryId: Value(categoryId?? 'Perkakas Tangan'),
       unit: const Value('pcs'),
       statusActive: const Value('aktif'),
       allowMinusStock: const Value(false),
