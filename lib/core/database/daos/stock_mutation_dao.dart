@@ -83,7 +83,6 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
       isSynced: const Value(false),
     ));
 
-    // ===== FRAUD AUTO DETECT =====
     if(hargaJualDipakai != null && type == StockMutationType.penjualan && hargaJualDipakai < hppLama){
       await into(fraudAlerts).insert(FraudAlertsCompanion.insert(
         id: 'ALT-${DateTime.now().microsecondsSinceEpoch}',
@@ -122,6 +121,7 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     }
   }
 
+  // VERSI DENGAN TRANSACTION - UNTUK DIPANGGIL SENDIRI
   Future<void> catatMasuk({required String productId, required double qtyMasuk, required double hargaBeliPerPcs, required String refNo, required String userId, String? notes}) =>
     transaction(()=> _coreMutation(productId: productId, type: StockMutationType.pembelian, qty: qtyMasuk.abs(), hargaBeliMasuk: hargaBeliPerPcs, refNo: refNo, userId: userId, notes: notes));
   Future<void> catatPenjualan({required String productId, required double qty, required String refNo, required String userId, String? customerName, String? paymentStatus, int? tier, double? hargaJual, double? total}) =>
@@ -137,6 +137,13 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     if(selisih==0) return;
     return transaction(()=> _coreMutation(productId: productId, type: StockMutationType.opname, qty: selisih, hargaBeliMasuk: prod.buyPrice, refNo: refNo, userId: userId, notes: notes, newRack: newRack, customDate: date, skipMinus: true));
   }
+
+  // VERSI DIRECT - TANPA TRANSACTION - DIPAKAI DI local_database.dart ORCHESTRATOR
+  Future<void> catatPenjualanDirect({required String productId, required double qty, required String refNo, required String userId, String? customerName, String? paymentStatus, int? tier, double? hargaJual, double? total}) =>
+    _coreMutation(productId: productId, type: StockMutationType.penjualan, qty: -qty.abs(), hargaBeliMasuk: 0, refNo: refNo, userId: userId, customerName: customerName, paymentStatus: paymentStatus, tierHarga: tier, hargaJualDipakai: hargaJual, totalTransaksi: total);
+
+  Future<void> catatMasukDirect({required String productId, required double qtyMasuk, required double hargaBeliPerPcs, required String refNo, required String userId, String? notes}) =>
+    _coreMutation(productId: productId, type: StockMutationType.pembelian, qty: qtyMasuk.abs(), hargaBeliMasuk: hargaBeliPerPcs, refNo: refNo, userId: userId, notes: notes);
 
   Future<void> eksekusiPerakitanProduk({required String finishedProductId, required double finishedQtyToProduce, required List<AssemblyMaterialItem> materials, required String userId, String? notes}) async {
     await transaction(() async {
