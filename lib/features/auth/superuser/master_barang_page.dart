@@ -6,6 +6,7 @@ import '../../../core/utils/config.dart';
 import '../../../core/utils/format_rupiah.dart';
 import 'stock/kartu_stock_page.dart';
 import 'stock/mutasi_stock_page.dart';
+import 'product/product_page.dart'; // FIX: ini yang hilang
 import 'product/product_form_provider.dart';
 
 class MasterBarangPage extends StatelessWidget {
