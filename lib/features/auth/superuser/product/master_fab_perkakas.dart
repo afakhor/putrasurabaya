@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' hide Column;
 import '../../../../core/database/local_database.dart';
-import '../../../../core/database/tables/category_table.dart';
 import '../stock/opname_stock_page.dart';
 import '../stock/mutasi_stock_page.dart';
-import '../stock/kartu_stock_page.dart';
 import '../stock/persediaan_stock_barang.dart';
 import 'product_form_provider.dart';
 
@@ -113,12 +111,12 @@ class _MasterFabPerkakasState extends ConsumerState<MasterFabPerkakas> with Tick
       title: const Text('Kategori Baru'), content: TextField(controller: c, autofocus: true),
       actions: [TextButton(onPressed: ()=> Navigator.pop(ctx), child: const Text('Batal')), ElevatedButton(onPressed: ()=> Navigator.pop(ctx, c.text.trim()), child: const Text('Simpan'))]));
     if(res!=null && res.isNotEmpty){
-      await ref.read(localDatabaseProvider).categoryDao.createCategory(name: res, type: CategoryType.product, sortOrder: DateTime.now().millisecond);
+      // FIX: 'product' string literal, bukan CategoryType.product
+      await ref.read(localDatabaseProvider).categoryDao.createCategory(name: res, type: 'product', sortOrder: DateTime.now().millisecond);
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kategori $res ditambah')));
     }
   }
 
-  // SUPPLIER FULL - PAKAI DAO ANTI MANIPULASI
   void addSupplierFull() async {
     final nameC=TextEditingController(); final phoneC=TextEditingController(); final waC=TextEditingController();
     final alamatC=TextEditingController(); final kotaC=TextEditingController(); final picC=TextEditingController();
