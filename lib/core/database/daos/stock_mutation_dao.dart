@@ -35,7 +35,6 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     required String productId, required String type, required double qty,
     required double hargaBeliMasuk, required String refNo, required String userId,
     String? notes, DateTime? customDate, String? newRack, String? variantId, bool skipMinus=false,
-    // tambahan untuk CCTV jual
     String? customerName, String? paymentStatus, int? tierHarga, double? hargaJualDipakai, double? totalTransaksi,
   }) async {
     final prod = await (select(products)..where((p)=> p.id.equals(productId))).getSingleOrNull();
@@ -44,7 +43,7 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     if(!skipMinus &&!prod.allowMinusStock && sesudah < 0) throw Exception('Stok minus ${prod.name} sisa $sebelum');
     double hppBaru = hppLama;
     if(qty>0 && hargaBeliMasuk>0){ hppBaru = sebelum <=0? hargaBeliMasuk : ((sebelum*hppLama)+(qty*hargaBeliMasuk))/sesudah; }
-    
+
     await (update(products)..where((p)=> p.id.equals(productId))).write(
       ProductsCompanion(stock: Value(sesudah), buyPrice: Value(hppBaru), rackLocation: newRack!=null? Value(newRack): const Value.absent(), updatedAt: Value(DateTime.now()), isSynced: Value(false))
     );
@@ -56,27 +55,26 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
       referenceNo: Value(refNo), date: Value(customDate?? DateTime.now()), userId: Value(userId), notes: Value(notes), rackLocation: Value(newRack?? prod.rackLocation),
     ));
 
-    // ================= CCTV AUTO PER ITEM =================
-    // Ini yang bikin muncul di Tab CCTV LOG
     String actionCCTV = type.toUpperCase();
-    if(type == StockMutationType.pembelian || type == StockMutationType.masuk) actionCCTV = 'KULAK_HPP_MA';
-    if(type == StockMutationType.penjualan) actionCCTV = tierHarga != null ? 'JUAL_TIER_$tierHarga' : 'JUAL';
+    if(type == StockMutationType.pembelian || type == StockMutationType.masuk) actionCCTV = AuditAction.kulakHppMa;
+    if(type == StockMutationType.penjualan) actionCCTV = tierHarga != null ? 'JUAL_TIER_$tierHarga' : AuditAction.jualTier1;
     if(type == StockMutationType.keluar) actionCCTV = 'KELUAR_${notes?.toUpperCase() ?? "LAIN"}';
-    if(type == StockMutationType.opname) actionCCTV = qty > 0 ? 'OPNAME_PLUS' : 'OPNAME_MINUS_SELISIH';
+    if(type == StockMutationType.opname) actionCCTV = qty > 0 ? AuditAction.opnamePlus : AuditAction.opnameMinus;
 
-    final oldVal = jsonEncode({'stock': sebelum, 'hpp_ma': hppLama, 'code': prod.code});
+    final oldVal = jsonEncode({'stock': sebelum, 'hpp_ma': hppLama, 'code': prod.code, 'name': prod.name});
     final newVal = jsonEncode({
       'stock': sesudah, 'hpp_ma': hppBaru, 'qty': qty, 'hpp_masuk': hargaBeliMasuk,
       'tier': tierHarga, 'harga_jual': hargaJualDipakai, 'customer': customerName,
-      'payment': paymentStatus, 'total': totalTransaksi, 'ref': refNo
+      'payment': paymentStatus, 'total': totalTransaksi, 'ref': refNo, 'code': prod.code
     });
 
-    final desc = '$actionCCTV ${prod.code} ${prod.name} | Stok $sebelum -> $sesudah (qty $qty) | HPP $hppLama -> $hppBaru | ${customerName ?? ""} ${paymentStatus ?? ""} Tier:${tierHarga ?? "-"} Jual:${hargaJualDipakai ?? "-"} | $notes';
+    final desc = '$actionCCTV ${prod.code} ${prod.name} | Stok $sebelum -> $sesudah (qty $qty) | HPP $hppLama -> $hppBaru | $customerName ${paymentStatus ?? ""} Tier:${tierHarga ?? "-"} Jual:${hargaJualDipakai ?? "-"} | $notes';
+    final logId = 'LOG-${DateTime.now().microsecondsSinceEpoch}';
 
     await into(auditLogs).insert(AuditLogsCompanion.insert(
-      id: 'LOG-${DateTime.now().microsecondsSinceEpoch}',
+      id: logId,
       userId: userId,
-      userRole: 'superuser',
+      userRole: userId.contains('owner') ? 'owner' : 'salesman',
       actionType: actionCCTV,
       description: desc,
       referenceId: Value(refNo),
@@ -85,16 +83,40 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
       isSynced: const Value(false),
     ));
 
-    // Fraud auto jika jual dibawah HPP
-    if(hargaJualDipakai != null && hargaJualDipakai < hppBaru && type == StockMutationType.penjualan){
+    // ===== FRAUD AUTO DETECT =====
+    if(hargaJualDipakai != null && type == StockMutationType.penjualan && hargaJualDipakai < hppLama){
       await into(fraudAlerts).insert(FraudAlertsCompanion.insert(
         id: 'ALT-${DateTime.now().microsecondsSinceEpoch}',
         userId: userId,
-        auditLogId: Value('LOG-${DateTime.now().microsecondsSinceEpoch}'),
-        fraudCategory: 'JUAL_RUGI',
-        severity: 'merah',
-        title: 'Jual dibawah HPP ${prod.code}',
-        detailAnalysis: 'HPP $hppBaru dijual $hargaJualDipakai ke $customerName tier $tierHarga ref $refNo',
+        auditLogId: Value(logId),
+        fraudCategory: FraudCategory.jualRugi,
+        severity: FraudSeverity.merah,
+        title: 'JUAL RUGI ${prod.code}',
+        detailAnalysis: 'HPP $hppLama dijual $hargaJualDipakai rugi ${hppLama - hargaJualDipakai} ke $customerName tier $tierHarga ref $refNo',
+        isSynced: const Value(false),
+      ));
+    }
+    if(tierHarga == 3 && (customerName=='Umum' || customerName==null) && type == StockMutationType.penjualan){
+      await into(fraudAlerts).insert(FraudAlertsCompanion.insert(
+        id: 'ALT-${DateTime.now().microsecondsSinceEpoch + 1}',
+        userId: userId,
+        auditLogId: Value(logId),
+        fraudCategory: FraudCategory.mainHarga,
+        severity: FraudSeverity.kuning,
+        title: 'TIER 3 ke UMUM ${prod.code}',
+        detailAnalysis: 'Tier 3 untuk langganan besar, dijual ke $customerName ref $refNo',
+        isSynced: const Value(false),
+      ));
+    }
+    if(type == StockMutationType.opname && qty < -5){
+      await into(fraudAlerts).insert(FraudAlertsCompanion.insert(
+        id: 'ALT-${DateTime.now().microsecondsSinceEpoch + 2}',
+        userId: userId,
+        auditLogId: Value(logId),
+        fraudCategory: FraudCategory.manipulasiTagihan,
+        severity: FraudSeverity.merah,
+        title: 'OPNAME MINUS BESAR ${prod.code}',
+        detailAnalysis: 'Selisih minus $qty pcs, stok $sebelum -> $sesudah ref $refNo',
         isSynced: const Value(false),
       ));
     }
