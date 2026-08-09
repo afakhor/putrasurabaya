@@ -1,7 +1,7 @@
-// lib/features/auth/superuser/product/product_form_provider.dart - JADI EDIT HARGA
-import 'package:flutter/material.dart';
+// lib/features/auth/superuser/product/product_form_provider.dart - FINAL BUILD OK
+import 'package:flutter/material.dart' as mat;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide Column;
 import '../../../../core/database/local_database.dart';
 import '../../../../core/utils/format_rupiah.dart';
 
@@ -26,9 +26,7 @@ class ProductFormState {
 class ProductFormNotifier extends StateNotifier<ProductFormState> {
   final LocalDatabase _db;
   ProductFormNotifier(this._db) : super(ProductFormState(id: ''));
-  void setProduct(ProductData p, List<ProductUnitData> u, List<ProductVariantData> v, List<String> img){
-    state=ProductFormState(id: p.id, name: p.name, code: p.code??'', buyPrice: p.buyPrice, sellPriceGeneral: p.sellPriceGeneral, sellPriceTier1: p.sellPriceTier1, sellPriceTier2: p.sellPriceTier2, sellPriceTier3: p.sellPriceTier3, selectedProductId: p.id);
-  }
+  void setProduct(ProductData p, List<ProductUnitData> u, List<ProductVariantData> v, List<String> img){ state=ProductFormState(id: p.id, name: p.name, code: p.code??'', buyPrice: p.buyPrice, sellPriceGeneral: p.sellPriceGeneral, sellPriceTier1: p.sellPriceTier1, sellPriceTier2: p.sellPriceTier2, sellPriceTier3: p.sellPriceTier3, selectedProductId: p.id); }
   void resetForm(){ state=ProductFormState(id: ''); }
   void selectProduct(ProductData p){ state=ProductFormState(id: p.id, name: p.name, code: p.code??'', buyPrice: p.buyPrice, sellPriceGeneral: p.sellPriceGeneral, sellPriceTier1: p.sellPriceTier1, sellPriceTier2: p.sellPriceTier2, sellPriceTier3: p.sellPriceTier3, selectedProductId: p.id); }
   void updateField({double? sellPriceGeneral, sellPriceTier1, sellPriceTier2, sellPriceTier3}){ state=state.copyWith(sellPriceGeneral: sellPriceGeneral, sellPriceTier1: sellPriceTier1, sellPriceTier2: sellPriceTier2, sellPriceTier3: sellPriceTier3); }
@@ -49,44 +47,44 @@ class FormMasterBarangSheet extends ConsumerStatefulWidget {
   @override ConsumerState<FormMasterBarangSheet> createState()=> _FormMasterBarangSheetState();
 }
 class _FormMasterBarangSheetState extends ConsumerState<FormMasterBarangSheet> {
-  Color _marginColor(double m){ if(m<0) return Colors.red.shade700; if(m<10) return Colors.red; if(m<20) return Colors.orange; return const Color(0xFF00A65A); }
-  Widget _buildHargaInput({required String label, required double harga, required double margin, required double laba, required Function(double) onChanged}){
+  mat.Color _marginColor(double m){ if(m<0) return mat.Colors.red.shade700; if(m<10) return mat.Colors.red; if(m<20) return mat.Colors.orange; return const mat.Color(0xFF00A65A); }
+  mat.Widget _buildHargaInput({required String label, required double harga, required double margin, required double laba, required Function(double) onChanged}){
     final col=_marginColor(margin);
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      TextFormField(initialValue: harga==0?'':harga.toStringAsFixed(0), keyboardType: TextInputType.number,
-        decoration: InputDecoration(labelText: label, prefixText:'Rp ', border: const OutlineInputBorder(),
-          suffixIcon: Container(margin: const EdgeInsets.all(8), padding: const EdgeInsets.symmetric(horizontal:8,vertical:4),
-            decoration: BoxDecoration(color: col.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: Text('${margin.toStringAsFixed(1)}% HPP', style: TextStyle(fontSize:11,fontWeight: FontWeight.bold,color: col)))),
+    return mat.Column(crossAxisAlignment: mat.CrossAxisAlignment.start, children: [
+      mat.TextFormField(initialValue: harga==0?'':harga.toStringAsFixed(0), keyboardType: mat.TextInputType.number,
+        decoration: mat.InputDecoration(labelText: label, prefixText:'Rp ', border: const mat.OutlineInputBorder(),
+          suffixIcon: mat.Container(margin: const mat.EdgeInsets.all(8), padding: const mat.EdgeInsets.symmetric(horizontal:8,vertical:4),
+            decoration: mat.BoxDecoration(color: col.withOpacity(0.15), borderRadius: mat.BorderRadius.circular(8)), child: mat.Text('${margin.toStringAsFixed(1)}% HPP', style: mat.TextStyle(fontSize:11,fontWeight: mat.FontWeight.bold,color: col)))),
         onChanged: (v)=> onChanged(double.tryParse(v)??0)),
-      const SizedBox(height:4),
-      Text('Laba ${formatRupiah(laba)} • Margin ${margin.toStringAsFixed(1)}% dari HPP ${formatRupiah(ref.read(productFormProvider).buyPrice)}', style: TextStyle(fontSize:10,color: col)),
-      const SizedBox(height:12),
+      const mat.SizedBox(height:4),
+      mat.Text('Laba ${formatRupiah(laba)} • Margin ${margin.toStringAsFixed(1)}% dari HPP ${formatRupiah(ref.read(productFormProvider).buyPrice)}', style: mat.TextStyle(fontSize:10,color: col)),
+      const mat.SizedBox(height:12),
     ]);
   }
-  @override Widget build(BuildContext context){
+  @override mat.Widget build(mat.BuildContext context){
     final state=ref.watch(productFormProvider);
     final notifier=ref.read(productFormProvider.notifier);
     final productsAsync = ref.watch(allProductsStreamProvider);
-    return Scaffold(backgroundColor: Colors.white,
-      appBar: AppBar(backgroundColor: Colors.white, title: const Text('Edit Harga Jual & Tier', style: TextStyle(fontSize:14,fontWeight: FontWeight.bold)), actions: [IconButton(icon: const Icon(Icons.close), onPressed: ()=> Navigator.pop(context))]),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        const Text('Pilih Barang / SKU', style: TextStyle(fontWeight: FontWeight.bold, fontSize:12)),
-        const SizedBox(height:8),
-        productsAsync.when(data: (list)=> DropdownButtonFormField<String>(value: state.selectedProductId, decoration: const InputDecoration(labelText:'Pilih SKU / Barang', border: OutlineInputBorder()),
-          items: list.map((p)=> DropdownMenuItem(value: p.id, child: Text('${p.code} - ${p.name}', style: const TextStyle(fontSize:12), overflow: TextOverflow.ellipsis))).toList(),
-          onChanged: (id){ final prod = list.firstWhere((e)=> e.id==id); notifier.selectProduct(prod); }), loading: ()=> const CircularProgressIndicator(), error: (e,s)=> Text('Error $e')),
-        const SizedBox(height:16),
+    return mat.Scaffold(backgroundColor: mat.Colors.white,
+      appBar: mat.AppBar(backgroundColor: mat.Colors.white, title: const mat.Text('Edit Harga Jual & Tier', style: mat.TextStyle(fontSize:14,fontWeight: mat.FontWeight.bold)), actions: [mat.IconButton(icon: const mat.Icon(mat.Icons.close), onPressed: ()=> mat.Navigator.pop(context))]),
+      body: mat.ListView(padding: const mat.EdgeInsets.all(16), children: [
+        const mat.Text('Pilih Barang / SKU', style: mat.TextStyle(fontWeight: mat.FontWeight.bold, fontSize:12)),
+        const mat.SizedBox(height:8),
+        productsAsync.when(data: (list)=> mat.DropdownButtonFormField<String>(value: state.selectedProductId, decoration: const mat.InputDecoration(labelText:'Pilih SKU / Barang', border: mat.OutlineInputBorder()),
+          items: list.map((p)=> mat.DropdownMenuItem(value: p.id, child: mat.Text('${p.code} - ${p.name}', style: const mat.TextStyle(fontSize:12), overflow: mat.TextOverflow.ellipsis))).toList(),
+          onChanged: (id){ final prod = list.firstWhere((e)=> e.id==id); notifier.selectProduct(prod); }), loading: ()=> const mat.CircularProgressIndicator(), error: (e,s)=> mat.Text('Error $e')),
+        const mat.SizedBox(height:16),
         if(state.id.isNotEmpty)...[
-          Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${state.code} - ${state.name}', style: const TextStyle(fontWeight: FontWeight.bold)), Text('HPP Saat Ini: ${formatRupiah(state.buyPrice)} (Auto Weighted)', style: const TextStyle(fontSize:11, color: Colors.blue)) ])),
-          const SizedBox(height:16),
+          mat.Container(padding: const mat.EdgeInsets.all(12), decoration: mat.BoxDecoration(color: mat.Colors.blue.withOpacity(0.08), borderRadius: mat.BorderRadius.circular(8)),
+            child: mat.Column(crossAxisAlignment: mat.CrossAxisAlignment.start, children: [mat.Text('${state.code} - ${state.name}', style: const mat.TextStyle(fontWeight: mat.FontWeight.bold)), mat.Text('HPP Saat Ini: ${formatRupiah(state.buyPrice)} (Auto Weighted)', style: const mat.TextStyle(fontSize:11, color: mat.Colors.blue)) ])),
+          const mat.SizedBox(height:16),
           _buildHargaInput(label:'Harga Jual Umum *', harga: state.sellPriceGeneral, margin: state.marginGeneral, laba: state.labaGeneral, onChanged: (v)=> notifier.updateField(sellPriceGeneral: v)),
           _buildHargaInput(label:'Tier 1 - Member', harga: state.sellPriceTier1, margin: state.marginTier1, laba: state.labaTier1, onChanged: (v)=> notifier.updateField(sellPriceTier1: v)),
           _buildHargaInput(label:'Tier 2 - Grosir (>10)', harga: state.sellPriceTier2, margin: state.marginTier2, laba: state.labaTier2, onChanged: (v)=> notifier.updateField(sellPriceTier2: v)),
           _buildHargaInput(label:'Tier 3 - Distributor (>50)', harga: state.sellPriceTier3, margin: state.marginTier3, laba: state.labaTier3, onChanged: (v)=> notifier.updateField(sellPriceTier3: v)),
-          const SizedBox(height:20),
-          SizedBox(width: double.infinity, height:48, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A)), onPressed: () async { final ok=await notifier.saveProduct(); if(ok && context.mounted) Navigator.pop(context); }, child: const Text('UPDATE HARGA', style: TextStyle(color:Colors.white,fontWeight: FontWeight.bold)))),
-        ] else const Padding(padding: EdgeInsets.all(20), child: Center(child: Text('Pilih barang dulu untuk edit harga', style: TextStyle(color: Colors.grey)))),
+          const mat.SizedBox(height:20),
+          mat.SizedBox(width: double.infinity, height:48, child: mat.ElevatedButton(style: mat.ElevatedButton.styleFrom(backgroundColor: const mat.Color(0xFF00A65A)), onPressed: () async { final ok=await notifier.saveProduct(); if(ok && context.mounted) mat.Navigator.pop(context); }, child: const mat.Text('UPDATE HARGA', style: mat.TextStyle(color:mat.Colors.white,fontWeight: mat.FontWeight.bold)))),
+        ] else const mat.Padding(padding: mat.EdgeInsets.all(20), child: mat.Center(child: mat.Text('Pilih barang dulu untuk edit harga', style: mat.TextStyle(color: mat.Colors.grey)))),
       ]),
     );
   }
