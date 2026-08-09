@@ -75,15 +75,16 @@ class LocalDatabase extends _$LocalDatabase {
     beforeOpen: (details) async { await customStatement('PRAGMA foreign_keys = ON;'); },
   );
 
-  // ORCHESTRATOR POS - 1 PINTU - FINAL CCTV TIER + CUSTOMER + LUNAS/HUTANG
+  // ===========================================================================
+  // ORCHESTRATOR POS - FIX ANTI NESTED TRANSACTION - FINAL MATA ELANG
+  // ===========================================================================
   Future<void> prosesTransaksiPenyimpanan({
     required TransactionsCompanion dataTransaksi,
     required List<TransactionItemsCompanion> itemTransaksi,
   }) async {
     await transaction(() async {
       await into(transactions).insert(dataTransaksi);
-      
-      // ambil nama customer untuk CCTV
+
       String custName = 'Umum';
       if(dataTransaksi.customerId.value != null){
         final c = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
@@ -92,18 +93,20 @@ class LocalDatabase extends _$LocalDatabase {
 
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        await stockMutationDao.catatPenjualan(
+        // PAKAI DIRECT BIAR TIDAK NESTED TRANSACTION
+        await stockMutationDao.catatPenjualanDirect(
           productId: item.productId.value,
           qty: item.quantity.value * item.conversionFactor.value,
           refNo: dataTransaksi.invoiceNo.value,
           userId: dataTransaksi.salesId.value ?? 'kasir-01',
           customerName: custName,
-          paymentStatus: dataTransaksi.status.value.toUpperCase(), // paid, partial, unpaid
-          tier: item.selectedTier.value, // 1,2,3 - INI YANG KAMU TANYA
+          paymentStatus: dataTransaksi.status.value.toUpperCase(),
+          tier: item.selectedTier.value,
           hargaJual: item.appliedTierPrice.value,
           total: item.subtotal.value,
         );
       }
+      
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
         await into(receivables).insert(
           ReceivablesCompanion.insert(
@@ -127,7 +130,9 @@ class LocalDatabase extends _$LocalDatabase {
     });
   }
 
-  // ORCHESTRATOR PEMBELIAN - HPP MA + CCTV AUTO
+  // ===========================================================================
+  // ORCHESTRATOR PEMBELIAN - FIX
+  // ===========================================================================
   Future<void> prosesPembelianPenyimpanan({
     required PurchasesCompanion dataPembelian,
     required List<PurchaseItemsCompanion> itemPembelian,
@@ -136,7 +141,7 @@ class LocalDatabase extends _$LocalDatabase {
       await into(purchases).insert(dataPembelian);
       for (final item in itemPembelian) {
         await into(purchaseItems).insert(item);
-        await stockMutationDao.catatMasuk(
+        await stockMutationDao.catatMasukDirect(
           productId: item.productId.value,
           qtyMasuk: item.quantity.value * item.conversionFactor.value,
           hargaBeliPerPcs: item.buyPrice.value,
