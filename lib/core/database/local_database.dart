@@ -58,16 +58,15 @@ class LocalDatabase extends _$LocalDatabase {
       await m.createAll();
       await into(users).insert(UsersCompanion.insert(
         id: 'owner-01', name: 'Owner Putra Surabaya', role: 'owner',
-        username: Value('owner'), passwordHash: Value('owner'), pinCode: Value('123456'),
-        status: Value('aktif'), createdAt: Value(DateTime.now()),
-        canOverridePrice: Value(true), canGiveDiscount: Value(true), canVoidTransaction: Value(true),
-        canManageStock: Value(true), canCreateCustomer: Value(true), canCollectPayment: Value(true),
-        canProcessReturn: Value(true), maxDiscountPercent: Value(100), isSynced: Value(false),
+        username: const Value('owner'), passwordHash: const Value('owner'), pinCode: const Value('123456'),
+        status: const Value('aktif'), createdAt: Value(DateTime.now()),
+        canOverridePrice: const Value(true), canGiveDiscount: const Value(true), canVoidTransaction: const Value(true),
+        canManageStock: const Value(true), canCreateCustomer: const Value(true), canCollectPayment: const Value(true),
+        canProcessReturn: const Value(true), maxDiscountPercent: const Value(100), isSynced: const Value(false),
       ));
       await categoryDao.seedDefaults();
     },
     onUpgrade: (Migrator m, int from, int to) async {
-      // MIGRASI LAMA KAMU TETAP
       if (from < 10) {
         try { await m.createTable(auditLogs); } catch(_){}
         try { await m.createTable(fraudAlerts); } catch(_){}
@@ -106,6 +105,7 @@ class LocalDatabase extends _$LocalDatabase {
         try { await m.addColumn(products, products.unit); } catch(_){}
         try { await m.addColumn(products, products.rackLocation); } catch(_){}
         try { await m.addColumn(products, products.isSynced); } catch(_){}
+        try { await m.addColumn(products, products.code); } catch(_){}
       }
       if (from < 15) {
         try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch(_){}
@@ -115,14 +115,11 @@ class LocalDatabase extends _$LocalDatabase {
         try { await m.addColumn(auditLogs, auditLogs.isSynced); } catch(_){}
         try { await m.addColumn(fraudAlerts, fraudAlerts.isSynced); } catch(_){}
       }
-      // MIGRASI BARU v18-v21 - HPP AUTO + SUPPLIER CUSTOMER LENGKAP
       if (from < 20) {
         try { await m.addColumn(stockMutations, stockMutations.hppBefore); } catch(_){}
         try { await m.addColumn(stockMutations, stockMutations.hppAfter); } catch(_){}
         try { await m.addColumn(stockMutations, stockMutations.buyPriceAtThatTime); } catch(_){}
         try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){}
-        
-        // SUPPLIER LENGKAP
         try { await m.addColumn(suppliers, suppliers.code); } catch(_){}
         try { await m.addColumn(suppliers, suppliers.wa); } catch(_){}
         try { await m.addColumn(suppliers, suppliers.kelurahan); } catch(_){}
@@ -133,7 +130,6 @@ class LocalDatabase extends _$LocalDatabase {
         try { await m.addColumn(suppliers, suppliers.paymentTerm); } catch(_){}
       }
       if (from < 21) {
-        // CUSTOMER LENGKAP
         try { await m.addColumn(customers, customers.code); } catch(_){}
         try { await m.addColumn(customers, customers.wa); } catch(_){}
         try { await m.addColumn(customers, customers.kelurahan); } catch(_){}
@@ -147,10 +143,13 @@ class LocalDatabase extends _$LocalDatabase {
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON;');
+      if(details.wasCreated){
+        // seed sudah di onCreate
+      }
     },
   );
 
-  // ORCHESTRATOR 1 PINTU - POS
+  // ORCHESTRATOR POS - 1 PINTU
   Future<void> prosesTransaksiPenyimpanan({
     required TransactionsCompanion dataTransaksi,
     required List<TransactionItemsCompanion> itemTransaksi,
@@ -189,7 +188,7 @@ class LocalDatabase extends _$LocalDatabase {
     });
   }
 
-  // ORCHESTRATOR PEMBELIAN - HPP AUTO WEIGHTED
+  // ORCHESTRATOR PEMBELIAN - HPP AUTO WEIGHTED AVERAGE
   Future<void> prosesPembelianPenyimpanan({
     required PurchasesCompanion dataPembelian,
     required List<PurchaseItemsCompanion> itemPembelian,
@@ -222,16 +221,18 @@ class LocalDatabase extends _$LocalDatabase {
   }
 }
 
-// PROVIDER GLOBAL - CUMA 1, ANTI LOADING MUTER
+// PROVIDER GLOBAL - FIX LOADING MUTER
 final localDatabaseProvider = Provider<LocalDatabase>((ref) {
   final db = LocalDatabase();
   ref.onDispose(() => db.close());
   return db;
 });
 
-// STREAM GLOBAL UNTUK PILIH BARANG - INI YANG FIX LOADING DI SCREENSHOT KAMU
 final allProductsStreamProvider = StreamProvider<List<ProductData>>((ref) {
   final db = ref.watch(localDatabaseProvider);
   return db.productDao.watchActiveProducts();
 });
+
+// alias biar file lama masih jalan
 final productsStreamProvider = allProductsStreamProvider;
+final activeProductsStreamProvider = allProductsStreamProvider;
