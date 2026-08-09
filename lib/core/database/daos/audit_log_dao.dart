@@ -1,7 +1,5 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-// Import konsisten sesuai struktur project
 import 'package:ud_putra_kasir/core/database/constant/audit_constant.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
 import 'package:ud_putra_kasir/core/database/tables/audit_log_table.dart';
@@ -9,15 +7,12 @@ import 'package:ud_putra_kasir/core/database/tables/audit_log_table.dart';
 part 'audit_log_dao.g.dart';
 
 @DriftAccessor(tables: [AuditLogs, FraudAlerts])
-class AuditLogDao extends DatabaseAccessor<LocalDatabase>
-    with _$AuditLogDaoMixin {
+class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixin {
   AuditLogDao(LocalDatabase db) : super(db);
 
   // ===========================================================================
-  // 1. AUDIT LOG ACTIVIY (PENCATATAN KANBAN & TRACEABILITY)
+  // 1. AUDIT LOG ACTIVITY
   // ===========================================================================
-
-  /// Catat Audit Log Baru (Mengembalikan Log ID)
   Future<String> logActivity({
     required String userId,
     required String userRole,
@@ -28,7 +23,6 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase>
     String? newValue,
   }) async {
     final logId = 'LOG-${DateTime.now().millisecondsSinceEpoch}';
-
     await into(auditLogs).insert(
       AuditLogsCompanion.insert(
         id: logId,
@@ -42,37 +36,54 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase>
         isSynced: const Value(false),
       ),
     );
-
     return logId;
   }
 
-  /// Stream Riwayat Audit Log Terbaru (Untuk Dashboard Owner / Supervisor)
   Stream<List<AuditLogData>> watchRecentAuditLogs({int limit = 50}) {
     return (select(auditLogs)
-          ..orderBy([
-            (tbl) =>
-                OrderingTerm(expression: tbl.createdAt, mode: OrderingMode.desc)
-          ])
+          ..orderBy([(tbl) => OrderingTerm(expression: tbl.createdAt, mode: OrderingMode.desc)])
           ..limit(limit))
         .watch();
   }
 
-  /// Ambil Jejak Audit berdasarkan ID Referensi (Misal: No Faktur / TransactionId)
+  /// INI YANG DIPAKAI MATA ELANG - FULL FILTER
+  Stream<List<AuditLogData>> watchCctvPerItem({
+    String? keyword,
+    String? actionType,
+    DateTime? start,
+    DateTime? end,
+  }) {
+    return (select(auditLogs)
+          ..where((tbl) {
+            Expression<bool> clause = const Constant(true);
+            if (keyword != null && keyword.isNotEmpty) {
+              clause = clause & (tbl.description.like('%$keyword%') | tbl.actionType.like('%$keyword%') | tbl.oldValue.like('%$keyword%') | tbl.newValue.like('%$keyword%') | tbl.userId.like('%$keyword%'));
+            }
+            if (actionType != null && actionType.isNotEmpty && actionType != 'SEMUA') {
+              clause = clause & tbl.actionType.equals(actionType);
+            }
+            if (start != null) {
+              clause = clause & tbl.createdAt.isBiggerOrEqualValue(start);
+            }
+            if (end != null) {
+              clause = clause & tbl.createdAt.isSmallerOrEqualValue(end);
+            }
+            return clause;
+          })
+          ..orderBy([(tbl) => OrderingTerm(expression: tbl.createdAt, mode: OrderingMode.desc)]))
+        .watch();
+  }
+
   Future<List<AuditLogData>> getLogsByReference(String referenceId) {
     return (select(auditLogs)
           ..where((tbl) => tbl.referenceId.equals(referenceId))
-          ..orderBy([
-            (tbl) =>
-                OrderingTerm(expression: tbl.createdAt, mode: OrderingMode.desc)
-          ]))
+          ..orderBy([(tbl) => OrderingTerm(expression: tbl.createdAt, mode: OrderingMode.desc)]))
         .get();
   }
 
   // ===========================================================================
-  // 2. FRAUD ALERT & INDIKATOR RISIKO OWNER
+  // 2. FRAUD ALERT
   // ===========================================================================
-
-  /// Picu Fraud Alert (Dihubungkan dengan auditLogId)
   Future<void> triggerFraudAlert({
     required String userId,
     required String fraudCategory,
@@ -95,33 +106,22 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase>
     );
   }
 
-  /// Stream Status Warna Indikator Risiko Owner (Hijau / Kuning / Merah)
   Stream<String> watchOwnerRiskStatus() {
-    return (select(fraudAlerts)..where((tbl) => tbl.isResolved.equals(false)))
-        .watch()
-        .map((alerts) {
+    return (select(fraudAlerts)..where((tbl) => tbl.isResolved.equals(false))).watch().map((alerts) {
       if (alerts.isEmpty) return 'hijau';
-      final hasRedAlert = alerts.any((a) => a.severity == FraudSeverity.merah);
-      return hasRedAlert ? 'merah' : 'kuning';
+      final hasRed = alerts.any((a) => a.severity == FraudSeverity.merah);
+      return hasRed ? 'merah' : 'kuning';
     });
   }
 
-  /// Stream Daftar Alert yang Belum Selesai (Untuk Dashboard Owner)
   Stream<List<FraudAlertData>> watchActiveFraudAlerts() {
     return (select(fraudAlerts)
           ..where((tbl) => tbl.isResolved.equals(false))
-          ..orderBy([
-            (tbl) =>
-                OrderingTerm(expression: tbl.createdAt, mode: OrderingMode.desc)
-          ]))
+          ..orderBy([(tbl) => OrderingTerm(expression: tbl.createdAt, mode: OrderingMode.desc)]))
         .watch();
   }
 
-  /// Resolver Fraud Alert (Hanya dipanggil oleh Owner)
-  Future<void> resolveFraudAlert({
-    required String alertId,
-    required String ownerUserId,
-  }) async {
+  Future<void> resolveFraudAlert({required String alertId, required String ownerUserId}) async {
     await (update(fraudAlerts)..where((tbl) => tbl.id.equals(alertId))).write(
       FraudAlertsCompanion(
         isResolved: const Value(true),
@@ -132,10 +132,6 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase>
     );
   }
 }
-
-// ===========================================================================
-// PROVIDER RIVERPOD
-// ===========================================================================
 
 final auditLogDaoProvider = Provider<AuditLogDao>((ref) {
   final db = ref.watch(localDatabaseProvider);
