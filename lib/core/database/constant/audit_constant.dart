@@ -1,8 +1,10 @@
+/// Tipe Akses / Aktivitas Sensitif (Audit Trail) + CCTV PER ITEM
 abstract class AuditAction {
   static const String editPrice = 'EDIT_PRICE';
   static const String createStore = 'CREATE_STORE';
   static const String voidTransaction = 'VOID_TRANSACTION';
   static const String mutationPayment = 'MUTATION_PAYMENT';
+  
   // CCTV PER ITEM AUTO
   static const String kulakHppMa = 'KULAK_HPP_MA';
   static const String jualTier1 = 'JUAL_TIER_1';
@@ -11,4 +13,20 @@ abstract class AuditAction {
   static const String keluarRusak = 'KELUAR_RUSAK';
   static const String opnamePlus = 'OPNAME_PLUS';
   static const String opnameMinus = 'OPNAME_MINUS_SELISIH';
+  static const String jualRugi = 'JUAL_RUGI';
+}
+
+/// Kategori Indikasi Fraud / Kecurangan
+abstract class FraudCategory {
+  static const String mainHarga = 'MAIN_HARGA';
+  static const String tokoFiktif = 'TOKO_FIKTIF';
+  static const String manipulasiTagihan = 'MANIPULASI_TAGIHAN';
+  static const String voidSuspicious = 'VOID_SUSPICIOUS';
+  static const String jualRugi = 'JUAL_RUGI';
+}
+
+/// Level Bahaya Indikasi Fraud
+abstract class FraudSeverity {
+  static const String kuning = 'kuning';
+  static const String merah = 'merah';
 }
