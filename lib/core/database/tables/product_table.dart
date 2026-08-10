@@ -13,14 +13,17 @@ class Products extends Table {
   TextColumn get brand => text().nullable()();
   TextColumn get warehouseLocation => text().nullable()();
   TextColumn get tags => text().nullable()();
-  RealColumn get buyPrice => real().withDefault(const Constant(0))(); // HPP AUTO WEIGHTED
+  // HPP
+  RealColumn get buyPrice => real().withDefault(const Constant(0))();
+  RealColumn get lastBuyPrice => real().withDefault(const Constant(0))(); // TAMBAH INI WAJIB
   RealColumn get sellPriceGeneral => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier1 => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier2 => real().withDefault(const Constant(0))();
   RealColumn get sellPriceTier3 => real().withDefault(const Constant(0))();
-  RealColumn get sellPrice => real().withDefault(const Constant(0))(); // legacy
+  RealColumn get sellPrice => real().withDefault(const Constant(0))();
   RealColumn get maxDiscountSales => real().withDefault(const Constant(0))();
   BoolColumn get isPriceLocked => boolean().withDefault(const Constant(true))();
+  // STOK
   RealColumn get stock => real().withDefault(const Constant(0))();
   RealColumn get minStock => real().withDefault(const Constant(5))();
   RealColumn get maxStock => real().withDefault(const Constant(100))();
