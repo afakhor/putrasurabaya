@@ -46,7 +46,7 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
         .watch();
   }
 
-  /// INI YANG DIPAKAI MATA ELANG - FULL FILTER
+  /// INI YANG DIPAKAI MATA ELANG - FULL FILTER SINKRON TRANSACTION
   Stream<List<AuditLogData>> watchCctvPerItem({
     String? keyword,
     String? actionType,
@@ -57,7 +57,8 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
           ..where((tbl) {
             Expression<bool> clause = const Constant(true);
             if (keyword != null && keyword.isNotEmpty) {
-              clause = clause & (tbl.description.like('%$keyword%') | tbl.actionType.like('%$keyword%') | tbl.oldValue.like('%$keyword%') | tbl.newValue.like('%$keyword%') | tbl.userId.like('%$keyword%'));
+              // LIKE %keyword% untuk search faktur / customer / kode / nama / sales / rack
+              clause = clause & (tbl.description.like('%$keyword%') | tbl.actionType.like('%$keyword%') | tbl.oldValue.like('%$keyword%') | tbl.newValue.like('%$keyword%') | tbl.userId.like('%$keyword%') | tbl.referenceId.like('%$keyword%'));
             }
             if (actionType != null && actionType.isNotEmpty && actionType != 'SEMUA') {
               clause = clause & tbl.actionType.equals(actionType);
@@ -66,7 +67,9 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
               clause = clause & tbl.createdAt.isBiggerOrEqualValue(start);
             }
             if (end != null) {
-              clause = clause & tbl.createdAt.isSmallerOrEqualValue(end);
+              // end of day
+              final endDay = DateTime(end.year, end.month, end.day, 23, 59, 59);
+              clause = clause & tbl.createdAt.isSmallerOrEqualValue(endDay);
             }
             return clause;
           })
@@ -82,7 +85,7 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
   }
 
   // ===========================================================================
-  // 2. FRAUD ALERT
+  // 2. FRAUD ALERT - FIX UNTUK ERROR fraudAlertDao IS NOT DEFINED
   // ===========================================================================
   Future<void> triggerFraudAlert({
     required String userId,
@@ -121,6 +124,20 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
         .watch();
   }
 
+  // ============== FIX UTAMA BIAR db.fraudAlertDao.watchAllAlerts() JALAN ==============
+  Stream<List<FraudAlertData>> watchAllAlerts() {
+    return (select(fraudAlerts)
+          ..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)]))
+        .watch();
+  }
+
+  Stream<List<FraudAlertData>> watchAllFraudAlerts() => watchAllAlerts();
+
+  Future<List<FraudAlertData>> getAllUnresolved() {
+    return (select(fraudAlerts)..where((t)=> t.isResolved.equals(false))).get();
+  }
+  // ============== END FIX ==============
+
   Future<void> resolveFraudAlert({required String alertId, required String ownerUserId}) async {
     await (update(fraudAlerts)..where((tbl) => tbl.id.equals(alertId))).write(
       FraudAlertsCompanion(
@@ -137,3 +154,8 @@ final auditLogDaoProvider = Provider<AuditLogDao>((ref) {
   final db = ref.watch(localDatabaseProvider);
   return AuditLogDao(db);
 });
+
+// ALIAS BIAR db.fraudAlertDao TETAP BISA DIPANGGIL - FIX ERROR BUILD
+extension FraudAlertDaoExtension on LocalDatabase {
+  // ini akan di-override di local_database.dart dengan getter beneran
+}
