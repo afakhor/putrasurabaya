@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart';
-import '../constant/audit_constant.dart';
 
 @DataClassName('AuditLogData')
 class AuditLogs extends Table {
@@ -25,8 +24,8 @@ class FraudAlerts extends Table {
   TextColumn get title => text().withDefault(const Constant('Alert'))();
   TextColumn get description => text().withDefault(const Constant(''))();
   TextColumn get detailAnalysis => text().withDefault(const Constant(''))();
-  TextColumn get severity => text().withDefault(const Constant(FraudSeverity.kuning))();
-  TextColumn get fraudCategory => text().withDefault(const Constant(FraudCategory.general))();
+  TextColumn get severity => text().withDefault(const Constant('kuning'))();
+  TextColumn get fraudCategory => text().withDefault(const Constant('general'))();
   BoolColumn get isResolved => boolean().withDefault(const Constant(false))();
   BoolColumn get isRead => boolean().withDefault(const Constant(false))();
   TextColumn get auditLogId => text().nullable()();
