@@ -10,8 +10,8 @@ class ProductFormState {
   final double sellPriceGeneral; final double sellPriceTier1; final double sellPriceTier2; final double sellPriceTier3;
   final double stock; final double minStock; final double maxStock;
   final bool allowMinusStock; final String rackLocation; final String statusActive;
-  final List<ProductUnitData> units; // FIX: ProductUnitData
-  final List<ProductVariantData> variants; // FIX: ProductVariantData
+  final List<ProductUnitData> units;
+  final List<ProductVariantData> variants;
   final List<String> imagePaths;
   final bool isEditMode;
 
@@ -60,13 +60,9 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
     state=ProductFormState(
       id: p.id, code: p.code??'', name: p.name, shortName: p.shortName??'', barcode: p.barcode??'', description: p.description??'',
       categoryId: p.categoryId, brand: p.brand??'', unit: p.unit, buyPrice: p.buyPrice,
-      sellPriceGeneral: p.sellPriceGeneral,
-      sellPriceTier1: p.sellPriceTier1,
-      sellPriceTier2: p.sellPriceTier2,
-      sellPriceTier3: p.sellPriceTier3,
+      sellPriceGeneral: p.sellPriceGeneral, sellPriceTier1: p.sellPriceTier1, sellPriceTier2: p.sellPriceTier2, sellPriceTier3: p.sellPriceTier3,
       stock: p.stock, minStock: p.minStock, maxStock: p.maxStock,
-      allowMinusStock: p.allowMinusStock,
-      rackLocation: p.rackLocation??'', statusActive: p.statusActive,
+      allowMinusStock: p.allowMinusStock, rackLocation: p.rackLocation??'', statusActive: p.statusActive,
       units: units, variants: variants, imagePaths: images, isEditMode: true,
     );
   }
