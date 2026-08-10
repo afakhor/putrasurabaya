@@ -3,8 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/database/local_database.dart';
+import '../../../core/database/tables/audit_log_table.dart';
 import '../../../core/database/constant/audit_constant.dart';
-import '../../../core/database/constant/constant_debt_status.dart';
+
+class DebtStatus {
+  static const unpaid = 'BELUM_LUNAS';
+  static const paid = 'LUNAS';
+  static const partial = 'SEBAGIAN';
+}
 
 enum MataElangMode { omset, item, supplier, hargaBocor, piutang, customerSultan, hargaHistory }
 
@@ -19,7 +25,6 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
   DateTimeRange? _dateRange;
   String _search = '';
   String _omsetFilter = 'OWNER_SALESMAN';
-  String _selectedSalesmanId = 'SEMUA';
   String _selectedCategoryId = 'SEMUA';
 
   final _currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
@@ -33,10 +38,9 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
   Widget build(BuildContext context) {
     final db = ref.watch(localDatabaseProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text('MATA ELANG - ${_mode.name.toUpperCase()}', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 11)),
+        title: Text('MATA ELANG - ${_mode.name.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
         actions: [
           IconButton(icon: const Icon(Icons.clear_all), onPressed: ()=> setState((){
             _search=''; _dateRange=null; _selectedCategoryId='SEMUA'; _omsetFilter='OWNER_SALESMAN';
@@ -57,7 +61,6 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
             _modeChip('HISTORI', MataElangMode.hargaHistory, Colors.tealAccent),
           ])),
         ),
-        // FILTER ATAS - SINKRON KATEGORI DAO
         Container(
           padding: const EdgeInsets.all(8),
           color: isDark? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
@@ -65,11 +68,11 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
             Row(children: [
               Expanded(child: TextField(
                 decoration: InputDecoration(hintText: _getHint(), prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(10), filled: true, fillColor: Colors.white),
-                style: const TextStyle(fontFamily: 'Poppins', fontSize: 11),
+                style: const TextStyle(fontSize: 11),
                 onChanged: (v)=> setState(()=> _search=v),
               )),
               const SizedBox(width: 6),
-              ElevatedButton.icon(icon: const Icon(Icons.date_range, size: 16), label: Text(_dateRange==null? 'Tanggal' : "${_dateShort.format(_dateRange!.start)}-${_dateShort.format(_dateRange!.end)}", style: const TextStyle(fontSize: 9, fontFamily: 'Poppins')), onPressed: () async {
+              ElevatedButton.icon(icon: const Icon(Icons.date_range, size: 16), label: Text(_dateRange==null? 'Tanggal' : "${_dateShort.format(_dateRange!.start)}-${_dateShort.format(_dateRange!.end)}", style: const TextStyle(fontSize: 9)), onPressed: () async {
                 final picked = await showDateRangePicker(context: context, firstDate: DateTime(2023), lastDate: DateTime.now().add(const Duration(days: 1)));
                 if(picked!=null) setState(()=> _dateRange=picked);
               }),
@@ -84,10 +87,10 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
                   return DropdownButtonFormField<String>(
                     value: _selectedCategoryId, isDense: true, isExpanded: true,
                     decoration: const InputDecoration(isDense: true, border: OutlineInputBorder(), contentPadding: EdgeInsets.all(8), filled: true, fillColor: Colors.white, labelText: 'Kategori'),
-                    style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, color: Colors.black),
+                    style: const TextStyle(fontSize: 10, color: Colors.black),
                     items: [
                       const DropdownMenuItem(value: 'SEMUA', child: Text('Semua Kategori')),
-                    ...cats.map((c)=> DropdownMenuItem(value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis))),
+                   ...cats.map((c)=> DropdownMenuItem(value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis))),
                     ],
                     onChanged: (v)=> setState(()=> _selectedCategoryId=v??'SEMUA'),
                   );
@@ -97,7 +100,7 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
               Expanded(child: DropdownButtonFormField<String>(
                 value: _omsetFilter, isDense: true, isExpanded: true,
                 decoration: const InputDecoration(isDense: true, border: OutlineInputBorder(), contentPadding: EdgeInsets.all(8), filled: true, fillColor: Colors.white, labelText: 'Omset By'),
-                style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, color: Colors.black),
+                style: const TextStyle(fontSize: 10, color: Colors.black),
                 items: const [
                   DropdownMenuItem(value: 'OWNER_SALESMAN', child: Text('Owner + Salesman')),
                   DropdownMenuItem(value: 'OWNER', child: Text('Owner Saja')),
@@ -127,7 +130,7 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
 
   Widget _modeChip(String label, MataElangMode mode, Color color){
     final sel = _mode==mode;
-    return Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(label: Text(label, style: TextStyle(fontFamily: 'Poppins', fontSize: 9, fontWeight: FontWeight.bold, color: sel? Colors.black : Colors.white)), selected: sel, selectedColor: color, backgroundColor: Colors.white10, onSelected: (_)=> setState(()=> _mode=mode)));
+    return Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(label: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: sel? Colors.black : Colors.white)), selected: sel, selectedColor: color, backgroundColor: Colors.white10, onSelected: (_)=> setState(()=> _mode=mode)));
   }
 
   Widget _buildContent(LocalDatabase db, bool isDark){
@@ -142,7 +145,6 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
     }
   }
 
-  // ================== FIX ERROR f['tgl'] as DateTime ==================
   Widget _buildOmset(LocalDatabase db, bool isDark){
     return StreamBuilder<List<AuditLogData>>(stream: db.auditLogDao.watchCctvPerItem(keyword: _search.isEmpty? null : _search, start: _dateRange?.start, end: _dateRange?.end),
       builder: (ctx, snap){
@@ -169,17 +171,16 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
             }catch(_){}
           }
           grandJual+=jual; grandHpp+=hpp;
-          // FIX: tgl sebagai DateTime, bukan Object?
           return <String, dynamic>{'faktur': e.key, 'cust': cust, 'sales': sales, 'tgl': tgl, 'jual': jual, 'hpp': hpp, 'laba': jual-hpp, 'status': status, 'count': e.value.length};
         }).toList()..sort((a,b)=> (b['tgl'] as DateTime).compareTo(a['tgl'] as DateTime));
 
         return Column(children: [
           Container(margin: const EdgeInsets.all(8), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(12)),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("OMSET $_omsetFilter | ${_selectedCategoryId=='SEMUA'?'SEMUA KAT':'FILTER KAT'}", style: const TextStyle(color: Colors.white54, fontSize: 9, fontFamily: 'Poppins')), Text(_currency.format(grandJual), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Poppins')), Text("Laba ${_currency.format(grandJual-grandHpp)} | ${fakturList.length} faktur", style: const TextStyle(color: Colors.greenAccent, fontSize: 10, fontFamily: 'Poppins'))])])),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("OMSET $_omsetFilter | ${_selectedCategoryId=='SEMUA'?'SEMUA KAT':'FILTER KAT'}", style: const TextStyle(color: Colors.white54, fontSize: 9)), Text(_currency.format(grandJual), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)), Text("Laba ${_currency.format(grandJual-grandHpp)} | ${fakturList.length} faktur", style: const TextStyle(color: Colors.greenAccent, fontSize: 10))])])),
           Expanded(child: ListView.builder(itemCount: fakturList.length, itemBuilder: (c,i){
             final f=fakturList[i];
-            final DateTime tgl = f['tgl'] as DateTime; // FIX ERROR The argument type 'Object?' can't be assigned to 'DateTime'
-            return ListTile(dense: true, title: Text("${f['faktur']} | ${f['cust']} | ${_safe6(f['sales'].toString())}", style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.bold)), subtitle: Text("${_dateFmt.format(tgl)} | ${f['count']} item | ${f['status']} | Jual ${_currency.format(f['jual'])} HPP ${_currency.format(f['hpp'])}", style: const TextStyle(fontFamily: 'Poppins', fontSize: 8)), trailing: Text(_currency.format(f['laba']), style: TextStyle(fontFamily: 'Poppins', fontSize: 10, color: (f['laba'] as double)<0? Colors.red: Colors.green)));
+            final DateTime tgl = f['tgl'] as DateTime;
+            return ListTile(dense: true, title: Text("${f['faktur']} | ${f['cust']} | ${_safe6(f['sales'].toString())}", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), subtitle: Text("${_dateFmt.format(tgl)} | ${f['count']} item | ${f['status']} | Jual ${_currency.format(f['jual'])} HPP ${_currency.format(f['hpp'])}", style: const TextStyle(fontSize: 8)), trailing: Text(_currency.format(f['laba']), style: TextStyle(fontSize: 10, color: (f['laba'] as double)<0? Colors.red: Colors.green)));
           })),
         ]);
       },
@@ -197,8 +198,8 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
           try{
             final oldV=jsonDecode(log.oldValue??'{}') as Map<String,dynamic>;
             final newV=jsonDecode(log.newValue??'{}') as Map<String,dynamic>;
-            return ListTile(dense: true, title: Text("${_safeJson(oldV,'code')} ${_safeJson(oldV,'name')} | Cust:${_safeJson(newV,'customer')} | Tier:${_safeJson(newV,'tier')}", style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.bold), maxLines: 1), subtitle: Text("Tgl:${_dateFmt.format(log.createdAt)} | HPP MA ${_currency.format(newV['hpp_ma']?? oldV['hpp_ma']??0)} | Jual ${_currency.format(newV['harga_jual']??0)} x${newV['qty']??0} | Sales:${_safe6(log.userId)} | Faktur:${_safeJson(newV,'ref').isEmpty? (log.referenceId??''): _safeJson(newV,'ref')} | Rak:${_safeJson(newV,'rack').isEmpty? _safeJson(oldV,'rack'): _safeJson(newV,'rack')} | Stok ${oldV['stock']??''}->${newV['stock']??''}", style: const TextStyle(fontFamily: 'Poppins', fontSize: 8)));
-          }catch(_){ return ListTile(title: Text(log.description, style: const TextStyle(fontFamily: 'Poppins', fontSize: 8))); }
+            return ListTile(dense: true, title: Text("${_safeJson(oldV,'code')} ${_safeJson(oldV,'name')} | Cust:${_safeJson(newV,'customer')} | Tier:${_safeJson(newV,'tier')}", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold), maxLines: 1), subtitle: Text("Tgl:${_dateFmt.format(log.createdAt)} | HPP MA ${_currency.format(newV['hpp_ma']?? oldV['hpp_ma']??0)} | Jual ${_currency.format(newV['harga_jual']??0)} x${newV['qty']??0} | Sales:${_safe6(log.userId)} | Faktur:${_safeJson(newV,'ref').isEmpty? (log.referenceId??''): _safeJson(newV,'ref')} | Stok ${oldV['stock']??''}->${newV['stock']??''}", style: const TextStyle(fontSize: 8)));
+          }catch(_){ return ListTile(title: Text(log.description??'', style: const TextStyle(fontSize: 8))); }
         });
       },
     );
@@ -218,16 +219,16 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
           }catch(_){}
         }
         var list=perProduk.values.toList(); if(_selectedCategoryId!='SEMUA') list=list.where((e)=> (e['kategori'] as String).contains(_selectedCategoryId)).toList(); list.sort((a,b)=> (b['trx'] as int).compareTo(a['trx'] as int));
-        return ListView.builder(itemCount: list.length, itemBuilder: (c,i){ final p=list[i]; final trx=p['trx'] as int; final isSlow=trx<3; final isFast=trx>10; return ListTile(dense: true, leading: CircleAvatar(radius: 14, backgroundColor: isSlow? Colors.red: isFast? Colors.green: Colors.grey, child: Text(isSlow? 'S': isFast? 'F':'N', style: const TextStyle(color: Colors.white, fontSize: 10))), title: Text("${p['code']} ${p['name']} | ${isSlow? 'SLOW': isFast? 'FAST':'NORMAL'} | $trx x /2bln", style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.bold)), subtitle: Text("Masuk ${p['masuk']} | Keluar ${p['keluar']} | Turnover ${p['masuk']>0? ((p['keluar']/p['masuk'])*100).toStringAsFixed(1):0}% | Revenue ${_currency.format(p['jual'])}", style: const TextStyle(fontFamily: 'Poppins', fontSize: 8))); });
+        return ListView.builder(itemCount: list.length, itemBuilder: (c,i){ final p=list[i]; final trx=p['trx'] as int; final isSlow=trx<3; final isFast=trx>10; return ListTile(dense: true, leading: CircleAvatar(radius: 14, backgroundColor: isSlow? Colors.red: isFast? Colors.green: Colors.grey, child: Text(isSlow? 'S': isFast? 'F':'N', style: const TextStyle(color: Colors.white, fontSize: 10))), title: Text("${p['code']} ${p['name']} | ${isSlow? 'SLOW': isFast? 'FAST':'NORMAL'} | $trx x /2bln", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), subtitle: Text("Masuk ${p['masuk']} | Keluar ${p['keluar']} | Turnover ${p['masuk']>0? ((p['keluar']/p['masuk'])*100).toStringAsFixed(1):0}% | Revenue ${_currency.format(p['jual'])}", style: const TextStyle(fontSize: 8))); });
       },
     );
   }
 
   Widget _buildHargaBocor(LocalDatabase db){
-    return StreamBuilder<List<FraudAlertData>>(stream: db.fraudAlertDao.watchAllAlerts(), builder: (ctx, snap){
+    return StreamBuilder<List<FraudAlertData>>(stream: db.auditLogDao.watchAllAlerts(), builder: (ctx, snap){
       if(!snap.hasData) return const Center(child: CircularProgressIndicator());
-      var alerts=snap.data!; if(_search.isNotEmpty) alerts=alerts.where((e)=> e.title.toLowerCase().contains(_search.toLowerCase()) || e.detailAnalysis.toLowerCase().contains(_search.toLowerCase())).toList();
-      return ListView.separated(itemCount: alerts.length, separatorBuilder: (_,__)=> const Divider(height: 1), itemBuilder: (c,i){ final a=alerts[i]; return ListTile(dense: true, leading: Icon(a.severity==FraudSeverity.merah? Icons.warning: Icons.info, color: a.severity==FraudSeverity.merah? Colors.red: Colors.orange), title: Text("${a.title} | ${a.fraudCategory} | ${a.severity}", style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.bold)), subtitle: Text("${_dateFmt.format(a.createdAt)} | ${a.detailAnalysis}", style: const TextStyle(fontFamily: 'Poppins', fontSize: 8))); });
+      var alerts=snap.data!; if(_search.isNotEmpty) alerts=alerts.where((e)=> e.title.toLowerCase().contains(_search.toLowerCase()) || (e.detailAnalysis??'').toLowerCase().contains(_search.toLowerCase())).toList();
+      return ListView.separated(itemCount: alerts.length, separatorBuilder: (_,__)=> const Divider(height: 1), itemBuilder: (c,i){ final a=alerts[i]; return ListTile(dense: true, leading: Icon((a.severity)=='merah'? Icons.warning: Icons.info, color: (a.severity)=='merah'? Colors.red: Colors.orange), title: Text("${a.title} | ${a.fraudCategory} | ${a.severity}", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), subtitle: Text("${_dateFmt.format(a.createdAt)} | ${a.detailAnalysis??''}", style: const TextStyle(fontSize: 8))); });
     });
   }
 
@@ -239,7 +240,7 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
         final Map<String, double> piutang={}; final Map<String, DateTime> tgl={};
         for(var log in logs){ try{ final newV=jsonDecode(log.newValue??'{}') as Map<String,dynamic>; final cust=newV['customer']?.toString()??'UNKNOWN'; piutang[cust]=(piutang[cust]??0)+((newV['harga_jual']??0) as num).toDouble()*((newV['qty']??0) as num).toDouble().abs(); tgl[cust]=log.createdAt; }catch(_){} }
         final list=piutang.entries.toList()..sort((a,b)=> b.value.compareTo(a.value));
-        return ListView.builder(itemCount: list.length, itemBuilder: (c,i){ final e=list[i]; final hari=DateTime.now().difference(tgl[e.key]??DateTime.now()).inDays; return ListTile(dense: true, title: Text("${e.key} | ${hari} hari | ${hari>60? 'MERAH >60': hari>=30? 'KUNING 30-45':'HIJAU 0-30'}", style: TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.bold, color: hari>60? Colors.red: hari>=30? Colors.orange: Colors.green)), subtitle: Text("Terakhir ${_dateFmt.format(tgl[e.key]??DateTime.now())} | Status ${hari>60? DebtStatus.unpaid : DebtStatus.partial}"), trailing: Text(_currency.format(e.value), style: const TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.bold))); });
+        return ListView.builder(itemCount: list.length, itemBuilder: (c,i){ final e=list[i]; final hari=DateTime.now().difference(tgl[e.key]??DateTime.now()).inDays; return ListTile(dense: true, title: Text("${e.key} | $hari hari | ${hari>60? 'MERAH >60': hari>=30? 'KUNING 30-45':'HIJAU 0-30'}", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: hari>60? Colors.red: hari>=30? Colors.orange: Colors.green)), subtitle: Text("Terakhir ${_dateFmt.format(tgl[e.key]??DateTime.now())} | Status ${hari>60? DebtStatus.unpaid : DebtStatus.partial}"), trailing: Text(_currency.format(e.value), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))); });
       },
     );
   }
@@ -272,11 +273,11 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
 
         return Column(children: [
           Container(margin: const EdgeInsets.all(8), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(12)),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text("TOTAL ${list.length} CUSTOMER | SULTAN ⭐ ${list.where((e)=> e['isBintang']==true).length}", style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'Poppins', fontWeight: FontWeight.bold))), Text(_currency.format(list.fold<double>(0, (p,e)=> p+(e['omset'] as double))), style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold))]),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text("TOTAL ${list.length} CUSTOMER | SULTAN ⭐ ${list.where((e)=> e['isBintang']==true).length}", style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))), Text(_currency.format(list.fold<double>(0, (p,e)=> p+(e['omset'] as double))), style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold))]),
           ),
           Expanded(child: ListView.builder(itemCount: list.length, itemBuilder: (c,i){
             final e=list[i]; final warna=e['warna'] as Color;
-            return Container(color: (e['isBintang'] as bool)? Colors.green.withOpacity(0.08): null, child: ListTile(dense: true, leading: CircleAvatar(backgroundColor: warna, radius: 16, child: Icon((e['isBintang'] as bool)? Icons.star: Icons.person, color: Colors.white, size: 14)), title: Text("${i+1}. ${e['customer']} ${e['isBintang']==true? '⭐':''}", style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.bold)), subtitle: Text("${e['label']} | Omset ${_currency.format(e['omset'])} | ${e['trx']} trx | Cash ${e['cash']}x | Hutang ${e['hutang']}x | ${e['hari']} hari lalu", style: const TextStyle(fontFamily: 'Poppins', fontSize: 8)), trailing: Text(_currency.format(e['omset']), style: TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.bold, color: warna))));
+            return Container(color: (e['isBintang'] as bool)? Colors.green.withOpacity(0.08): null, child: ListTile(dense: true, leading: CircleAvatar(backgroundColor: warna, radius: 16, child: Icon((e['isBintang'] as bool)? Icons.star: Icons.person, color: Colors.white, size: 14)), title: Text("${i+1}. ${e['customer']} ${e['isBintang']==true? '⭐':''}", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), subtitle: Text("${e['label']} | Omset ${_currency.format(e['omset'])} | ${e['trx']} trx | Cash ${e['cash']}x | Hutang ${e['hutang']}x | ${e['hari']} hari lalu", style: const TextStyle(fontSize: 8)), trailing: Text(_currency.format(e['omset']), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: warna))));
           })),
         ]);
       },
@@ -292,8 +293,8 @@ class _CctvAnalyticsPageState extends ConsumerState<CctvAnalyticsPage> {
           final log=logs[i];
           try{
             final oldV=jsonDecode(log.oldValue??'{}') as Map<String,dynamic>; final newV=jsonDecode(log.newValue??'{}') as Map<String,dynamic>;
-            return ListTile(dense: true, title: Text("${_safeJson(oldV,'code')} | HPP ${_safeJson(oldV,'hpp_ma')}->${_safeJson(newV,'hpp_ma').isEmpty? _safeJson(newV,'hpp_masuk'): _safeJson(newV,'hpp_ma')} | Jual ${_safeJson(oldV,'harga')}->${_safeJson(newV,'harga_jual')}", style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.bold)), subtitle: Text("${_dateFmt.format(log.createdAt)} | ${_safe6(log.userId)} | Kat:${_safeJson(oldV,'category')}", style: const TextStyle(fontFamily: 'Poppins', fontSize: 8)));
-          }catch(_){ return ListTile(title: Text(log.description, style: const TextStyle(fontSize: 8))); }
+            return ListTile(dense: true, title: Text("${_safeJson(oldV,'code')} | HPP ${_safeJson(oldV,'hpp_ma')}->${_safeJson(newV,'hpp_ma').isEmpty? _safeJson(newV,'hpp_masuk'): _safeJson(newV,'hpp_ma')} | Jual ${_safeJson(oldV,'harga')}->${_safeJson(newV,'harga_jual')}", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), subtitle: Text("${_dateFmt.format(log.createdAt)} | ${_safe6(log.userId)} | Kat:${_safeJson(oldV,'category')}", style: const TextStyle(fontSize: 8)));
+          }catch(_){ return ListTile(title: Text(log.description??'', style: const TextStyle(fontSize: 8))); }
         });
       },
     );
