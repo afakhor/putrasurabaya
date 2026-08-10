@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
 import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
-import 'package:ud_putra_kasir/core/database/tables/customer_table.dart'; // FIX: TAMBAHKAN INI
+import 'package:ud_putra_kasir/core/database/tables/customer_table.dart';
 
 part 'receivables_dao.g.dart';
 
@@ -104,13 +104,13 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase> with _$ReceivablesD
       await into(receivables).insert(
         ReceivablesCompanion.insert(
           id: receivableId,
-          transactionId: transactionId,
-          customerId: customerId,
+          transactionId: Value(transactionId),
+          customerId: Value(customerId),
           salesId: Value(salesId),
-          totalAmount: totalAmount,
+          totalAmount: Value(totalAmount),
           paidAmount: Value(dpAmount),
-          remainingAmount: actualSisa,
-          dueDate: dueDate,
+          remainingAmount: Value(actualSisa),
+          dueDate: Value(dueDate),
           status: Value(status),
           isSynced: const Value(false),
           createdAt: Value(now),
@@ -134,10 +134,10 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase> with _$ReceivablesD
         await into(debtPayments).insert(
           DebtPaymentsCompanion.insert(
             id: 'PAY-AR-${now.microsecondsSinceEpoch}',
-            refId: receivableId,
-            type: 'receivable',
-            userId: userId ?? 'SYSTEM',
-            amount: dpAmount,
+            refId: Value(receivableId),
+            type: Value('receivable'),
+            userId: Value(userId ?? 'SYSTEM'),
+            amount: Value(dpAmount),
             paymentMethod: Value(paymentMethod),
             notes: const Value('Uang Muka / DP Penjualan Kasir'),
             isSynced: const Value(false),
@@ -179,25 +179,27 @@ class ReceivablesDao extends DatabaseAccessor<LocalDatabase> with _$ReceivablesD
         ),
       );
 
-      final customer = await (select(customers)..where((tbl) => tbl.id.equals(item.customerId))).getSingleOrNull();
-      if (customer != null) {
-        final sisaUtangCust = customer.sisaHutang - actualBayar;
-        await (update(customers)..where((tbl) => tbl.id.equals(item.customerId))).write(
-          CustomersCompanion(
-            sisaHutang: Value(sisaUtangCust < 0 ? 0.0 : sisaUtangCust),
-            isSynced: const Value(false),
-            updatedAt: Value(now),
-          ),
-        );
+      if (item.customerId != null) {
+        final customer = await (select(customers)..where((tbl) => tbl.id.equals(item.customerId!))).getSingleOrNull();
+        if (customer != null) {
+          final sisaUtangCust = customer.sisaHutang - actualBayar;
+          await (update(customers)..where((tbl) => tbl.id.equals(item.customerId!))).write(
+            CustomersCompanion(
+              sisaHutang: Value(sisaUtangCust < 0 ? 0.0 : sisaUtangCust),
+              isSynced: const Value(false),
+              updatedAt: Value(now),
+            ),
+          );
+        }
       }
 
       await into(debtPayments).insert(
         DebtPaymentsCompanion.insert(
           id: 'PAY-AR-${now.microsecondsSinceEpoch}',
-          refId: receivableId,
-          type: 'receivable',
-          userId: userId,
-          amount: actualBayar,
+          refId: Value(receivableId),
+          type: Value('receivable'),
+          userId: Value(userId),
+          amount: Value(actualBayar),
           paymentMethod: Value(paymentMethod),
           proofImage: Value(proofImage),
           notes: Value(notes ?? (newStatus == DebtStatus.paid || newStatus == DebtStatus.lunas ? 'Pelunasan Piutang Pelanggan' : 'Angsuran Piutang Pelanggan')),
