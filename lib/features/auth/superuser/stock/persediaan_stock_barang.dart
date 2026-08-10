@@ -36,7 +36,7 @@ class _MasterState extends ConsumerState<PersediaanStockBarangPage> {
             ),
             const SizedBox(width: 8),
             // FILTER KATEGORI SINKRON DAO BARU
-            StreamBuilder<List<CategoryData>>(
+            StreamBuilder(
               stream: db.categoryDao.watchAllCategories(),
               builder: (c,snap){
                 final cats = snap.data?? [];
