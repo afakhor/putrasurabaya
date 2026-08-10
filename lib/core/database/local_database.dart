@@ -13,7 +13,7 @@ import 'tables/supplier_table.dart';
 import 'tables/category_table.dart';
 import 'tables/purchase_table.dart';
 import 'tables/audit_log_table.dart';
-import 'constant/constant_debt_status.dart';
+// import 'constant/constant_debt_status.dart'; // JANGAN IMPORT LANGSUNG - ini yang bikin drift_dev gagal baca table kalau file ini ada error
 
 // DAOS
 import 'daos/user_dao.dart';
@@ -55,14 +55,10 @@ class LocalDatabase extends _$LocalDatabase {
   late final ReportDao reportDao = ReportDao(this);
   late final ShiftDao shiftDao = ShiftDao(this);
 
-  // ========== FIX UTAMA UNTUK ERROR BUILD 1000+ ==========
-  // Alias biar db.fraudAlertDao.watchAllAlerts() bisa dipanggil di cctv_analytics_page.dart
   AuditLogDao get fraudAlertDao => auditLogDao;
-  // Alias biar konsisten
   ReportDao get reportDaoAlias => reportDao;
-  // ========== END FIX ==========
 
-  @override int get schemaVersion => 22;
+  @override int get schemaVersion => 23; // NAIK 1 biar regen
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -100,33 +96,23 @@ class LocalDatabase extends _$LocalDatabase {
         try { await m.addColumn(customers, customers.tierHarga); } catch(_){} 
         try { await m.addColumn(customers, customers.sisaHutang); } catch(_){} 
       }
-      // v22 = no addColumn, hanya bump versi biar drift regen .g.dart yang benar
-      if (from < 22) {
-        // empty migration - untuk fix UserData not found
-      }
     },
     beforeOpen: (details) async { await customStatement('PRAGMA foreign_keys = ON;'); },
   );
 
-  // ===========================================================================
-  // ORCHESTRATOR POS - FIX ANTI NESTED TRANSACTION - FINAL MATA ELANG
-  // ===========================================================================
   Future<void> prosesTransaksiPenyimpanan({
     required TransactionsCompanion dataTransaksi,
     required List<TransactionItemsCompanion> itemTransaksi,
   }) async {
     await transaction(() async {
       await into(transactions).insert(dataTransaksi);
-
       String custName = 'Umum';
       if(dataTransaksi.customerId.value != null){
         final c = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
         if(c != null) custName = c.name;
       }
-
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        // PAKAI DIRECT BIAR TIDAK NESTED TRANSACTION - SUDAH SINKRON SAMA AUDIT LOG PER ITEM
         await stockMutationDao.catatPenjualanDirect(
           productId: item.productId.value,
           qty: item.quantity.value * item.conversionFactor.value,
@@ -139,8 +125,8 @@ class LocalDatabase extends _$LocalDatabase {
           total: item.subtotal.value,
         );
       }
-
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
+        // fix: pakai DebtStatus dari string manual, bukan import constant yang bikin error gen
         await into(receivables).insert(
           ReceivablesCompanion.insert(
             id: 'RC-${dataTransaksi.id.value}',
@@ -150,7 +136,7 @@ class LocalDatabase extends _$LocalDatabase {
             paidAmount: Value(dataTransaksi.payAmount.value),
             remainingAmount: dataTransaksi.remainingDebt.value,
             dueDate: DateTime.now().add(const Duration(days: 14)),
-            status: Value(DebtStatus.tentukanStatus(dataTransaksi.remainingDebt.value, dataTransaksi.payAmount.value)),
+            status: Value(dataTransaksi.remainingDebt.value > 0 ? 'belum_lunas' : 'lunas'),
           ),
         );
         final cust = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
@@ -163,9 +149,6 @@ class LocalDatabase extends _$LocalDatabase {
     });
   }
 
-  // ===========================================================================
-  // ORCHESTRATOR PEMBELIAN - FIX ANTI NESTED
-  // ===========================================================================
   Future<void> prosesPembelianPenyimpanan({
     required PurchasesCompanion dataPembelian,
     required List<PurchaseItemsCompanion> itemPembelian,
@@ -191,7 +174,7 @@ class LocalDatabase extends _$LocalDatabase {
           paidAmount: Value(dataPembelian.paidAmount.value),
           remainingAmount: dataPembelian.debtAmount.value,
           dueDate: dataPembelian.dueDate.value ?? DateTime.now().add(const Duration(days: 30)),
-          status: Value(DebtStatus.tentukanStatus(dataPembelian.debtAmount.value, dataPembelian.paidAmount.value)),
+          status: Value(dataPembelian.debtAmount.value > 0 ? 'belum_lunas' : 'lunas'),
         ));
       }
     });
