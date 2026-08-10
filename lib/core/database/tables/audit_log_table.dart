@@ -5,9 +5,8 @@ class AuditLogs extends Table {
   TextColumn get id => text()();
   TextColumn get userId => text()();
   TextColumn get userRole => text().withDefault(const Constant('kasir'))();
-  TextColumn get actionType => text()(); 
-  @TextColumn() // FIX: tableName reserved, ganti nama kolom DB jadi tblName
-  TextColumn get tblName => text().named('table_name').nullable()();
+  TextColumn get actionType => text()();
+  @TextColumn() TextColumn get tblName => text().named('table_name').nullable()();
   TextColumn get recordId => text().nullable()();
   TextColumn get referenceId => text().nullable()();
   TextColumn get oldValue => text().nullable()();
