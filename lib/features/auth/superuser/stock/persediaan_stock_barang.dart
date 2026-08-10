@@ -11,34 +11,98 @@ class PersediaanStockBarangPage extends ConsumerStatefulWidget {
 
 class _MasterState extends ConsumerState<PersediaanStockBarangPage> {
   String q='';
+  String _selectedCatId = 'SEMUA';
+
   @override Widget build(BuildContext context) {
     final productsAsync = ref.watch(allProductsStreamProvider);
+    final db = ref.watch(localDatabaseProvider);
+
     return Scaffold(
       appBar: AppBar(title: Text(widget.isPickMode?'Pilih Barang':'Master Barang'), backgroundColor: const Color(0xFF00A65A)),
       body: Column(children: [
-        Padding(padding: const EdgeInsets.all(12), child: TextField(decoration: InputDecoration(hintText:'Smart Search: SKU/Nama/Rak/Brand/Barcode', prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), onChanged: (v)=> setState(()=> q=v.toLowerCase()))),
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(children: [
+            Expanded(
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText:'Smart Search: SKU/Nama/Rak/Brand/Barcode',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  isDense: true
+                ),
+                onChanged: (v)=> setState(()=> q=v.toLowerCase())
+              ),
+            ),
+            const SizedBox(width: 8),
+            // FILTER KATEGORI SINKRON DAO BARU
+            StreamBuilder<List<CategoryData>>(
+              stream: db.categoryDao.watchAllCategories(),
+              builder: (c,snap){
+                final cats = snap.data?? [];
+                return DropdownButton<String>(
+                  value: _selectedCatId,
+                  hint: const Text('Kat'),
+                  items: [
+                    const DropdownMenuItem(value: 'SEMUA', child: Text('Semua')),
+                   ...cats.map((e)=> DropdownMenuItem(value: e.id, child: Text(e.name))),
+                  ],
+                  onChanged: (v)=> setState(()=> _selectedCatId = v?? 'SEMUA'),
+                );
+              }
+            ),
+          ]),
+        ),
         Expanded(child: productsAsync.when(
-          data: (list){
-            final filtered = list.where((p){
-              if(q.isEmpty) return true;
-              return p.name.toLowerCase().contains(q) || (p.code??'').toLowerCase().contains(q) || (p.barcode??'').toLowerCase().contains(q) || (p.rackLocation??'').toLowerCase().contains(q) || (p.brand??'').toLowerCase().contains(q) || (p.tags??'').toLowerCase().contains(q);
-            }).toList();
+          data: (List<ProductData> list){ // FIX: Explicit type ProductData
+            var filtered = list;
+
+            // Filter kategori
+            if(_selectedCatId!= 'SEMUA'){
+              filtered = filtered.where((p)=> p.categoryId == _selectedCatId).toList();
+            }
+
+            // Filter search - FIX ERROR Object?
+            if(q.isNotEmpty){
+              filtered = filtered.where((ProductData p){ // FIX: Explicit cast
+                return p.name.toLowerCase().contains(q) ||
+                       p.code.toLowerCase().contains(q) || // FIX: code non-nullable
+                       (p.barcode??'').toLowerCase().contains(q) ||
+                       (p.rackLocation??'').toLowerCase().contains(q) ||
+                       (p.brand??'').toLowerCase().contains(q) ||
+                       (p.tags??'').toLowerCase().contains(q);
+              }).toList();
+            }
+
             if(filtered.isEmpty) return const Center(child: Text('Barang tidak ada, tambah dulu'));
-            return ListView.builder(padding: const EdgeInsets.fromLTRB(12,0,12,90), itemCount: filtered.length, itemBuilder: (c,i){
-              final p=filtered[i];
-              Color sc = p.stock<=0? Colors.red : p.stock<=p.minStock? Colors.orange : const Color(0xFF00A65A);
-              return Card(child: ListTile(
-                leading: CircleAvatar(backgroundColor: sc.withOpacity(0.15), child: Icon(Icons.handyman, color: sc)),
-                title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:13)),
-                subtitle: Text('SKU:${p.code??'-'} • ${p.stock} ${p.unit} • Rak:${p.rackLocation??'-'} • HPP:${p.buyPrice.toStringAsFixed(0)}'),
-                trailing: widget.isPickMode? const Icon(Icons.chevron_right) : PopupMenuButton(onSelected: (v) async {
-                  if(v=='kartu') Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStockPage(productId: p.id)));
-                  if(v=='hapus') ref.read(localDatabaseProvider).productDao.softDeleteProduct(p.id);
-                  if(v=='edit') Navigator.pop(context, p.id);
-                }, itemBuilder: (_)=> [const PopupMenuItem(value:'edit', child: Text('Edit')), const PopupMenuItem(value:'kartu', child: Text('Kartu Stok')), const PopupMenuItem(value:'hapus', child: Text('Hapus'))]),
-                onTap: () { if(widget.isPickMode) Navigator.pop(context, p.id); else Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStockPage(productId: p.id))); },
-              ));
-            });
+
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12,0,12,90),
+              itemCount: filtered.length,
+              itemBuilder: (c,i){
+                final ProductData p = filtered[i]; // FIX: Explicit
+                Color sc = p.stock<=0? Colors.red : p.stock<=p.minStock? Colors.orange : const Color(0xFF00A65A);
+                return Card(
+                  child: ListTile(
+                    leading: CircleAvatar(backgroundColor: sc.withOpacity(0.15), child: Icon(Icons.handyman, color: sc)),
+                    title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:13)),
+                    subtitle: Text('SKU:${p.code} • ${p.stock} ${p.unit} • Rak:${p.rackLocation??'-'} • HPP:${p.buyPrice} • Kat:${p.categoryId??'-'}'),
+                    trailing: widget.isPickMode? const Icon(Icons.chevron_right) : PopupMenuButton(
+                      onSelected: (v) async {
+                        if(v=='kartu') Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStockPage(productId: p.id)));
+                        if(v=='hapus') await ref.read(localDatabaseProvider).productDao.softDeleteProduct(p.id);
+                        if(v=='edit') Navigator.pop(context, p.id);
+                      },
+                      itemBuilder: (_)=> [const PopupMenuItem(value:'edit', child: Text('Edit')), const PopupMenuItem(value:'kartu', child: Text('Kartu Stok')), const PopupMenuItem(value:'hapus', child: Text('Hapus'))]
+                    ),
+                    onTap: () {
+                      if(widget.isPickMode) Navigator.pop(context, p.id);
+                      else Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStockPage(productId: p.id)));
+                    },
+                  )
+                );
+              }
+            );
           },
           loading: ()=> const Center(child: CircularProgressIndicator()),
           error: (e,s)=> Center(child: Text('Error: $e')),
