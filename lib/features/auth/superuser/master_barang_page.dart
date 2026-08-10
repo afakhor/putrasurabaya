@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' hide Column;
 import '../../../core/database/local_database.dart';
-import '../../../core/utils/config.dart';
+import '../../../core/utils/config.dart' as app_config;
 import '../../../core/utils/format_rupiah.dart';
 import 'stock/kartu_stock_page.dart';
 import 'stock/mutasi_stock_page.dart';
-import 'product/product_page.dart';
 
 class MasterBarangPage extends StatelessWidget {
   const MasterBarangPage({super.key});
@@ -71,7 +70,7 @@ class _MasterFinalState extends ConsumerState<MasterBarangPageFinal> {
                           final p=f[i];
                           return ListTile(
                             leading: const Icon(Icons.history, color: Color(0xFF00A65A)),
-                            title: Text('${p.code} - ${p.name}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize:12)),
+                            title: Text('${p.code??''} - ${p.name}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize:12)),
                             subtitle: Text('Stok:${p.stock} | Rak:${p.rackLocation??'-'} | HPP:${formatRupiah(p.buyPrice)}', style: const TextStyle(fontSize:10)),
                             onTap: (){
                               Navigator.pop(context);
@@ -119,7 +118,7 @@ class _MasterFinalState extends ConsumerState<MasterBarangPageFinal> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text('Edit Barang Master', style: TextStyle(fontWeight: FontWeight.bold, fontSize:16)),
-                Text('SKU: ${p.code}', style: const TextStyle(fontSize:11, color: Colors.grey)),
+                Text('SKU: ${p.code??''}', style: const TextStyle(fontSize:11, color: Colors.grey)),
                 const SizedBox(height:16),
                 TextField(controller: nameC, decoration: const InputDecoration(labelText:'Nama Barang *', border: OutlineInputBorder())),
                 const SizedBox(height:12),
@@ -293,11 +292,11 @@ class _MasterFinalState extends ConsumerState<MasterBarangPageFinal> {
                     final p=f[i];
                     return Padding(
                       padding: const EdgeInsets.only(bottom:8),
-                      child: GlassCard(
+                      child: app_config.GlassCard(
                         onTap: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStockPage(productId: p.id))),
                         child: ListTile(
                           title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:13)),
-                          subtitle: Text('SKU:${p.code} | Stok:${p.stock} | HPP:${formatRupiah(p.buyPrice)}', style: const TextStyle(fontSize:10)),
+                          subtitle: Text('SKU:${p.code??''} | Stok:${p.stock} | HPP:${formatRupiah(p.buyPrice)}', style: const TextStyle(fontSize:10)),
                           trailing: IconButton(icon: const Icon(Icons.edit, size:20, color: Colors.black87), tooltip: 'Edit Master', onPressed: ()=> _openEditMaster(p)),
                         ),
                       ),
