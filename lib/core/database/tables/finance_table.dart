@@ -5,6 +5,20 @@ import 'customer_table.dart';
 import 'transaction_table.dart';
 import 'purchase_table.dart';
 
+class DebtStatus {
+  static const unpaid = 'belum_lunas';
+  static const paid = 'lunas';
+  static const String belumLunas = 'belum_lunas';
+  static const String lunas = 'lunas';
+}
+
+class PaymentType {
+  static const cash = 'cash';
+  static const transfer = 'transfer';
+  static const String cashType = 'cash';
+}
+
+// ... lanjut table Payables, Receivables kamu yang lama biarkan ...
 // ==========================================
 // 1. MODUL PIUTANG CUSTOMER (AR - Accounts Receivable)
 // ==========================================
