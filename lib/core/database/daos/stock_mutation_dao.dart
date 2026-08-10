@@ -27,6 +27,8 @@ class StockMutationType {
   static const all = [masuk, keluar, opname, penjualan, pembelian, perakitan];
 }
 
+enum StockAlert { aman, minus, hppNol, adjustmentLiar, hppLonjak, stokMati }
+
 @DriftAccessor(tables: [Products, StockMutations, AuditLogs, FraudAlerts])
 class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutationDaoMixin {
   StockMutationDao(LocalDatabase db) : super(db);
@@ -49,21 +51,21 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     );
 
     await into(stockMutations).insert(StockMutationsCompanion.insert(
-      id: 'MUT-${DateTime.now().microsecondsSinceEpoch}', 
-      productId: productId, 
-      type: type, 
-      quantity: qty, 
+      id: 'MUT-${DateTime.now().microsecondsSinceEpoch}',
+      productId: productId,
+      type: type,
+      quantity: qty,
       stockBefore: Value(sebelum),
       stockAfter: Value(sesudah),
-      hppBefore: Value(hppLama), 
-      hppAfter: Value(hppBaru), 
+      hppBefore: Value(hppLama),
+      hppAfter: Value(hppBaru),
       hppSnapshot: Value(hppBaru),
-      currentStockSnapshot: Value(sesudah), 
+      currentStockSnapshot: Value(sesudah),
       buyPriceAtThatTime: Value(hargaBeliMasuk),
       referenceNo: Value(refNo),
       referenceId: Value(refNo),
-      date: Value(customDate?? DateTime.now()), 
-      userId: Value(userId), 
+      date: Value(customDate?? DateTime.now()),
+      userId: Value(userId),
       notes: Value(notes),
     ));
 
@@ -192,5 +194,56 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
   Stream<List<StockCardItemData>> watchKartuStok(String productId) {
     final query = (select(stockMutations)..where((t)=> t.productId.equals(productId))..orderBy([(t)=> OrderingTerm.desc(t.date)])).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
     return query.watch().map((rows) => rows.map((r) => StockCardItemData(r.readTable(stockMutations), r.readTable(products))).toList());
+  }
+
+  // ==================== TAMBAHAN IPOS LOGIC - TIDAK UBAH METHOD LAMA ====================
+  Future<Map<String, dynamic>> stockSummary() async {
+    final allProducts = await select(products).get();
+    final allMutasi = await select(stockMutations).get();
+    final now = DateTime.now();
+    final days90 = now.subtract(const Duration(days: 90));
+
+    double totalNilai = 0;
+    for(final p in allProducts){ totalNilai += p.stock * p.buyPrice; }
+
+    final countMinus = allProducts.where((e)=> e.stock < 0).length;
+    final listMinus = allProducts.where((e)=> e.stock < 0).toList();
+    final selisihOpname = allMutasi.where((e)=> e.type == 'opname' && e.quantity.abs() >=1).toList();
+
+    final recentOut = allMutasi.where((m)=> m.date.isAfter(days90) && (m.type == 'penjualan' || m.type == 'keluar')).map((e)=> e.productId).toSet();
+    final stokMati90 = allProducts.where((p)=>!recentOut.contains(p.id) && p.stock >0).toList();
+
+    final hppNol = allProducts.where((p)=> p.stock >0 && p.buyPrice ==0).toList();
+
+    return {
+      'totalNilaiPersediaan': totalNilai,
+      'countStokMinus': countMinus,
+      'listStokMinus': listMinus,
+      'selisihOpname': selisihOpname,
+      'stokMati90Hari': stokMati90,
+      'hppNol': hppNol,
+    };
+  }
+
+  Future<List<String>> getLevel1StockAlerts() async {
+    final all = await select(products).get();
+    final alerts = <String>[];
+    for(final p in all){
+      if(p.stock < 0) alerts.add('STOK MINUS: ${p.name} di Gudang = ${p.stock}');
+      if(p.stock >0 && p.buyPrice ==0) alerts.add('HPP NOL: ${p.name} laba palsu');
+    }
+    final adjNoProof = await (select(stockMutations)..where((t)=> t.type.equals('opname'))).get();
+    for(final m in adjNoProof.where((e)=> (e.notes==null || e.notes!.isEmpty))){
+      alerts.add('PENYESUAIAN TANPA BUKTI: ${m.productId} oleh ${m.userId}');
+    }
+    return alerts;
+  }
+
+  StockAlert checkStockAnomaly(StockMutationData m, ProductData p) {
+    if (m.stockAfter < 0) return StockAlert.minus;
+    if (m.hppAfter == 0 && m.stockAfter > 0) return StockAlert.hppNol;
+    if (m.type == 'opname' && m.quantity.abs() >=3 && m.userId != 'ADMIN_PUSAT' && m.userId != 'owner-01') return StockAlert.adjustmentLiar;
+    if (m.stockAfter >0 && p.lastBuyPrice >0 && m.hppAfter > p.lastBuyPrice * 1.5) return StockAlert.hppLonjak;
+    return StockAlert.aman;
   }
 }
