@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/local_database.dart';
-import '../../../core/utils/config.dart';
-import 'cctv_analytics_page.dart'; // <-- TAMBAHAN
+import '../../../core/utils/config.dart' as app_config;
+import 'cctv_analytics_page.dart';
 
 final fraudProvider = StreamProvider((ref) => ref.watch(localDatabaseProvider).auditLogDao.watchActiveFraudAlerts());
 final auditProvider = StreamProvider((ref) => ref.watch(localDatabaseProvider).auditLogDao.watchRecentAuditLogs(limit: 100));
@@ -32,7 +32,7 @@ class AuditFraudPage extends ConsumerWidget {
           const Expanded(
             child: TabBarView(children: [
               FraudListView(),
-              CctvAnalyticsPage(), // <-- MATA ELANG ISINYA INI
+              CctvAnalyticsPage(),
             ]),
           ),
         ]),
@@ -41,7 +41,6 @@ class AuditFraudPage extends ConsumerWidget {
   }
 }
 
-// WIDGET TERPISAH - AMAN DARI GENERATOR
 class FraudListView extends ConsumerWidget {
   const FraudListView({super.key});
   @override
@@ -49,7 +48,7 @@ class FraudListView extends ConsumerWidget {
     final frauds = ref.watch(fraudProvider);
     return frauds.when(
       data: (list) {
-        if (list.isEmpty) return Center(child: GlassCard(child: Row(children: const [Icon(Icons.verified_user, color: Colors.green), SizedBox(width:8), Text('Aman - Tidak ada fraud')])));
+        if (list.isEmpty) return Center(child: app_config.GlassCard(child: Row(mainAxisSize: MainAxisSize.min, children: const [Icon(Icons.verified_user, color: Colors.green), SizedBox(width:8), Text('Aman - Tidak ada fraud')])));
         return ListView.builder(
           padding: const EdgeInsets.fromLTRB(12,0,12,100),
           itemCount: list.length,
@@ -57,18 +56,19 @@ class FraudListView extends ConsumerWidget {
             final f = list[i];
             return Padding(
               padding: const EdgeInsets.only(bottom:8),
-              child: GlassCard(
+              child: app_config.GlassCard(
                 padding: const EdgeInsets.all(12),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    CircleAvatar(backgroundColor: f.severity=='merah'? Colors.red : Colors.orange, radius: 14, child: const Icon(Icons.warning, size:14, color: Colors.white)),
+                    CircleAvatar(backgroundColor: (f.severity)=='merah'? Colors.red : Colors.orange, radius: 14, child: const Icon(Icons.warning, size:14, color: Colors.white)),
                     const SizedBox(width:8),
                     Expanded(child: Text(f.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:12))),
                     Chip(label: Text('${list.length} Active', style: const TextStyle(fontSize:9))),
                   ]),
-                  Text(f.detailAnalysis, style: const TextStyle(fontSize:11)),
+                  const SizedBox(height:4),
+                  Text(f.detailAnalysis??'', style: const TextStyle(fontSize:11)),
                   Text('User: ${f.userId}', style: const TextStyle(fontSize:9, color: Colors.grey)),
-                  Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () async { await ref.read(localDatabaseProvider).auditLogDao.resolveFraudAlert(alertId: f.id, ownerUserId: 'owner-01'); }, child: const Text('Resolve'))),
+                  Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () async { await ref.read(localDatabaseProvider).auditLogDao.resolveAlert(f.id, 'owner-01'); }, child: const Text('Resolve'))),
                 ]),
               ),
             );
@@ -76,7 +76,7 @@ class FraudListView extends ConsumerWidget {
         );
       },
       loading: ()=> const Center(child: CircularProgressIndicator()),
-      error: (e,s)=> Text(e.toString()),
+      error: (e,s)=> Center(child: Text(e.toString())),
     );
   }
 }
@@ -92,9 +92,9 @@ class AuditListView extends ConsumerWidget {
         String oldV = a.oldValue?? '-'; String newV = a.newValue?? '-';
         try { oldV = jsonDecode(oldV).toString(); } catch(_){}
         try { newV = jsonDecode(newV).toString(); } catch(_){}
-        return Padding(padding: const EdgeInsets.only(bottom:8), child: GlassCard(padding: const EdgeInsets.all(10), child: ExpansionTile(
+        return Padding(padding: const EdgeInsets.only(bottom:8), child: app_config.GlassCard(padding: const EdgeInsets.all(10), child: ExpansionTile(
           title: Text('${a.actionType} - ${a.userRole}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize:12)),
-          subtitle: Text(a.description, style: const TextStyle(fontSize:11)),
+          subtitle: Text(a.description??'', style: const TextStyle(fontSize:11)),
           children: [
             Container(padding: const EdgeInsets.all(8), color: Colors.red[50], child: Text('OLD: $oldV', style: const TextStyle(fontSize:10, color: Colors.red))),
             Container(padding: const EdgeInsets.all(8), color: Colors.green[50], child: Text('NEW: $newV', style: const TextStyle(fontSize:10, color: Colors.green))),
@@ -102,7 +102,7 @@ class AuditListView extends ConsumerWidget {
         )));
       }),
       loading: ()=> const Center(child: CircularProgressIndicator()),
-      error: (e,s)=> Text(e.toString()),
+      error: (e,s)=> Center(child: Text(e.toString())),
     );
   }
 }
