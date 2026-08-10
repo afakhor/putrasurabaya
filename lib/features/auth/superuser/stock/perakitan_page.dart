@@ -10,7 +10,8 @@ class PerakitanPage extends ConsumerStatefulWidget {
 }
 
 class _RakitState extends ConsumerState<PerakitanPage> {
-  String? jadiId; String? jadiName;
+  String? jadiId; 
+  String? jadiName;
   final jadiQtyC=TextEditingController(text:'1');
   List<Map<String,dynamic>> bahan=[];
 
@@ -48,24 +49,42 @@ class _RakitState extends ConsumerState<PerakitanPage> {
             }
           })
         ]),
-       ...bahan.map((b)=> Card(child: ListTile(title: Text(b['name']), subtitle: Text('Qty: ${b['qty']} per jadi'), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: ()=> setState(()=> bahan.remove(b))))),
+        // FIX KURUNG DISINI - INI PENYEBAB ERROR 69
+        ...bahan.map((b){
+          return Card(
+            child: ListTile(
+              title: Text(b['name']??''),
+              subtitle: Text('Qty: ${b['qty']} per jadi'),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: ()=> setState(()=> bahan.remove(b))
+              ),
+            ),
+          );
+        }).toList(),
         const SizedBox(height:20),
-        SizedBox(height:50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.purple), onPressed: () async {
-          if(jadiId==null){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pilih barang jadi dulu'))); return; }
-          if(bahan.isEmpty){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bahan masih kosong'))); return; }
-          final qtyJadi = double.tryParse(jadiQtyC.text)??0;
-          if(qtyJadi<=0){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Qty jadi harus >0'))); return; }
-          try {
-            await ref.read(localDatabaseProvider).stockMutationDao.eksekusiPerakitanProduk(
-              finishedProductId: jadiId!, finishedQtyToProduce: qtyJadi,
-              materials: bahan.map((e)=> AssemblyMaterialItem(rawProductId: e['productId'] as String, quantityRequiredPerUnit: (e['qty'] as double))).toList(),
-              userId: 'owner-01', notes: 'Rakit ${bahan.length} bahan'
-            );
-            if(mounted){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rakit OK - HPP jadi = total HPP bahan'))); Navigator.pop(context); }
-          } catch (e) {
-            if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
-          }
-        }, child: const Text('RAKIT SEKARANG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
+        SizedBox(height:50, child: ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.purple), 
+          onPressed: () async {
+            if(jadiId==null){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pilih barang jadi dulu'))); return; }
+            if(bahan.isEmpty){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bahan masih kosong'))); return; }
+            final qtyJadi = double.tryParse(jadiQtyC.text)??0;
+            if(qtyJadi<=0){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Qty jadi harus >0'))); return; }
+            try {
+              await ref.read(localDatabaseProvider).stockMutationDao.eksekusiPerakitanProduk(
+                finishedProductId: jadiId!, 
+                finishedQtyToProduce: qtyJadi,
+                materials: bahan.map((e)=> AssemblyMaterialItem(rawProductId: e['productId'] as String, quantityRequiredPerUnit: (e['qty'] as double))).toList(),
+                userId: 'owner-01', 
+                notes: 'Rakit ${bahan.length} bahan'
+              );
+              if(mounted){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rakit OK - HPP jadi = total HPP bahan'))); Navigator.pop(context); }
+            } catch (e) {
+              if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+            }
+          }, 
+          child: const Text('RAKIT SEKARANG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+        )),
       ])
     );
   }
