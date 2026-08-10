@@ -28,7 +28,7 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixi
 
   Stream<List<PayableData>> watchActivePayables() => (select(payables)..where((tbl) => tbl.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))..orderBy([(tbl) => OrderingTerm.asc(tbl.dueDate)])).watch();
   Stream<List<PayableData>> watchUnpaidPayables() => watchActivePayables();
-  
+
   Stream<List<PayableWithSupplier>> watchActivePayablesWithSupplier() {
     final q = select(payables).join([innerJoin(suppliers, suppliers.id.equalsExp(payables.supplierId))])
       ..where(payables.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
@@ -49,13 +49,20 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixi
         PayablesCompanion(paidAmount: Value(newPaid), remainingAmount: Value(newRemaining < 0 ? 0 : newRemaining), status: Value(newStatus), isSynced: const Value(false), updatedAt: Value(DateTime.now()))
       );
       await into(debtPayments).insert(DebtPaymentsCompanion.insert(
-        id: 'PAY-AP-${DateTime.now().millisecondsSinceEpoch}', refId: payableId, type: 'payable', userId: 'system',
-        amount: actualBayar, paymentMethod: Value(paymentMethod), notes: Value(notes ?? 'Angsuran Hutang'), isSynced: const Value(false)
+        id: 'PAY-AP-${DateTime.now().millisecondsSinceEpoch}', 
+        refId: Value(payableId), 
+        type: Value('payable'), 
+        userId: const Value('system'),
+        amount: Value(actualBayar), 
+        paymentMethod: Value(paymentMethod), 
+        notes: Value(notes ?? 'Angsuran Hutang'), 
+        isSynced: const Value(false),
+        paymentDate: Value(DateTime.now())
       ));
       return true;
     });
   }
-  
+
   Stream<List<DebtPaymentData>> watchPaymentHistory(String payableId) => 
     (select(debtPayments)..where((tbl) => tbl.refId.equals(payableId) & tbl.type.equals('payable'))..orderBy([(tbl) => OrderingTerm.desc(tbl.paymentDate)])).watch();
 }
