@@ -45,11 +45,11 @@ class _ProductPageState extends ConsumerState<ProductPage> {
       body: productsAsync.when(
         loading: ()=> const Center(child: CircularProgressIndicator(color: Color(0xFF00A65A))),
         error: (e,s)=> Center(child: Text('Error DB: $e')),
-        data: (raw){
-          var filtered = raw.where((p){
+        data: (List<ProductData> raw){
+          var filtered = raw.where((ProductData p){
             if(query.isEmpty) return true;
             final nameOk = p.name.toLowerCase().contains(query);
-            final code = (p.code??'').toLowerCase();
+            final code = p.code.toLowerCase();
             return nameOk || code.contains(query);
           }).toList();
           return Column(children: [
@@ -60,7 +60,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled:true, fillColor: const Color(0xFFF5F5F5)))),
             if(filtered.isEmpty) const Expanded(child: Center(child: Text('Belum ada produk')))
             else Expanded(child: ListView.builder(padding: const EdgeInsets.fromLTRB(12,8,12,90), itemCount: filtered.length, itemBuilder: (c,i){
-              final p=filtered[i]; final lowStock = p.stock <= p.minStock;
+              final ProductData p=filtered[i]; final lowStock = p.stock <= p.minStock;
               return Padding(padding: const EdgeInsets.only(bottom:8), child: GlassCard(padding: const EdgeInsets.all(12), onTap: ()=> _openForm(context, product: p),
                 child: Row(children: [
                   Container(width:42,height:42, decoration: BoxDecoration(color: lowStock? Colors.red.withOpacity(0.12) : const Color(0xFF00A65A).withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
@@ -68,8 +68,8 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                   const SizedBox(width:10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('${p.code} - ${p.name}', maxLines:1, overflow:TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:13)),
-                    Text('HPP:${formatRupiah(p.buyPrice)} | Umum:${formatRupiah(p.sellPriceGeneral)} | Stok:${p.stock}', style: TextStyle(fontSize:9, color: lowStock? Colors.red : Colors.black54)),
-                    Text('T1:${formatRupiah(p.sellPriceTier1)} T2:${formatRupiah(p.sellPriceTier2)} T3:${formatRupiah(p.sellPriceTier3)}', style: const TextStyle(fontSize:9, color: Colors.black54)),
+                    Text('HPP:${formatRupiah(p.buyPrice)} | Umum:${formatRupiah(p.sellPriceGeneral??0)} | Stok:${p.stock}', style: TextStyle(fontSize:9, color: lowStock? Colors.red : Colors.black54)),
+                    Text('T1:${formatRupiah(p.sellPriceTier1??0)} T2:${formatRupiah(p.sellPriceTier2??0)} T3:${formatRupiah(p.sellPriceTier3??0)}', style: const TextStyle(fontSize:9, color: Colors.black54)),
                   ])),
                   const Icon(Icons.chevron_right, size:16, color: Colors.grey),
                 ])));
@@ -111,14 +111,13 @@ class _FormMasterBarangSheetState extends ConsumerState<FormMasterBarangSheet> {
     return Scaffold(backgroundColor: Colors.white,
       appBar: AppBar(backgroundColor: Colors.white, title: Text(state.isEditMode? 'Edit Harga Jual Barang' : 'Edit Harga Jual Barang', style: const TextStyle(fontSize:14,fontWeight: FontWeight.bold)), actions: [IconButton(icon: const Icon(Icons.close), onPressed: ()=> Navigator.pop(context))]),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        // GANTI INPUT NAMA + HPP JADI DROPDOWN INDEXING DARI MASTER
         const Text('Pilih Barang Master (Index SKU)', style: TextStyle(fontWeight: FontWeight.bold, fontSize:12)),
         const SizedBox(height:8),
         allProducts.when(
-          data: (list)=> DropdownButtonFormField<String>(
+          data: (List<ProductData> list)=> DropdownButtonFormField<String>(
             value: state.id.isEmpty? null : list.any((e)=> e.id==state.id)? state.id : null,
             decoration: const InputDecoration(labelText:'Pilih Nama Barang / SKU dari Master *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.inventory)),
-            items: list.map((p)=> DropdownMenuItem<String>(value: p.id, child: Text('${p.code} - ${p.name} (HPP:${formatRupiah(p.buyPrice)})', style: const TextStyle(fontSize:11), overflow: TextOverflow.ellipsis))).toList(),
+            items: list.map((ProductData p)=> DropdownMenuItem<String>(value: p.id, child: Text('${p.code} - ${p.name} (HPP:${formatRupiah(p.buyPrice)})', style: const TextStyle(fontSize:11), overflow: TextOverflow.ellipsis))).toList(),
             onChanged: (id) async {
               if(id==null) return;
               final db = ref.read(localDatabaseProvider);
@@ -148,7 +147,7 @@ class _FormMasterBarangSheetState extends ConsumerState<FormMasterBarangSheet> {
         const SizedBox(height:12),
         if(state.id.isEmpty)
           const Padding(padding: EdgeInsets.all(16), child: Center(child: Text('Pilih barang master dulu di atas', style: TextStyle(color: Colors.grey))))
-        else ...[
+        else...[
           _buildHargaInput(label:'Harga Jual Umum *', harga: state.sellPriceGeneral, margin: state.marginGeneral, laba: state.labaGeneral, onChanged: (v)=> notifier.updateField(sellPriceGeneral: v)),
           _buildHargaInput(label:'Tier 1 - Ecer Member', harga: state.sellPriceTier1, margin: state.marginTier1, laba: state.labaTier1, onChanged: (v)=> notifier.updateField(sellPriceTier1: v)),
           _buildHargaInput(label:'Tier 2 - Grosir (>10)', harga: state.sellPriceTier2, margin: state.marginTier2, laba: state.labaTier2, onChanged: (v)=> notifier.updateField(sellPriceTier2: v)),
