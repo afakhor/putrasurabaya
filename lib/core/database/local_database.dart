@@ -55,7 +55,7 @@ class LocalDatabase extends _$LocalDatabase {
   AuditLogDao get fraudAlertDao => auditLogDao;
   ReportDao get reportDaoAlias => reportDao;
 
-  @override int get schemaVersion => 24; // NAIK KE 24 WAJIB KARENA TAMBAH lastBuyPrice
+  @override int get schemaVersion => 25;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -75,11 +75,23 @@ class LocalDatabase extends _$LocalDatabase {
       if (from < 10) { try { await m.createTable(auditLogs); } catch(_){} try { await m.createTable(fraudAlerts); } catch(_){} }
       if (from < 13) { try { await m.addColumn(products, products.sellPriceTier1); } catch(_){} try { await m.addColumn(products, products.sellPriceTier2); } catch(_){} try { await m.addColumn(products, products.sellPriceTier3); } catch(_){} try { await m.addColumn(products, products.sellPriceGeneral); } catch(_){} }
       if (from < 15) { try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch(_){} }
-      if (from < 20) { try { await m.addColumn(stockMutations, stockMutations.hppBefore); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.hppAfter); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.buyPriceAtThatTime); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){} }
+      if (from < 20) { try { await m.addColumn(stockMutations, stockMutations.hppBefore); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.hppAfter); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.buyPriceAtThatTime); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.stockBefore); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.stockAfter); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.referenceNo); } catch(_){} }
       if (from < 21) { try { await m.addColumn(customers, customers.tierHarga); } catch(_){} try { await m.addColumn(customers, customers.sisaHutang); } catch(_){} }
-      if (from < 24) { 
-        // FIX UNTUK lastBuyPrice YANG BARU DITAMBAH
-        try { await m.addColumn(products, products.lastBuyPrice); } catch(_){} 
+      if (from < 24) { try { await m.addColumn(products, products.lastBuyPrice); } catch(_){} }
+      if (from < 25) {
+        try { await m.addColumn(payables, payables.purchaseId); } catch(_){}
+        try { await m.addColumn(payables, payables.supplierId); } catch(_){}
+        try { await m.addColumn(payables, payables.totalAmount); } catch(_){}
+        try { await m.addColumn(payables, payables.paidAmount); } catch(_){}
+        try { await m.addColumn(payables, payables.remainingAmount); } catch(_){}
+        try { await m.addColumn(receivables, receivables.transactionId); } catch(_){}
+        try { await m.addColumn(receivables, receivables.customerId); } catch(_){}
+        try { await m.addColumn(receivables, receivables.totalAmount); } catch(_){}
+        try { await m.addColumn(receivables, receivables.paidAmount); } catch(_){}
+        try { await m.addColumn(receivables, receivables.remainingAmount); } catch(_){}
+        try { await m.addColumn(debtPayments, debtPayments.refId); } catch(_){}
+        try { await m.addColumn(debtPayments, debtPayments.type); } catch(_){}
+        try { await m.addColumn(debtPayments, debtPayments.paymentDate); } catch(_){}
       }
     },
     beforeOpen: (details) async { await customStatement('PRAGMA foreign_keys = ON;'); },
@@ -95,12 +107,35 @@ class LocalDatabase extends _$LocalDatabase {
       }
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        await stockMutationDao.catatPenjualanDirect(productId: item.productId.value, qty: item.quantity.value * item.conversionFactor.value, refNo: dataTransaksi.invoiceNo.value, userId: dataTransaksi.salesId.value ?? 'kasir-01', customerName: custName, paymentStatus: dataTransaksi.status.value.toUpperCase(), tier: item.selectedTier.value, hargaJual: item.appliedTierPrice.value, total: item.subtotal.value);
+        await stockMutationDao.catatPenjualanDirect(
+          productId: item.productId.value, 
+          qty: item.quantity.value * item.conversionFactor.value, 
+          refNo: dataTransaksi.invoiceNo.value, 
+          userId: dataTransaksi.salesId.value ?? 'kasir-01', 
+          customerName: custName, 
+          paymentStatus: dataTransaksi.status.value.toUpperCase(), 
+          tier: item.selectedTier.value, 
+          hargaJual: item.appliedTierPrice.value, 
+          total: item.subtotal.value
+        );
       }
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
-        await into(receivables).insert(ReceivablesCompanion.insert(id: 'RC-${dataTransaksi.id.value}', transactionId: dataTransaksi.id.value, customerId: dataTransaksi.customerId.value!, totalAmount: dataTransaksi.grandTotal.value, paidAmount: Value(dataTransaksi.payAmount.value), remainingAmount: dataTransaksi.remainingDebt.value, dueDate: DateTime.now().add(const Duration(days: 14)), status: const Value('belum_lunas')));
+        await into(receivables).insert(ReceivablesCompanion.insert(
+          id: 'RC-${dataTransaksi.id.value}', 
+          transactionId: Value(dataTransaksi.id.value), 
+          customerId: Value(dataTransaksi.customerId.value!), 
+          totalAmount: Value(dataTransaksi.grandTotal.value), 
+          paidAmount: Value(dataTransaksi.payAmount.value), 
+          remainingAmount: Value(dataTransaksi.remainingDebt.value), 
+          dueDate: Value(DateTime.now().add(const Duration(days: 14))), 
+          status: const Value('belum_lunas')
+        ));
         final cust = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
-        if(cust!=null){ await (update(customers)..where((t)=> t.id.equals(cust.id))).write(CustomersCompanion(sisaHutang: Value(cust.sisaHutang + dataTransaksi.remainingDebt.value), updatedAt: Value(DateTime.now()))); }
+        if(cust!=null){ 
+          await (update(customers)..where((t)=> t.id.equals(cust.id))).write(
+            CustomersCompanion(sisaHutang: Value(cust.sisaHutang + dataTransaksi.remainingDebt.value), updatedAt: Value(DateTime.now()))
+          ); 
+        }
       }
     });
   }
@@ -110,16 +145,40 @@ class LocalDatabase extends _$LocalDatabase {
       await into(purchases).insert(dataPembelian);
       for (final item in itemPembelian) {
         await into(purchaseItems).insert(item);
-        await stockMutationDao.catatMasukDirect(productId: item.productId.value, qtyMasuk: item.quantity.value * item.conversionFactor.value, hargaBeliPerPcs: item.buyPrice.value, refNo: dataPembelian.invoiceNo.value, userId: dataPembelian.userId.value);
+        await stockMutationDao.catatMasukDirect(
+          productId: item.productId.value, 
+          qtyMasuk: item.quantity.value * item.conversionFactor.value, 
+          hargaBeliPerPcs: item.buyPrice.value, 
+          refNo: dataPembelian.invoiceNo.value, 
+          userId: dataPembelian.userId.value
+        );
       }
       if (dataPembelian.debtAmount.value > 0) {
-        await into(payables).insert(PayablesCompanion.insert(id: 'PY-${dataPembelian.id.value}', purchaseId: dataPembelian.id.value, supplierId: dataPembelian.supplierId.value, totalAmount: dataPembelian.totalAmount.value, paidAmount: Value(dataPembelian.paidAmount.value), remainingAmount: dataPembelian.debtAmount.value, dueDate: dataPembelian.dueDate.value ?? DateTime.now().add(const Duration(days: 30)), status: const Value('belum_lunas')));
+        await into(payables).insert(PayablesCompanion.insert(
+          id: 'PY-${dataPembelian.id.value}', 
+          purchaseId: Value(dataPembelian.id.value), 
+          supplierId: Value(dataPembelian.supplierId.value), 
+          totalAmount: Value(dataPembelian.totalAmount.value), 
+          paidAmount: Value(dataPembelian.paidAmount.value), 
+          remainingAmount: Value(dataPembelian.debtAmount.value), 
+          dueDate: Value(dataPembelian.dueDate.value ?? DateTime.now().add(const Duration(days: 30))), 
+          status: const Value('belum_lunas')
+        ));
       }
     });
   }
 }
 
-final localDatabaseProvider = Provider<LocalDatabase>((ref) { final db = LocalDatabase(); ref.keepAlive(); return db; });
-final allProductsStreamProvider = StreamProvider<List<ProductData>>((ref) { final db = ref.watch(localDatabaseProvider); return db.productDao.watchActiveProducts(); });
+final localDatabaseProvider = Provider<LocalDatabase>((ref) { 
+  final db = LocalDatabase(); 
+  ref.keepAlive(); 
+  return db; 
+});
+
+final allProductsStreamProvider = StreamProvider<List<ProductData>>((ref) { 
+  final db = ref.watch(localDatabaseProvider); 
+  return db.productDao.watchActiveProducts(); 
+});
+
 final productsStreamProvider = allProductsStreamProvider;
 final activeProductsStreamProvider = allProductsStreamProvider;
