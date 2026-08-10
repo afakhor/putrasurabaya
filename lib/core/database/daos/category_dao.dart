@@ -25,6 +25,22 @@ class CategoryType {
 class CategoryDao extends DatabaseAccessor<LocalDatabase> with _$CategoryDaoMixin {
   CategoryDao(LocalDatabase db) : super(db);
 
+  // ================= FIX BUILD ERROR - METHOD YANG HILANG =================
+  // Ini yang dipanggil di cctv_analytics_page.dart
+  Stream<List<CategoryData>> watchAllCategories() {
+    return (select(categories)
+         ..where((t) => t.status.equals(CategoryStatus.aktif))
+         ..orderBy([(t) => OrderingTerm.asc(t.sortOrder), (t) => OrderingTerm.asc(t.name)]))
+       .watch();
+  }
+
+  Future<List<CategoryData>> getAllCategories() {
+    return (select(categories)..where((t) => t.status.equals(CategoryStatus.aktif))).get();
+  }
+
+  Stream<List<CategoryData>> watchAll() => watchAllCategories();
+  // ================= END FIX =================
+
   Future<String> createCategory({
     required String name,
     required String type,
