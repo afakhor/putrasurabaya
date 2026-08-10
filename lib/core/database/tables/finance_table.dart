@@ -25,6 +25,7 @@ class Receivables extends Table {
   TextColumn get transactionId => text().nullable()();
   TextColumn get customerId => text().nullable()();
   TextColumn get customerName => text().nullable()();
+  TextColumn get salesId => text().nullable()();
   RealColumn get totalAmount => real().withDefault(const Constant(0))();
   RealColumn get paidAmount => real().withDefault(const Constant(0))();
   RealColumn get remainingAmount => real().withDefault(const Constant(0))();
@@ -47,7 +48,10 @@ class DebtPayments extends Table {
   TextColumn get type => text().nullable()();
   TextColumn get userId => text().nullable()();
   RealColumn get amount => real().withDefault(const Constant(0))();
+  TextColumn get paymentMethod => text().nullable()();
+  TextColumn get proofImage => text().nullable()();
   TextColumn get notes => text().nullable()();
+  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get paymentDate => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   @override Set<Column> get primaryKey => {id};
