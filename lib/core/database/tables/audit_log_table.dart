@@ -1,33 +1,85 @@
 import 'package:drift/drift.dart';
 
-@DataClassName('AuditLogData')
-class AuditLogs extends Table {
+@DataClassName('ProductData')
+class Products extends Table {
   TextColumn get id => text()();
-  TextColumn get userId => text()();
-  TextColumn get userRole => text()();
-  TextColumn get actionType => text()(); // JUAL_TIER_1/2/3, KULAK_HPP_MA, JUAL_RUGI
-  TextColumn get description => text()(); // untuk search customer / kode / nama
-  TextColumn get referenceId => text().nullable()(); // INI NOMOR FAKTUR - kunci group by omset
-  TextColumn get oldValue => text().nullable()(); // JSON: {code, name, categoryId, stock, hpp_ma, rack, supplierId}
-  TextColumn get newValue => text().nullable()(); // JSON: {code, qty, harga_jual, hpp_ma, stock, customer, payment: LUNAS/HUTANG/CASH, tier, rack, categoryId, ref}
+  TextColumn get code => text().nullable()();
+  TextColumn get name => text()();
+  TextColumn get shortName => text().nullable()();
+  TextColumn get barcode => text().nullable()();
+  TextColumn get description => text().nullable()();
+  
+  // RELASI KATEGORI - WAJIB UNTUK FILTER MATA ELANG
+  TextColumn get categoryId => text().withDefault(const Constant('Umum'))(); 
+  TextColumn get subCategory => text().nullable()();
+  TextColumn get brand => text().nullable()();
+  
+  TextColumn get warehouseLocation => text().nullable()();
+  TextColumn get tags => text().nullable()();
+  
+  // HPP & HARGA - SINKRON SAMA AUDIT LOG
+  RealColumn get buyPrice => real().withDefault(const Constant(0))(); // HPP MA MOVING AVERAGE - auto update tiap KULAK
+  RealColumn get lastBuyPrice => real().withDefault(const Constant(0))(); // HPP masuk terakhir untuk hitung MA
+  RealColumn get sellPriceGeneral => real().withDefault(const Constant(0))();
+  RealColumn get sellPriceTier1 => real().withDefault(const Constant(0))(); // Ecer
+  RealColumn get sellPriceTier2 => real().withDefault(const Constant(0))(); // Grosir
+  RealColumn get sellPriceTier3 => real().withDefault(const Constant(0))(); // Langganan Besar
+  RealColumn get sellPrice => real().withDefault(const Constant(0))(); // legacy
+  
+  RealColumn get maxDiscountSales => real().withDefault(const Constant(0))();
+  BoolColumn get isPriceLocked => boolean().withDefault(const Constant(true))();
+  
+  // STOK
+  RealColumn get stock => real().withDefault(const Constant(0))();
+  RealColumn get minStock => real().withDefault(const Constant(5))();
+  RealColumn get maxStock => real().withDefault(const Constant(100))();
+  BoolColumn get allowMinusStock => boolean().withDefault(const Constant(false))();
+  
+  TextColumn get unit => text().withDefault(const Constant('Pcs'))();
+  TextColumn get rackLocation => text().nullable()(); // UNTUK MODE ITEM: rak
+  RealColumn get weight => real().withDefault(const Constant(0))();
+  TextColumn get dimensions => text().nullable()();
+  RealColumn get ppnPercent => real().withDefault(const Constant(0))();
+  IntColumn get rewardPoints => integer().withDefault(const Constant(0))();
+  DateTimeColumn get expiryDate => dateTime().nullable()();
+  TextColumn get statusActive => text().withDefault(const Constant('aktif'))();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+  
   @override Set<Column> get primaryKey => {id};
 }
 
-@DataClassName('FraudAlertData')
-class FraudAlerts extends Table {
+@DataClassName('ProductAssetData')
+class ProductAssets extends Table {
   TextColumn get id => text()();
-  TextColumn get userId => text()();
-  TextColumn get auditLogId => text().nullable()();
-  TextColumn get fraudCategory => text()(); // JUAL_RUGI, MAIN_HARGA
-  TextColumn get severity => text()(); // merah, kuning, hijau
-  TextColumn get title => text()(); // HARGA BOCOR
-  TextColumn get detailAnalysis => text()();
-  BoolColumn get isResolved => boolean().withDefault(const Constant(false))();
-  TextColumn get resolvedBy => text().nullable()();
-  DateTimeColumn get resolvedAt => dateTime().nullable()();
-  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get productId => text().references(Products, #id, onDelete: KeyAction.cascade)();
+  TextColumn get imagePath => text()();
+  BoolColumn get isPrimary => boolean().withDefault(const Constant(false))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  @override Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('ProductUnitData')
+class ProductUnits extends Table {
+  TextColumn get id => text()();
+  TextColumn get productId => text().references(Products, #id, onDelete: KeyAction.cascade)();
+  TextColumn get unitName => text()();
+  IntColumn get conversion => integer().withDefault(const Constant(1))();
+  RealColumn get buyPriceUnit => real().withDefault(const Constant(0))();
+  RealColumn get sellPriceUnit => real().withDefault(const Constant(0))();
+  TextColumn get barcode => text().nullable()();
+  @override Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('ProductVariantData')
+class ProductVariants extends Table {
+  TextColumn get id => text()();
+  TextColumn get productId => text().references(Products, #id, onDelete: KeyAction.cascade)();
+  TextColumn get skuVariant => text()();
+  TextColumn get variantName => text()();
+  TextColumn get barcode => text().nullable()();
+  RealColumn get stock => real().withDefault(const Constant(0))();
+  RealColumn get sellPrice => real().withDefault(const Constant(0))();
   @override Set<Column> get primaryKey => {id};
 }
