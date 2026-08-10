@@ -8,12 +8,21 @@ class StockMutations extends Table {
   TextColumn get variantId => text().nullable()();
   TextColumn get type => text()();
   RealColumn get quantity => real()();
+  
+  // WAJIB ADA - DIPAKAI UI mutasi_stock_page.dart
+  RealColumn get stockBefore => real().withDefault(const Constant(0))();
+  RealColumn get stockAfter => real().withDefault(const Constant(0))();
+  
   RealColumn get hppBefore => real().withDefault(const Constant(0))();
   RealColumn get hppAfter => real().withDefault(const Constant(0))();
   RealColumn get hppSnapshot => real().withDefault(const Constant(0))();
   RealColumn get currentStockSnapshot => real().withDefault(const Constant(0))();
   RealColumn get buyPriceAtThatTime => real().withDefault(const Constant(0))();
+  
+  // Biar kompatibel lama & baru
+  TextColumn get referenceNo => text().nullable()();
   TextColumn get referenceId => text().nullable()();
+  
   TextColumn get notes => text().nullable()();
   TextColumn get userId => text().nullable()();
   DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
