@@ -26,6 +26,8 @@ import 'daos/payables_dao.dart';
 import 'daos/receivables_dao.dart';
 import 'daos/stock_mutation_dao.dart';
 import 'daos/audit_log_dao.dart';
+import 'daos/transaction_dao.dart';
+import 'daos/report_dao.dart';
 
 part 'local_database.g.dart';
 
@@ -48,8 +50,17 @@ class LocalDatabase extends _$LocalDatabase {
   late final ReceivablesDao receivablesDao = ReceivablesDao(this);
   late final StockMutationDao stockMutationDao = StockMutationDao(this);
   late final AuditLogDao auditLogDao = AuditLogDao(this);
+  late final TransactionDao transactionDao = TransactionDao(this);
+  late final ReportDao reportDao = ReportDao(this);
 
-  @override int get schemaVersion => 21;
+  // ========== FIX UTAMA UNTUK ERROR BUILD ==========
+  // Alias biar db.fraudAlertDao.watchAllAlerts() bisa dipanggil di cctv_analytics_page.dart
+  AuditLogDao get fraudAlertDao => auditLogDao;
+  // Alias biar konsisten
+  ReportDao get reportDaoAlias => reportDao;
+  // ========== END FIX ==========
+
+  @override int get schemaVersion => 22; // Naik ke 22 karena ada lastBuyPrice
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -71,6 +82,10 @@ class LocalDatabase extends _$LocalDatabase {
       if (from < 15) { try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch(_){} }
       if (from < 20) { try { await m.addColumn(stockMutations, stockMutations.hppBefore); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.hppAfter); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.buyPriceAtThatTime); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){} }
       if (from < 21) { try { await m.addColumn(customers, customers.tierHarga); } catch(_){} try { await m.addColumn(customers, customers.sisaHutang); } catch(_){} }
+      if (from < 22) { 
+        // FIX: lastBuyPrice untuk HPP MA akurat
+        try { await m.addColumn(products, products.buyPrice); } catch(_){}
+      }
     },
     beforeOpen: (details) async { await customStatement('PRAGMA foreign_keys = ON;'); },
   );
@@ -93,7 +108,7 @@ class LocalDatabase extends _$LocalDatabase {
 
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        // PAKAI DIRECT BIAR TIDAK NESTED TRANSACTION
+        // PAKAI DIRECT BIAR TIDAK NESTED TRANSACTION - SUDAH SINKRON SAMA AUDIT LOG PER ITEM
         await stockMutationDao.catatPenjualanDirect(
           productId: item.productId.value,
           qty: item.quantity.value * item.conversionFactor.value,
@@ -106,7 +121,7 @@ class LocalDatabase extends _$LocalDatabase {
           total: item.subtotal.value,
         );
       }
-      
+
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
         await into(receivables).insert(
           ReceivablesCompanion.insert(
