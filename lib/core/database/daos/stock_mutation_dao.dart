@@ -47,17 +47,20 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     await (update(products)..where((p)=> p.id.equals(productId))).write(
       ProductsCompanion(stock: Value(sesudah), buyPrice: Value(hppBaru), lastBuyPrice: qty>0? Value(hargaBeliMasuk): const Value.absent(), rackLocation: newRack!=null? Value(newRack): const Value.absent(), updatedAt: Value(DateTime.now()), isSynced: Value(false))
     );
-    
+
     await into(stockMutations).insert(StockMutationsCompanion.insert(
       id: 'MUT-${DateTime.now().microsecondsSinceEpoch}', 
       productId: productId, 
       type: type, 
       quantity: qty, 
+      stockBefore: Value(sebelum),
+      stockAfter: Value(sesudah),
       hppBefore: Value(hppLama), 
       hppAfter: Value(hppBaru), 
       hppSnapshot: Value(hppBaru),
       currentStockSnapshot: Value(sesudah), 
       buyPriceAtThatTime: Value(hargaBeliMasuk),
+      referenceNo: Value(refNo),
       referenceId: Value(refNo),
       date: Value(customDate?? DateTime.now()), 
       userId: Value(userId), 
@@ -173,7 +176,7 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
   Future<void> prosesPerbaikanSaldo(String productId) async {
     final mutasi = await (select(stockMutations)..where((t)=> t.productId.equals(productId))..orderBy([(t)=> OrderingTerm.asc(t.date)])).get();
     double running = 0;
-    for(final m in mutasi){ running += m.quantity; await (update(stockMutations)..where((t)=> t.id.equals(m.id))).write(StockMutationsCompanion(currentStockSnapshot: Value(running))); }
+    for(final m in mutasi){ running += m.quantity; await (update(stockMutations)..where((t)=> t.id.equals(m.id))).write(StockMutationsCompanion(currentStockSnapshot: Value(running), stockAfter: Value(running), stockBefore: Value(running - m.quantity))); }
     await (update(products)..where((p)=> p.id.equals(productId))).write(ProductsCompanion(stock: Value(running)));
   }
 
@@ -181,7 +184,7 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     final k = keyword==null || keyword.isEmpty? null : '%$keyword%';
     var q = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
     if(mutationTypeFilter!=null && mutationTypeFilter.isNotEmpty) q.where(stockMutations.type.equals(mutationTypeFilter));
-    if(k!=null) q.where(products.name.like(k) | (products.code.isNotNull() & products.code.like(k)) | stockMutations.referenceId.like(k));
+    if(k!=null) q.where(products.name.like(k) | (products.code.isNotNull() & products.code.like(k)) | stockMutations.referenceId.like(k) | stockMutations.referenceNo.like(k));
     q.orderBy([OrderingTerm.desc(stockMutations.date)]);
     return q.watch().map((rows)=> rows.map((r)=> StockCardItemData(r.readTable(stockMutations), r.readTable(products))).toList());
   }
