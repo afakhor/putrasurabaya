@@ -28,12 +28,14 @@ class _MasukState extends ConsumerState<ItemMasukPage> {
           final id = await Navigator.push(context, MaterialPageRoute(builder: (_)=> const PersediaanStockBarangPage(isPickMode:true)));
           if(id!=null){
             final prod = await ref.read(localDatabaseProvider).productDao.getProductById(id);
-            setState((){
-              pid=id;
-              pname=prod?.name;
-              rakC.text=prod?.rackLocation??'';
-              hargaC.text = (prod?.buyPrice ?? 0).toStringAsFixed(0); // FIX DISINI
-            });
+            if(mounted){
+              setState((){
+                pid=id;
+                pname=prod?.name;
+                rakC.text=prod?.rackLocation??'';
+                hargaC.text = (prod?.buyPrice ?? 0).toStringAsFixed(0);
+              });
+            }
           }
         }, child: Text(pname??'Pilih Barang')),
         const SizedBox(height:12),
