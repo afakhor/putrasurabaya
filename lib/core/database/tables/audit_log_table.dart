@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart';
-import '../constant/audit_constant.dart'; // <-- pakai dari sini, jangan bikin lagi di bawah
+import '../constant/audit_constant.dart';
 
 @DataClassName('AuditLogData')
 class AuditLogs extends Table {
@@ -34,4 +34,3 @@ class FraudAlerts extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   @override Set<Column> get primaryKey => {id};
 }
-// HAPUS class FraudCategory & FraudSeverity di bawah, sudah ada di audit_constant.dart
