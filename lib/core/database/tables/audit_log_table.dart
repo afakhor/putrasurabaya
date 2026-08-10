@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import '../constant/audit_constant.dart'; // <-- pakai dari sini, jangan bikin lagi di bawah
 
 @DataClassName('AuditLogData')
 class AuditLogs extends Table {
@@ -24,8 +25,8 @@ class FraudAlerts extends Table {
   TextColumn get title => text().withDefault(const Constant('Alert'))();
   TextColumn get description => text().withDefault(const Constant(''))();
   TextColumn get detailAnalysis => text().withDefault(const Constant(''))();
-  TextColumn get severity => text().withDefault(const Constant('kuning'))();
-  TextColumn get fraudCategory => text().withDefault(const Constant('general'))();
+  TextColumn get severity => text().withDefault(const Constant(FraudSeverity.kuning))();
+  TextColumn get fraudCategory => text().withDefault(const Constant(FraudCategory.general))();
   BoolColumn get isResolved => boolean().withDefault(const Constant(false))();
   BoolColumn get isRead => boolean().withDefault(const Constant(false))();
   TextColumn get auditLogId => text().nullable()();
@@ -33,16 +34,4 @@ class FraudAlerts extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   @override Set<Column> get primaryKey => {id};
 }
-
-class FraudCategory {
-  static const jualRugi = 'jual_rugi';
-  static const mainHarga = 'main_harga';
-  static const manipulasiTagihan = 'manipulasi_tagihan';
-  static const general = 'general';
-}
-
-class FraudSeverity {
-  static const merah = 'merah';
-  static const kuning = 'kuning';
-  static const hijau = 'hijau';
-}
+// HAPUS class FraudCategory & FraudSeverity di bawah, sudah ada di audit_constant.dart
