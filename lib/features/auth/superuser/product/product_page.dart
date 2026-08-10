@@ -49,7 +49,7 @@ class _ProductPageState extends ConsumerState<ProductPage> {
           var filtered = raw.where((ProductData p){
             if(query.isEmpty) return true;
             final nameOk = p.name.toLowerCase().contains(query);
-            final code = p.code.toLowerCase();
+            final code = (p.code??'').toLowerCase();
             return nameOk || code.contains(query);
           }).toList();
           return Column(children: [
@@ -67,9 +67,9 @@ class _ProductPageState extends ConsumerState<ProductPage> {
                     child: Icon(lowStock? Icons.warning_amber : Icons.handyman, color: lowStock? Colors.red : const Color(0xFF00A65A))),
                   const SizedBox(width:10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${p.code} - ${p.name}', maxLines:1, overflow:TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:13)),
-                    Text('HPP:${formatRupiah(p.buyPrice)} | Umum:${formatRupiah(p.sellPriceGeneral??0)} | Stok:${p.stock}', style: TextStyle(fontSize:9, color: lowStock? Colors.red : Colors.black54)),
-                    Text('T1:${formatRupiah(p.sellPriceTier1??0)} T2:${formatRupiah(p.sellPriceTier2??0)} T3:${formatRupiah(p.sellPriceTier3??0)}', style: const TextStyle(fontSize:9, color: Colors.black54)),
+                    Text('${p.code??''} - ${p.name}', maxLines:1, overflow:TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:13)),
+                    Text('HPP:${formatRupiah(p.buyPrice)} | Umum:${formatRupiah(p.sellPriceGeneral)} | Stok:${p.stock}', style: TextStyle(fontSize:9, color: lowStock? Colors.red : Colors.black54)),
+                    Text('T1:${formatRupiah(p.sellPriceTier1)} T2:${formatRupiah(p.sellPriceTier2)} T3:${formatRupiah(p.sellPriceTier3)}', style: const TextStyle(fontSize:9, color: Colors.black54)),
                   ])),
                   const Icon(Icons.chevron_right, size:16, color: Colors.grey),
                 ])));
@@ -117,7 +117,7 @@ class _FormMasterBarangSheetState extends ConsumerState<FormMasterBarangSheet> {
           data: (List<ProductData> list)=> DropdownButtonFormField<String>(
             value: state.id.isEmpty? null : list.any((e)=> e.id==state.id)? state.id : null,
             decoration: const InputDecoration(labelText:'Pilih Nama Barang / SKU dari Master *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.inventory)),
-            items: list.map((ProductData p)=> DropdownMenuItem<String>(value: p.id, child: Text('${p.code} - ${p.name} (HPP:${formatRupiah(p.buyPrice)})', style: const TextStyle(fontSize:11), overflow: TextOverflow.ellipsis))).toList(),
+            items: list.map((ProductData p)=> DropdownMenuItem<String>(value: p.id, child: Text('${p.code??''} - ${p.name} (HPP:${formatRupiah(p.buyPrice)})', style: const TextStyle(fontSize:11), overflow: TextOverflow.ellipsis))).toList(),
             onChanged: (id) async {
               if(id==null) return;
               final db = ref.read(localDatabaseProvider);
