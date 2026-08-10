@@ -26,7 +26,7 @@ class _OpnameState extends ConsumerState<OpnameStockPage> {
           final id = await Navigator.push(context, MaterialPageRoute(builder: (_)=> const PersediaanStockBarangPage(isPickMode:true)));
           if(id!=null){
             final prod = await ref.read(localDatabaseProvider).productDao.getProductById(id);
-            setState((){ pid=id; pname=prod?.name; stokProgram=prod?.stock??0; rakC.text=prod?.rackLocation??''; });
+            if(mounted) setState((){ pid=id; pname=prod?.name; stokProgram=(prod?.stock??0).toDouble(); rakC.text=prod?.rackLocation??''; });
           }
         }, child: Text(pname??'Pilih Barang')),
         if(pid!=null) Card(child: ListTile(title: Text('Stok Program: $stokProgram'), subtitle: Text('Selisih: $selisih'), trailing: selisih.abs()>=3? Chip(label: const Text('MERAH >=3', style: TextStyle(color: Colors.white, fontSize:10)), backgroundColor: Colors.red) : selisih.abs()>=1? Chip(label: const Text('KUNING 1-2', style: TextStyle(fontSize:10)), backgroundColor: Colors.amber) : null)),
@@ -35,7 +35,7 @@ class _OpnameState extends ConsumerState<OpnameStockPage> {
           final d=await showDatePicker(context: context, firstDate: DateTime(2023), lastDate: DateTime.now(), initialDate: tgl);
           if(d!=null){
             final t=await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(tgl));
-            setState(()=> tgl=DateTime(d.year,d.month,d.day,t?.hour??DateTime.now().hour,t?.minute??DateTime.now().minute));
+            if(mounted) setState(()=> tgl=DateTime(d.year,d.month,d.day,t?.hour??DateTime.now().hour,t?.minute??DateTime.now().minute));
           }
         }),
         TextField(controller: rakC, decoration: const InputDecoration(labelText:'Rak Baru')),
@@ -43,6 +43,7 @@ class _OpnameState extends ConsumerState<OpnameStockPage> {
         const SizedBox(height:20),
         ElevatedButton(onPressed: () async {
           if(pid==null) return;
+          if(fisikC.text.isEmpty) return;
           await ref.read(localDatabaseProvider).stockMutationDao.catatOpname(productId: pid!, stokFisik: double.parse(fisikC.text), refNo: 'OPN-${tgl.millisecondsSinceEpoch}', userId: 'owner-01', notes: notesC.text, date: tgl, newRack: rakC.text.isEmpty?null:rakC.text);
           if(mounted) Navigator.pop(context);
         }, child: const Text('Simpan Opname')),
