@@ -28,6 +28,7 @@ import 'daos/stock_mutation_dao.dart';
 import 'daos/audit_log_dao.dart';
 import 'daos/transaction_dao.dart';
 import 'daos/report_dao.dart';
+import 'daos/shift_dao.dart';
 
 part 'local_database.g.dart';
 
@@ -52,15 +53,16 @@ class LocalDatabase extends _$LocalDatabase {
   late final AuditLogDao auditLogDao = AuditLogDao(this);
   late final TransactionDao transactionDao = TransactionDao(this);
   late final ReportDao reportDao = ReportDao(this);
+  late final ShiftDao shiftDao = ShiftDao(this);
 
-  // ========== FIX UTAMA UNTUK ERROR BUILD ==========
+  // ========== FIX UTAMA UNTUK ERROR BUILD 1000+ ==========
   // Alias biar db.fraudAlertDao.watchAllAlerts() bisa dipanggil di cctv_analytics_page.dart
   AuditLogDao get fraudAlertDao => auditLogDao;
   // Alias biar konsisten
   ReportDao get reportDaoAlias => reportDao;
   // ========== END FIX ==========
 
-  @override int get schemaVersion => 22; // Naik ke 22 karena ada lastBuyPrice
+  @override int get schemaVersion => 22;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -77,14 +79,30 @@ class LocalDatabase extends _$LocalDatabase {
       await categoryDao.seedDefaults();
     },
     onUpgrade: (Migrator m, int from, int to) async {
-      if (from < 10) { try { await m.createTable(auditLogs); } catch(_){} try { await m.createTable(fraudAlerts); } catch(_){} }
-      if (from < 13) { try { await m.addColumn(products, products.sellPriceTier1); } catch(_){} try { await m.addColumn(products, products.sellPriceTier2); } catch(_){} try { await m.addColumn(products, products.sellPriceTier3); } catch(_){} }
+      if (from < 10) { 
+        try { await m.createTable(auditLogs); } catch(_){} 
+        try { await m.createTable(fraudAlerts); } catch(_){} 
+      }
+      if (from < 13) { 
+        try { await m.addColumn(products, products.sellPriceTier1); } catch(_){} 
+        try { await m.addColumn(products, products.sellPriceTier2); } catch(_){} 
+        try { await m.addColumn(products, products.sellPriceTier3); } catch(_){} 
+        try { await m.addColumn(products, products.sellPriceGeneral); } catch(_){} 
+      }
       if (from < 15) { try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch(_){} }
-      if (from < 20) { try { await m.addColumn(stockMutations, stockMutations.hppBefore); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.hppAfter); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.buyPriceAtThatTime); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){} }
-      if (from < 21) { try { await m.addColumn(customers, customers.tierHarga); } catch(_){} try { await m.addColumn(customers, customers.sisaHutang); } catch(_){} }
-      if (from < 22) { 
-        // FIX: lastBuyPrice untuk HPP MA akurat
-        try { await m.addColumn(products, products.buyPrice); } catch(_){}
+      if (from < 20) { 
+        try { await m.addColumn(stockMutations, stockMutations.hppBefore); } catch(_){} 
+        try { await m.addColumn(stockMutations, stockMutations.hppAfter); } catch(_){} 
+        try { await m.addColumn(stockMutations, stockMutations.buyPriceAtThatTime); } catch(_){} 
+        try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){} 
+      }
+      if (from < 21) { 
+        try { await m.addColumn(customers, customers.tierHarga); } catch(_){} 
+        try { await m.addColumn(customers, customers.sisaHutang); } catch(_){} 
+      }
+      // v22 = no addColumn, hanya bump versi biar drift regen .g.dart yang benar
+      if (from < 22) {
+        // empty migration - untuk fix UserData not found
       }
     },
     beforeOpen: (details) async { await customStatement('PRAGMA foreign_keys = ON;'); },
@@ -146,7 +164,7 @@ class LocalDatabase extends _$LocalDatabase {
   }
 
   // ===========================================================================
-  // ORCHESTRATOR PEMBELIAN - FIX
+  // ORCHESTRATOR PEMBELIAN - FIX ANTI NESTED
   // ===========================================================================
   Future<void> prosesPembelianPenyimpanan({
     required PurchasesCompanion dataPembelian,
