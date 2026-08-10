@@ -23,7 +23,7 @@ class _KeluarState extends ConsumerState<ItemKeluarPage> {
           final id = await Navigator.push(context, MaterialPageRoute(builder: (_)=> const PersediaanStockBarangPage(isPickMode:true)));
           if(id!=null){
             final prod = await ref.read(localDatabaseProvider).productDao.getProductById(id);
-            setState((){ pid=id; pname=prod?.name; });
+            if(mounted) setState((){ pid=id; pname=prod?.name; });
           }
         }, child: Text(pname??'Pilih Barang')),
         const SizedBox(height:12),
