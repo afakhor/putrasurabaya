@@ -54,25 +54,27 @@ class _MasterState extends ConsumerState<PersediaanStockBarangPage> {
           ]),
         ),
         Expanded(child: productsAsync.when(
-          data: (List<ProductData> list){ // FIX: Explicit type ProductData
-            var filtered = list;
+  data: (List<ProductData> list){
+  var filtered = list;
 
-            // Filter kategori
-            if(_selectedCatId!= 'SEMUA'){
-              filtered = filtered.where((p)=> p.categoryId == _selectedCatId).toList();
-            }
+  // Filter kategori
+  if(_selectedCatId != 'SEMUA'){
+    filtered = filtered.where((ProductData p)=> (p.categoryId) == _selectedCatId).toList();
+  }
 
-            // Filter search - FIX ERROR Object?
-            if(q.isNotEmpty){
-              filtered = filtered.where((ProductData p){ // FIX: Explicit cast
-                return p.name.toLowerCase().contains(q) ||
-                       p.code.toLowerCase().contains(q) || // FIX: code non-nullable
-                       (p.barcode??'').toLowerCase().contains(q) ||
-                       (p.rackLocation??'').toLowerCase().contains(q) ||
-                       (p.brand??'').toLowerCase().contains(q) ||
-                       (p.tags??'').toLowerCase().contains(q);
-              }).toList();
-            }
+  // Filter search - FIX ERROR Object? & nullable
+  if(q.isNotEmpty){
+    final qq = q.toLowerCase();
+    filtered = filtered.where((ProductData p){
+      return p.name.toLowerCase().contains(qq) ||
+             (p.code??'').toLowerCase().contains(qq) ||
+             (p.barcode??'').toLowerCase().contains(qq) ||
+             (p.rackLocation??'').toLowerCase().contains(qq) ||
+             (p.brand??'').toLowerCase().contains(qq) ||
+             (p.tags??'').toLowerCase().contains(qq) ||
+             (p.description??'').toLowerCase().contains(qq);
+    }).toList();
+  }
 
             if(filtered.isEmpty) return const Center(child: Text('Barang tidak ada, tambah dulu'));
 
