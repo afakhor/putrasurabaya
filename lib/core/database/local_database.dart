@@ -92,11 +92,13 @@ class LocalDatabase extends _$LocalDatabase {
         try { await m.addColumn(debtPayments, debtPayments.refId); } catch(_){}
         try { await m.addColumn(debtPayments, debtPayments.type); } catch(_){}
         try { await m.addColumn(debtPayments, debtPayments.paymentDate); } catch(_){}
+        try { await m.addColumn(debtPayments, debtPayments.paymentMethod); } catch(_){}
       }
     },
     beforeOpen: (details) async { await customStatement('PRAGMA foreign_keys = ON;'); },
   );
 
+  // RULE EMAS: 1 Faktur Beli = 1 Payable = 1 Batch Mutasi via invoiceNo
   Future<void> prosesTransaksiPenyimpanan({required TransactionsCompanion dataTransaksi, required List<TransactionItemsCompanion> itemTransaksi}) async {
     await transaction(() async {
       await into(transactions).insert(dataTransaksi);
@@ -108,33 +110,33 @@ class LocalDatabase extends _$LocalDatabase {
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
         await stockMutationDao.catatPenjualanDirect(
-          productId: item.productId.value, 
-          qty: item.quantity.value * item.conversionFactor.value, 
-          refNo: dataTransaksi.invoiceNo.value, 
-          userId: dataTransaksi.salesId.value ?? 'kasir-01', 
-          customerName: custName, 
-          paymentStatus: dataTransaksi.status.value.toUpperCase(), 
-          tier: item.selectedTier.value, 
-          hargaJual: item.appliedTierPrice.value, 
+          productId: item.productId.value,
+          qty: item.quantity.value * item.conversionFactor.value,
+          refNo: dataTransaksi.invoiceNo.value,
+          userId: dataTransaksi.salesId.value?? 'kasir-01',
+          customerName: custName,
+          paymentStatus: dataTransaksi.status.value.toUpperCase(),
+          tier: item.selectedTier.value,
+          hargaJual: item.appliedTierPrice.value,
           total: item.subtotal.value
         );
       }
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
         await into(receivables).insert(ReceivablesCompanion.insert(
-          id: 'RC-${dataTransaksi.id.value}', 
-          transactionId: Value(dataTransaksi.id.value), 
-          customerId: Value(dataTransaksi.customerId.value!), 
-          totalAmount: Value(dataTransaksi.grandTotal.value), 
-          paidAmount: Value(dataTransaksi.payAmount.value), 
-          remainingAmount: Value(dataTransaksi.remainingDebt.value), 
-          dueDate: Value(DateTime.now().add(const Duration(days: 14))), 
+          id: 'RC-${dataTransaksi.id.value}',
+          transactionId: Value(dataTransaksi.id.value),
+          customerId: Value(dataTransaksi.customerId.value!),
+          totalAmount: Value(dataTransaksi.grandTotal.value),
+          paidAmount: Value(dataTransaksi.payAmount.value),
+          remainingAmount: Value(dataTransaksi.remainingDebt.value),
+          dueDate: Value(DateTime.now().add(const Duration(days: 14))),
           status: const Value('belum_lunas')
         ));
         final cust = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
-        if(cust!=null){ 
+        if(cust!=null){
           await (update(customers)..where((t)=> t.id.equals(cust.id))).write(
             CustomersCompanion(sisaHutang: Value(cust.sisaHutang + dataTransaksi.remainingDebt.value), updatedAt: Value(DateTime.now()))
-          ); 
+          );
         }
       }
     });
@@ -146,38 +148,69 @@ class LocalDatabase extends _$LocalDatabase {
       for (final item in itemPembelian) {
         await into(purchaseItems).insert(item);
         await stockMutationDao.catatMasukDirect(
-          productId: item.productId.value, 
-          qtyMasuk: item.quantity.value * item.conversionFactor.value, 
-          hargaBeliPerPcs: item.buyPrice.value, 
-          refNo: dataPembelian.invoiceNo.value, 
+          productId: item.productId.value,
+          qtyMasuk: item.quantity.value * item.conversionFactor.value,
+          hargaBeliPerPcs: item.buyPrice.value,
+          refNo: dataPembelian.invoiceNo.value,
           userId: dataPembelian.userId.value
         );
       }
       if (dataPembelian.debtAmount.value > 0) {
         await into(payables).insert(PayablesCompanion.insert(
-          id: 'PY-${dataPembelian.id.value}', 
-          purchaseId: Value(dataPembelian.id.value), 
-          supplierId: Value(dataPembelian.supplierId.value), 
-          totalAmount: Value(dataPembelian.totalAmount.value), 
-          paidAmount: Value(dataPembelian.paidAmount.value), 
-          remainingAmount: Value(dataPembelian.debtAmount.value), 
-          dueDate: Value(dataPembelian.dueDate.value ?? DateTime.now().add(const Duration(days: 30))), 
+          id: 'PY-${dataPembelian.id.value}',
+          purchaseId: Value(dataPembelian.id.value),
+          supplierId: Value(dataPembelian.supplierId.value),
+          totalAmount: Value(dataPembelian.totalAmount.value),
+          paidAmount: Value(dataPembelian.paidAmount.value),
+          remainingAmount: Value(dataPembelian.debtAmount.value),
+          dueDate: Value(dataPembelian.dueDate.value?? DateTime.now().add(const Duration(days: 30))),
           status: const Value('belum_lunas')
         ));
       }
     });
   }
+
+  // RULE EMAS: Tidak boleh bayar global, harus via invoiceNo
+  Future<void> onPayablePaid({required String invoiceNo, required double amount, required String userId}) async {
+    final payable = await (select(payables)..where((t)=> t.purchaseId.equals(invoiceNo) | t.id.equals(invoiceNo))).getSingleOrNull();
+    if(payable==null) throw Exception('Payable $invoiceNo tidak ditemukan - bayar harus pilih InvoiceNo');
+    await payablesDao.bayarAngsuranHutang(payableId: payable.id, nominalBayar: amount, paymentMethod: 'CASH', notes: 'Bayar via Invoice $invoiceNo by $userId');
+  }
+
+  Future<void> onPurchaseCreatedFull({required PurchasesCompanion dataPembelian, required List<PurchaseItemsCompanion> items, bool isBarangDiterima = true}) async {
+    if(!isBarangDiterima){
+      // markAsStokDalamPerjalanan - logic IPOS
+      await transaction(() async {
+        await into(purchases).insert(dataPembelian.copyWith(status: const Value('in_transit')));
+        // tidak buat mutasi stok, hanya payable
+        if (dataPembelian.debtAmount.value > 0) {
+          await into(payables).insert(PayablesCompanion.insert(
+            id: 'PY-${dataPembelian.id.value}',
+            purchaseId: Value(dataPembelian.id.value),
+            supplierId: Value(dataPembelian.supplierId.value),
+            totalAmount: Value(dataPembelian.totalAmount.value),
+            paidAmount: Value(dataPembelian.paidAmount.value),
+            remainingAmount: Value(dataPembelian.debtAmount.value),
+            dueDate: Value(dataPembelian.dueDate.value?? DateTime.now().add(const Duration(days: 30))),
+            status: const Value('belum_lunas')
+          ));
+        }
+      });
+    } else {
+      await prosesPembelianPenyimpanan(dataPembelian: dataPembelian, itemPembelian: items);
+    }
+  }
 }
 
-final localDatabaseProvider = Provider<LocalDatabase>((ref) { 
-  final db = LocalDatabase(); 
-  ref.keepAlive(); 
-  return db; 
+final localDatabaseProvider = Provider<LocalDatabase>((ref) {
+  final db = LocalDatabase();
+  ref.keepAlive();
+  return db;
 });
 
-final allProductsStreamProvider = StreamProvider<List<ProductData>>((ref) { 
-  final db = ref.watch(localDatabaseProvider); 
-  return db.productDao.watchActiveProducts(); 
+final allProductsStreamProvider = StreamProvider<List<ProductData>>((ref) {
+  final db = ref.watch(localDatabaseProvider);
+  return db.productDao.watchActiveProducts();
 });
 
 final productsStreamProvider = allProductsStreamProvider;
