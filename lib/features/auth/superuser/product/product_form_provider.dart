@@ -1,4 +1,4 @@
-// lib/features/auth/superuser/product/product_form_provider.dart - FINAL FIX EDIT HARGA INDEX MASTER
+// lib/features/auth/superuser/product/product_form_provider.dart - FINAL FIX EDIT HARGA INDEX MASTER - TIDAK ADA YANG DIKURANGI
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' hide Column;
 import '../../../../core/database/local_database.dart';
@@ -10,7 +10,9 @@ class ProductFormState {
   final double sellPriceGeneral; final double sellPriceTier1; final double sellPriceTier2; final double sellPriceTier3;
   final double stock; final double minStock; final double maxStock;
   final bool allowMinusStock; final String rackLocation; final String statusActive;
-  final List<ProductUnitData> units; final List<ProductVariantData> variants; final List<String> imagePaths;
+  final List<ProductUnit> units;
+  final List<ProductVariant> variants;
+  final List<String> imagePaths;
   final bool isEditMode;
 
   ProductFormState({
@@ -36,7 +38,7 @@ class ProductFormState {
   ProductFormState copyWith({
     String? id, code, name, shortName, barcode, description, categoryId, brand, unit, rackLocation, statusActive,
     double? buyPrice, sellPriceGeneral, sellPriceTier1, sellPriceTier2, sellPriceTier3, stock, minStock, maxStock,
-    bool? allowMinusStock, List<ProductUnitData>? units, List<ProductVariantData>? variants, List<String>? imagePaths, bool? isEditMode,
+    bool? allowMinusStock, List<ProductUnit>? units, List<ProductVariant>? variants, List<String>? imagePaths, bool? isEditMode,
   })=> ProductFormState(
     id: id??this.id, code: code??this.code, name: name??this.name, shortName: shortName??this.shortName,
     barcode: barcode??this.barcode, description: description??this.description, categoryId: categoryId??this.categoryId,
@@ -54,17 +56,21 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
   final LocalDatabase _db;
   ProductFormNotifier(this._db) : super(ProductFormState(id: ''));
 
-  void setProduct(ProductData p, List<ProductUnitData> units, List<ProductVariantData> variants, List<String> images){
+  void setProduct(ProductData p, List<ProductUnit> units, List<ProductVariant> variants, List<String> images){
     state=ProductFormState(
-      id: p.id, code: p.code??'', name: p.name, shortName: p.shortName??'', barcode: p.barcode??'', description: p.description??'',
-      categoryId: p.categoryId, brand: p.brand??'', unit: p.unit, buyPrice: p.buyPrice,
-      sellPriceGeneral: p.sellPriceGeneral, sellPriceTier1: p.sellPriceTier1, sellPriceTier2: p.sellPriceTier2, sellPriceTier3: p.sellPriceTier3,
-      stock: p.stock, minStock: p.minStock, maxStock: p.maxStock, allowMinusStock: p.allowMinusStock,
-      rackLocation: p.rackLocation??'', statusActive: p.statusActive, units: units, variants: variants, imagePaths: images, isEditMode: true,
+      id: p.id, code: p.code, name: p.name, shortName: p.shortName??'', barcode: p.barcode??'', description: p.description??'',
+      categoryId: p.categoryId??'Perkakas Tangan', brand: p.brand??'', unit: p.unit, buyPrice: p.buyPrice.toDouble(),
+      sellPriceGeneral: (p.sellPriceGeneral??0).toDouble(),
+      sellPriceTier1: (p.sellPriceTier1??0).toDouble(),
+      sellPriceTier2: (p.sellPriceTier2??0).toDouble(),
+      sellPriceTier3: (p.sellPriceTier3??0).toDouble(),
+      stock: p.stock.toDouble(), minStock: p.minStock.toDouble(), maxStock: (p.maxStock??100).toDouble(),
+      allowMinusStock: p.allowMinusStock??false,
+      rackLocation: p.rackLocation??'', statusActive: p.statusActive??'aktif',
+      units: units, variants: variants, imagePaths: images, isEditMode: true,
     );
   }
 
-  // FIX: untuk Edit Harga, reset jadi kosong, wajib pilih dari dropdown master
   void resetForm()=> state=ProductFormState(id: '');
 
   void updateField({String? name, code, barcode, description, categoryId, brand, unit, rackLocation, double? buyPrice, sellPriceGeneral, sellPriceTier1, sellPriceTier2, sellPriceTier3, stock, minStock}){
@@ -72,12 +78,11 @@ class ProductFormNotifier extends StateNotifier<ProductFormState> {
   }
 
   Future<bool> saveProduct() async {
-    if(state.id.isEmpty) return false; // wajib pilih dari master dulu
+    if(state.id.isEmpty) return false;
     if(state.name.trim().isEmpty) return false;
     try{
       final existing = await (_db.select(_db.products)..where((t)=> t.id.equals(state.id))).getSingleOrNull();
       if(existing==null) return false;
-      // HPP jangan ditimpa manual, pakai HPP lama (Weighted Average dari pembelian)
       await _db.into(_db.products).insertOnConflictUpdate(ProductsCompanion(
         id: Value(state.id),
         sellPriceGeneral: Value(state.sellPriceGeneral),
