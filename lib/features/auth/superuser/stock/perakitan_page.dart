@@ -26,7 +26,7 @@ class _RakitState extends ConsumerState<PerakitanPage> {
       body: ListView(padding: const EdgeInsets.all(16), children: [
         ElevatedButton(onPressed: () async {
           final id=await Navigator.push(context, MaterialPageRoute(builder: (_)=> const PersediaanStockBarangPage(isPickMode:true)));
-          if(id!=null){ final p=await _getProduct(id); setState((){ jadiId=id; jadiName=p?.name; }); }
+          if(id!=null){ final p=await _getProduct(id); if(mounted) setState((){ jadiId=id; jadiName=p?.name; }); }
         }, child: Text(jadiName==null?'Pilih Barang Jadi': 'Jadi: $jadiName')),
         const SizedBox(height:12),
         TextField(controller: jadiQtyC, decoration: const InputDecoration(labelText:'Qty Jadi', border: OutlineInputBorder()), keyboardType: TextInputType.number),
@@ -44,11 +44,11 @@ class _RakitState extends ConsumerState<PerakitanPage> {
                 content: TextField(controller: qtyC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText:'Qty per 1 jadi', border: OutlineInputBorder())),
                 actions: [TextButton(onPressed: ()=> Navigator.pop(context,false), child: const Text('Batal')), ElevatedButton(onPressed: ()=> Navigator.pop(context,true), child: const Text('Tambah'))]
               ));
-              if(ok==true) setState(()=> bahan.add({'productId':id, 'name':p?.name, 'qty':double.tryParse(qtyC.text)??1}));
+              if(ok==true && mounted) setState(()=> bahan.add({'productId':id, 'name':p?.name, 'qty':double.tryParse(qtyC.text)??1}));
             }
           })
         ]),
-       ...bahan.map((b)=> Card(child: ListTile(title: Text(b['name']), subtitle: Text('Qty: ${b['qty']} per jadi'), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: ()=> setState(()=> bahan.remove(b)))))),
+       ...bahan.map((b)=> Card(child: ListTile(title: Text(b['name']), subtitle: Text('Qty: ${b['qty']} per jadi'), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: ()=> setState(()=> bahan.remove(b))))),
         const SizedBox(height:20),
         SizedBox(height:50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.purple), onPressed: () async {
           if(jadiId==null){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pilih barang jadi dulu'))); return; }
@@ -58,7 +58,7 @@ class _RakitState extends ConsumerState<PerakitanPage> {
           try {
             await ref.read(localDatabaseProvider).stockMutationDao.eksekusiPerakitanProduk(
               finishedProductId: jadiId!, finishedQtyToProduce: qtyJadi,
-              materials: bahan.map((e)=> AssemblyMaterialItem(rawProductId: e['productId'], quantityRequiredPerUnit: (e['qty'] as double))).toList(),
+              materials: bahan.map((e)=> AssemblyMaterialItem(rawProductId: e['productId'] as String, quantityRequiredPerUnit: (e['qty'] as double))).toList(),
               userId: 'owner-01', notes: 'Rakit ${bahan.length} bahan'
             );
             if(mounted){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rakit OK - HPP jadi = total HPP bahan'))); Navigator.pop(context); }
