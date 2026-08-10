@@ -2,7 +2,6 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// TABLES
 import 'tables/user_table.dart';
 import 'tables/product_table.dart';
 import 'tables/stock_mutation_table.dart';
@@ -13,9 +12,7 @@ import 'tables/supplier_table.dart';
 import 'tables/category_table.dart';
 import 'tables/purchase_table.dart';
 import 'tables/audit_log_table.dart';
-// import 'constant/constant_debt_status.dart'; // JANGAN IMPORT LANGSUNG - ini yang bikin drift_dev gagal baca table kalau file ini ada error
 
-// DAOS
 import 'daos/user_dao.dart';
 import 'daos/dashboard_dao.dart';
 import 'daos/category_dao.dart';
@@ -58,7 +55,7 @@ class LocalDatabase extends _$LocalDatabase {
   AuditLogDao get fraudAlertDao => auditLogDao;
   ReportDao get reportDaoAlias => reportDao;
 
-  @override int get schemaVersion => 23; // NAIK 1 biar regen
+  @override int get schemaVersion => 24; // NAIK KE 24 WAJIB KARENA TAMBAH lastBuyPrice
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -75,35 +72,20 @@ class LocalDatabase extends _$LocalDatabase {
       await categoryDao.seedDefaults();
     },
     onUpgrade: (Migrator m, int from, int to) async {
-      if (from < 10) { 
-        try { await m.createTable(auditLogs); } catch(_){} 
-        try { await m.createTable(fraudAlerts); } catch(_){} 
-      }
-      if (from < 13) { 
-        try { await m.addColumn(products, products.sellPriceTier1); } catch(_){} 
-        try { await m.addColumn(products, products.sellPriceTier2); } catch(_){} 
-        try { await m.addColumn(products, products.sellPriceTier3); } catch(_){} 
-        try { await m.addColumn(products, products.sellPriceGeneral); } catch(_){} 
-      }
+      if (from < 10) { try { await m.createTable(auditLogs); } catch(_){} try { await m.createTable(fraudAlerts); } catch(_){} }
+      if (from < 13) { try { await m.addColumn(products, products.sellPriceTier1); } catch(_){} try { await m.addColumn(products, products.sellPriceTier2); } catch(_){} try { await m.addColumn(products, products.sellPriceTier3); } catch(_){} try { await m.addColumn(products, products.sellPriceGeneral); } catch(_){} }
       if (from < 15) { try { await m.addColumn(stockMutations, stockMutations.hppSnapshot); } catch(_){} }
-      if (from < 20) { 
-        try { await m.addColumn(stockMutations, stockMutations.hppBefore); } catch(_){} 
-        try { await m.addColumn(stockMutations, stockMutations.hppAfter); } catch(_){} 
-        try { await m.addColumn(stockMutations, stockMutations.buyPriceAtThatTime); } catch(_){} 
-        try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){} 
-      }
-      if (from < 21) { 
-        try { await m.addColumn(customers, customers.tierHarga); } catch(_){} 
-        try { await m.addColumn(customers, customers.sisaHutang); } catch(_){} 
+      if (from < 20) { try { await m.addColumn(stockMutations, stockMutations.hppBefore); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.hppAfter); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.buyPriceAtThatTime); } catch(_){} try { await m.addColumn(stockMutations, stockMutations.currentStockSnapshot); } catch(_){} }
+      if (from < 21) { try { await m.addColumn(customers, customers.tierHarga); } catch(_){} try { await m.addColumn(customers, customers.sisaHutang); } catch(_){} }
+      if (from < 24) { 
+        // FIX UNTUK lastBuyPrice YANG BARU DITAMBAH
+        try { await m.addColumn(products, products.lastBuyPrice); } catch(_){} 
       }
     },
     beforeOpen: (details) async { await customStatement('PRAGMA foreign_keys = ON;'); },
   );
 
-  Future<void> prosesTransaksiPenyimpanan({
-    required TransactionsCompanion dataTransaksi,
-    required List<TransactionItemsCompanion> itemTransaksi,
-  }) async {
+  Future<void> prosesTransaksiPenyimpanan({required TransactionsCompanion dataTransaksi, required List<TransactionItemsCompanion> itemTransaksi}) async {
     await transaction(() async {
       await into(transactions).insert(dataTransaksi);
       String custName = 'Umum';
@@ -113,83 +95,31 @@ class LocalDatabase extends _$LocalDatabase {
       }
       for (final item in itemTransaksi) {
         await into(transactionItems).insert(item);
-        await stockMutationDao.catatPenjualanDirect(
-          productId: item.productId.value,
-          qty: item.quantity.value * item.conversionFactor.value,
-          refNo: dataTransaksi.invoiceNo.value,
-          userId: dataTransaksi.salesId.value ?? 'kasir-01',
-          customerName: custName,
-          paymentStatus: dataTransaksi.status.value.toUpperCase(),
-          tier: item.selectedTier.value,
-          hargaJual: item.appliedTierPrice.value,
-          total: item.subtotal.value,
-        );
+        await stockMutationDao.catatPenjualanDirect(productId: item.productId.value, qty: item.quantity.value * item.conversionFactor.value, refNo: dataTransaksi.invoiceNo.value, userId: dataTransaksi.salesId.value ?? 'kasir-01', customerName: custName, paymentStatus: dataTransaksi.status.value.toUpperCase(), tier: item.selectedTier.value, hargaJual: item.appliedTierPrice.value, total: item.subtotal.value);
       }
       if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
-        // fix: pakai DebtStatus dari string manual, bukan import constant yang bikin error gen
-        await into(receivables).insert(
-          ReceivablesCompanion.insert(
-            id: 'RC-${dataTransaksi.id.value}',
-            transactionId: dataTransaksi.id.value,
-            customerId: dataTransaksi.customerId.value!,
-            totalAmount: dataTransaksi.grandTotal.value,
-            paidAmount: Value(dataTransaksi.payAmount.value),
-            remainingAmount: dataTransaksi.remainingDebt.value,
-            dueDate: DateTime.now().add(const Duration(days: 14)),
-            status: Value(dataTransaksi.remainingDebt.value > 0 ? 'belum_lunas' : 'lunas'),
-          ),
-        );
+        await into(receivables).insert(ReceivablesCompanion.insert(id: 'RC-${dataTransaksi.id.value}', transactionId: dataTransaksi.id.value, customerId: dataTransaksi.customerId.value!, totalAmount: dataTransaksi.grandTotal.value, paidAmount: Value(dataTransaksi.payAmount.value), remainingAmount: dataTransaksi.remainingDebt.value, dueDate: DateTime.now().add(const Duration(days: 14)), status: const Value('belum_lunas')));
         final cust = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
-        if(cust!=null){
-          await (update(customers)..where((t)=> t.id.equals(cust.id))).write(
-            CustomersCompanion(sisaHutang: Value(cust.sisaHutang + dataTransaksi.remainingDebt.value), updatedAt: Value(DateTime.now()))
-          );
-        }
+        if(cust!=null){ await (update(customers)..where((t)=> t.id.equals(cust.id))).write(CustomersCompanion(sisaHutang: Value(cust.sisaHutang + dataTransaksi.remainingDebt.value), updatedAt: Value(DateTime.now()))); }
       }
     });
   }
 
-  Future<void> prosesPembelianPenyimpanan({
-    required PurchasesCompanion dataPembelian,
-    required List<PurchaseItemsCompanion> itemPembelian,
-  }) async {
+  Future<void> prosesPembelianPenyimpanan({required PurchasesCompanion dataPembelian, required List<PurchaseItemsCompanion> itemPembelian}) async {
     await transaction(() async {
       await into(purchases).insert(dataPembelian);
       for (final item in itemPembelian) {
         await into(purchaseItems).insert(item);
-        await stockMutationDao.catatMasukDirect(
-          productId: item.productId.value,
-          qtyMasuk: item.quantity.value * item.conversionFactor.value,
-          hargaBeliPerPcs: item.buyPrice.value,
-          refNo: dataPembelian.invoiceNo.value,
-          userId: dataPembelian.userId.value,
-        );
+        await stockMutationDao.catatMasukDirect(productId: item.productId.value, qtyMasuk: item.quantity.value * item.conversionFactor.value, hargaBeliPerPcs: item.buyPrice.value, refNo: dataPembelian.invoiceNo.value, userId: dataPembelian.userId.value);
       }
       if (dataPembelian.debtAmount.value > 0) {
-        await into(payables).insert(PayablesCompanion.insert(
-          id: 'PY-${dataPembelian.id.value}',
-          purchaseId: dataPembelian.id.value,
-          supplierId: dataPembelian.supplierId.value,
-          totalAmount: dataPembelian.totalAmount.value,
-          paidAmount: Value(dataPembelian.paidAmount.value),
-          remainingAmount: dataPembelian.debtAmount.value,
-          dueDate: dataPembelian.dueDate.value ?? DateTime.now().add(const Duration(days: 30)),
-          status: Value(dataPembelian.debtAmount.value > 0 ? 'belum_lunas' : 'lunas'),
-        ));
+        await into(payables).insert(PayablesCompanion.insert(id: 'PY-${dataPembelian.id.value}', purchaseId: dataPembelian.id.value, supplierId: dataPembelian.supplierId.value, totalAmount: dataPembelian.totalAmount.value, paidAmount: Value(dataPembelian.paidAmount.value), remainingAmount: dataPembelian.debtAmount.value, dueDate: dataPembelian.dueDate.value ?? DateTime.now().add(const Duration(days: 30)), status: const Value('belum_lunas')));
       }
     });
   }
 }
 
-final localDatabaseProvider = Provider<LocalDatabase>((ref) {
-  final db = LocalDatabase();
-  ref.keepAlive();
-  return db;
-});
-
-final allProductsStreamProvider = StreamProvider<List<ProductData>>((ref) {
-  final db = ref.watch(localDatabaseProvider);
-  return db.productDao.watchActiveProducts();
-});
+final localDatabaseProvider = Provider<LocalDatabase>((ref) { final db = LocalDatabase(); ref.keepAlive(); return db; });
+final allProductsStreamProvider = StreamProvider<List<ProductData>>((ref) { final db = ref.watch(localDatabaseProvider); return db.productDao.watchActiveProducts(); });
 final productsStreamProvider = allProductsStreamProvider;
 final activeProductsStreamProvider = allProductsStreamProvider;
