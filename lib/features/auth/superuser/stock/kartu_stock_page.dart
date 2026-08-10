@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/local_database.dart';
 import '../../../../core/database/daos/stock_mutation_dao.dart';
-import '../../../../core/utils/config.dart';
 
 final kartuStokStreamProvider = StreamProvider.family<List<StockCardItemData>, String>((ref, productId) {
   return ref.watch(localDatabaseProvider).stockMutationDao.watchKartuStok(productId);
@@ -23,20 +22,52 @@ class KartuStockPage extends ConsumerWidget {
       appBar: AppBar(title: const Text('Kartu Stok'), actions: [
         IconButton(icon: const Icon(Icons.build_circle), onPressed: () async {
           final ok = await showDialog<bool>(context: context, builder: (_)=> AlertDialog(title: const Text('Perbaikan Saldo'), content: const Text('Hitung ulang saldo dari awal?'), actions: [TextButton(onPressed: ()=> Navigator.pop(context,false), child: const Text('Batal')), ElevatedButton(onPressed: ()=> Navigator.pop(context,true), child: const Text('Perbaiki'))]));
-          if(ok==true){ await ref.read(localDatabaseProvider).stockMutationDao.prosesPerbaikanSaldo(productId); if(context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saldo diperbaiki'))); }
+          if(ok==true){
+            await ref.read(localDatabaseProvider).stockMutationDao.prosesPerbaikanSaldo(productId);
+            if(context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saldo diperbaiki')));
+          }
         })
       ]),
       body: Column(children: [
-        prodStream.when(data: (p)=> p==null? const SizedBox(): Padding(padding: const EdgeInsets.all(12), child: GlassCard(child: ListTile(title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('Stok: ${p.stock} • Rak: ${p.rackLocation??'-'}')))), loading: ()=> const SizedBox(), error: (_,__)=> const SizedBox()),
+        prodStream.when(
+          data: (ProductData? p)=> p==null? const SizedBox(): Padding(
+            padding: const EdgeInsets.all(12),
+            child: Card(
+              color: Colors.green.withOpacity(0.1),
+              child: ListTile(
+                title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text('Stok: ${p.stock} ${p.unit} • Rak: ${p.rackLocation??'-'} • HPP MA: ${p.buyPrice}')
+              )
+            )
+          ),
+          loading: ()=> const SizedBox(),
+          error: (_,__)=> const SizedBox()
+        ),
         Expanded(child: kartu.when(
-          data: (list)=> ListView.builder(itemCount: list.length, itemBuilder: (c,i){
-            final m=list[i].mutation;
-            return ListTile(dense:true, title: Text('${m.type} ${m.quantity>0?'+':''}${m.quantity} - Stok Akhir: ${m.stockAfter}', style: const TextStyle(fontSize:12, fontWeight: FontWeight.bold)), subtitle: Text('${m.date.toString().substring(0,16)} | Ref: ${m.referenceNo} | HPP: ${m.hppSnapshot}', style: const TextStyle(fontSize:10)));
-          }),
+          data: (List<StockCardItemData> list)=> ListView.builder(
+            itemCount: list.length,
+            itemBuilder: (c,i){
+              final m = list[i].mutation;
+              final isMasuk = m.type.toLowerCase().contains('masuk') || m.type.toLowerCase().contains('kulak') || m.quantity > 0;
+              return ListTile(
+                dense:true,
+                leading: Icon(isMasuk? Icons.arrow_downward : Icons.arrow_upward, color: isMasuk? Colors.green : Colors.red, size: 18),
+                title: Text('${m.type} ${m.quantity>0?'+':''}${m.quantity} - Akhir: ${m.stockAfter}', style: const TextStyle(fontSize:12, fontWeight: FontWeight.bold)),
+                subtitle: Text('${m.date.toString().substring(0,16)} | Ref: ${m.referenceNo} | HPP: ${m.hppSnapshot??'-'} | Sisa: ${m.currentStockSnapshot??0}', style: const TextStyle(fontSize:10))
+              );
+            }
+          ),
           loading: ()=> const Center(child: CircularProgressIndicator()),
           error: (e,s)=> Center(child: Text('$e'))
         )),
       ]),
     );
   }
+}
+
+// FIX: GlassCard placeholder biar tidak error kalau config.dart belum ada
+class GlassCard extends StatelessWidget {
+  final Widget child;
+  const GlassCard({super.key, required this.child});
+  @override Widget build(BuildContext context) => Card(child: child);
 }
