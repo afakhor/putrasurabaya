@@ -9,7 +9,7 @@ import '../stock/persediaan_stock_barang.dart';
 import 'product_form_provider.dart';
 
 class MasterFabPerkakas extends ConsumerStatefulWidget {
-  final Function(BuildContext, {ProductData? product})? onOpenForm;
+  final Future<void> Function(BuildContext, {ProductData? product})? onOpenForm;
   const MasterFabPerkakas({super.key, this.onOpenForm});
   @override ConsumerState<MasterFabPerkakas> createState() => _MasterFabPerkakasState();
 }
@@ -111,7 +111,6 @@ class _MasterFabPerkakasState extends ConsumerState<MasterFabPerkakas> with Tick
       title: const Text('Kategori Baru'), content: TextField(controller: c, autofocus: true),
       actions: [TextButton(onPressed: ()=> Navigator.pop(ctx), child: const Text('Batal')), ElevatedButton(onPressed: ()=> Navigator.pop(ctx, c.text.trim()), child: const Text('Simpan'))]));
     if(res!=null && res.isNotEmpty){
-      // FIX: 'product' string literal, bukan CategoryType.product
       await ref.read(localDatabaseProvider).categoryDao.createCategory(name: res, type: 'product', sortOrder: DateTime.now().millisecond);
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kategori $res ditambah')));
     }
