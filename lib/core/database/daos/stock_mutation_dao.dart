@@ -40,19 +40,28 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     final prod = await (select(products)..where((p)=> p.id.equals(productId))).getSingleOrNull();
     if(prod==null) throw Exception('Produk $productId tidak ada');
     final sebelum = prod.stock; final hppLama = prod.buyPrice; final sesudah = sebelum + qty;
-    if(!skipMinus &&!prod.allowMinusStock && sesudah < 0) throw Exception('Stok minus ${prod.name} sisa $sebelum');
+    if(!skipMinus && !prod.allowMinusStock && sesudah < 0) throw Exception('Stok minus ${prod.name} sisa $sebelum');
     double hppBaru = hppLama;
-    if(qty>0 && hargaBeliMasuk>0){ hppBaru = sebelum <=0? hargaBeliMasuk : ((sebelum*hppLama)+(qty*hargaBeliMasuk))/sesudah; }
+    if(qty>0 && hargaBeliMasuk>0){ hppBaru = sebelum <=0 ? hargaBeliMasuk : ((sebelum*hppLama)+(qty*hargaBeliMasuk))/sesudah; }
 
     await (update(products)..where((p)=> p.id.equals(productId))).write(
-      ProductsCompanion(stock: Value(sesudah), buyPrice: Value(hppBaru), rackLocation: newRack!=null? Value(newRack): const Value.absent(), updatedAt: Value(DateTime.now()), isSynced: Value(false))
+      ProductsCompanion(stock: Value(sesudah), buyPrice: Value(hppBaru), lastBuyPrice: qty>0? Value(hargaBeliMasuk): const Value.absent(), rackLocation: newRack!=null? Value(newRack): const Value.absent(), updatedAt: Value(DateTime.now()), isSynced: Value(false))
     );
+    
     await into(stockMutations).insert(StockMutationsCompanion.insert(
-      id: 'MUT-${DateTime.now().microsecondsSinceEpoch}', productId: productId, variantId: Value(variantId),
-      type: type, quantity: qty, stockBefore: Value(sebelum), stockAfter: Value(sesudah),
-      hppBefore: Value(hppLama), hppAfter: Value(hppBaru), hppSnapshot: Value(hppBaru),
-      currentStockSnapshot: Value(sesudah), buyPriceAtThatTime: Value(hargaBeliMasuk),
-      referenceNo: Value(refNo), date: Value(customDate?? DateTime.now()), userId: Value(userId), notes: Value(notes), rackLocation: Value(newRack?? prod.rackLocation),
+      id: 'MUT-${DateTime.now().microsecondsSinceEpoch}', 
+      productId: productId, 
+      type: type, 
+      quantity: qty, 
+      hppBefore: Value(hppLama), 
+      hppAfter: Value(hppBaru), 
+      hppSnapshot: Value(hppBaru),
+      currentStockSnapshot: Value(sesudah), 
+      buyPriceAtThatTime: Value(hargaBeliMasuk),
+      referenceId: Value(refNo),
+      date: Value(customDate?? DateTime.now()), 
+      userId: Value(userId), 
+      notes: Value(notes),
     ));
 
     String actionCCTV = type.toUpperCase();
@@ -74,54 +83,57 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     await into(auditLogs).insert(AuditLogsCompanion.insert(
       id: logId,
       userId: userId,
-      userRole: userId.contains('owner') ? 'owner' : 'salesman',
+      userRole: Value(userId.contains('owner') ? 'owner' : 'salesman'),
       actionType: actionCCTV,
-      description: desc,
+      tblName: Value('products'),
       referenceId: Value(refNo),
+      recordId: Value(productId),
       oldValue: Value(oldVal),
       newValue: Value(newVal),
-      isSynced: const Value(false),
+      description: Value(desc),
     ));
 
     if(hargaJualDipakai != null && type == StockMutationType.penjualan && hargaJualDipakai < hppLama){
       await into(fraudAlerts).insert(FraudAlertsCompanion.insert(
         id: 'ALT-${DateTime.now().microsecondsSinceEpoch}',
         userId: userId,
+        alertType: 'jual_rugi',
+        title: Value('JUAL RUGI ${prod.code}'),
+        description: Value('HPP $hppLama dijual $hargaJualDipakai rugi ${hppLama - hargaJualDipakai} ke $customerName tier $tierHarga ref $refNo'),
+        detailAnalysis: Value('HPP $hppLama dijual $hargaJualDipakai rugi ${hppLama - hargaJualDipakai} ke $customerName tier $tierHarga ref $refNo'),
+        fraudCategory: Value(FraudCategory.jualRugi),
+        severity: Value(FraudSeverity.merah),
         auditLogId: Value(logId),
-        fraudCategory: FraudCategory.jualRugi,
-        severity: FraudSeverity.merah,
-        title: 'JUAL RUGI ${prod.code}',
-        detailAnalysis: 'HPP $hppLama dijual $hargaJualDipakai rugi ${hppLama - hargaJualDipakai} ke $customerName tier $tierHarga ref $refNo',
-        isSynced: const Value(false),
       ));
     }
     if(tierHarga == 3 && (customerName=='Umum' || customerName==null) && type == StockMutationType.penjualan){
       await into(fraudAlerts).insert(FraudAlertsCompanion.insert(
         id: 'ALT-${DateTime.now().microsecondsSinceEpoch + 1}',
         userId: userId,
+        alertType: 'tier_salah',
+        title: Value('TIER 3 ke UMUM ${prod.code}'),
+        description: Value('Tier 3 untuk langganan besar, dijual ke $customerName ref $refNo'),
+        detailAnalysis: Value('Tier 3 untuk langganan besar, dijual ke $customerName ref $refNo'),
+        fraudCategory: Value(FraudCategory.mainHarga),
+        severity: Value(FraudSeverity.kuning),
         auditLogId: Value(logId),
-        fraudCategory: FraudCategory.mainHarga,
-        severity: FraudSeverity.kuning,
-        title: 'TIER 3 ke UMUM ${prod.code}',
-        detailAnalysis: 'Tier 3 untuk langganan besar, dijual ke $customerName ref $refNo',
-        isSynced: const Value(false),
       ));
     }
     if(type == StockMutationType.opname && qty < -5){
       await into(fraudAlerts).insert(FraudAlertsCompanion.insert(
         id: 'ALT-${DateTime.now().microsecondsSinceEpoch + 2}',
         userId: userId,
+        alertType: 'opname_janggal',
+        title: Value('OPNAME MINUS BESAR ${prod.code}'),
+        description: Value('Selisih minus $qty pcs, stok $sebelum -> $sesudah ref $refNo'),
+        detailAnalysis: Value('Selisih minus $qty pcs, stok $sebelum -> $sesudah ref $refNo'),
+        fraudCategory: Value(FraudCategory.manipulasiTagihan),
+        severity: Value(FraudSeverity.merah),
         auditLogId: Value(logId),
-        fraudCategory: FraudCategory.manipulasiTagihan,
-        severity: FraudSeverity.merah,
-        title: 'OPNAME MINUS BESAR ${prod.code}',
-        detailAnalysis: 'Selisih minus $qty pcs, stok $sebelum -> $sesudah ref $refNo',
-        isSynced: const Value(false),
       ));
     }
   }
 
-  // VERSI DENGAN TRANSACTION - UNTUK DIPANGGIL SENDIRI
   Future<void> catatMasuk({required String productId, required double qtyMasuk, required double hargaBeliPerPcs, required String refNo, required String userId, String? notes}) =>
     transaction(()=> _coreMutation(productId: productId, type: StockMutationType.pembelian, qty: qtyMasuk.abs(), hargaBeliMasuk: hargaBeliPerPcs, refNo: refNo, userId: userId, notes: notes));
   Future<void> catatPenjualan({required String productId, required double qty, required String refNo, required String userId, String? customerName, String? paymentStatus, int? tier, double? hargaJual, double? total}) =>
@@ -138,7 +150,6 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     return transaction(()=> _coreMutation(productId: productId, type: StockMutationType.opname, qty: selisih, hargaBeliMasuk: prod.buyPrice, refNo: refNo, userId: userId, notes: notes, newRack: newRack, customDate: date, skipMinus: true));
   }
 
-  // VERSI DIRECT - TANPA TRANSACTION - DIPAKAI DI local_database.dart ORCHESTRATOR
   Future<void> catatPenjualanDirect({required String productId, required double qty, required String refNo, required String userId, String? customerName, String? paymentStatus, int? tier, double? hargaJual, double? total}) =>
     _coreMutation(productId: productId, type: StockMutationType.penjualan, qty: -qty.abs(), hargaBeliMasuk: 0, refNo: refNo, userId: userId, customerName: customerName, paymentStatus: paymentStatus, tierHarga: tier, hargaJualDipakai: hargaJual, totalTransaksi: total);
 
@@ -162,7 +173,7 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
   Future<void> prosesPerbaikanSaldo(String productId) async {
     final mutasi = await (select(stockMutations)..where((t)=> t.productId.equals(productId))..orderBy([(t)=> OrderingTerm.asc(t.date)])).get();
     double running = 0;
-    for(final m in mutasi){ running += m.quantity; await (update(stockMutations)..where((t)=> t.id.equals(m.id))).write(StockMutationsCompanion(currentStockSnapshot: Value(running), stockAfter: Value(running))); }
+    for(final m in mutasi){ running += m.quantity; await (update(stockMutations)..where((t)=> t.id.equals(m.id))).write(StockMutationsCompanion(currentStockSnapshot: Value(running))); }
     await (update(products)..where((p)=> p.id.equals(productId))).write(ProductsCompanion(stock: Value(running)));
   }
 
@@ -170,7 +181,7 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     final k = keyword==null || keyword.isEmpty? null : '%$keyword%';
     var q = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
     if(mutationTypeFilter!=null && mutationTypeFilter.isNotEmpty) q.where(stockMutations.type.equals(mutationTypeFilter));
-    if(k!=null) q.where(products.name.like(k) | products.code.like(k) | products.barcode.like(k) | stockMutations.referenceNo.like(k));
+    if(k!=null) q.where(products.name.like(k) | (products.code.isNotNull() & products.code.like(k)) | stockMutations.referenceId.like(k));
     q.orderBy([OrderingTerm.desc(stockMutations.date)]);
     return q.watch().map((rows)=> rows.map((r)=> StockCardItemData(r.readTable(stockMutations), r.readTable(products))).toList());
   }
