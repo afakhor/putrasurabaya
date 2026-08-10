@@ -1,3 +1,5 @@
+// lib/core/database/constant/audit_constant.dart - FINAL FIX GABUNG LAMA + BARU TANPA HAPUS
+
 /// Tipe Akses / Aktivitas Sensitif (Audit Trail) + CCTV PER ITEM
 abstract class AuditAction {
   static const String editPrice = 'EDIT_PRICE';
@@ -13,16 +15,24 @@ abstract class AuditAction {
   static const String keluarRusak = 'KELUAR_RUSAK';
   static const String opnamePlus = 'OPNAME_PLUS';
   static const String opnameMinus = 'OPNAME_MINUS_SELISIH';
+  static const String opnameMinusSelisih = 'OPNAME_MINUS_SELISIH';
   static const String jualRugi = 'JUAL_RUGI';
 }
 
 /// Kategori Indikasi Fraud / Kecurangan
 abstract class FraudCategory {
-  static const String mainHarga = 'MAIN_HARGA';
-  static const String tokoFiktif = 'TOKO_FIKTIF';
-  static const String manipulasiTagihan = 'MANIPULASI_TAGIHAN';
-  static const String voidSuspicious = 'VOID_SUSPICIOUS';
-  static const String jualRugi = 'JUAL_RUGI';
+  // VERSI BARU lowercase (dipakai DAO baru)
+  static const String mainHarga = 'main_harga';
+  static const String jualRugi = 'jual_rugi';
+  static const String manipulasiTagihan = 'manipulasi_tagihan';
+  static const String general = 'general';
+  
+  // VERSI LAMA UPPERCASE (biar file lama tetap jalan)
+  static const String MAIN_HARGA = 'MAIN_HARGA';
+  static const String TOKO_FIKTIF = 'TOKO_FIKTIF';
+  static const String MANIPULASI_TAGIHAN = 'MANIPULASI_TAGIHAN';
+  static const String VOID_SUSPICIOUS = 'VOID_SUSPICIOUS';
+  static const String JUAL_RUGI = 'JUAL_RUGI';
 }
 
 /// Level Bahaya Indikasi Fraud
@@ -30,4 +40,9 @@ abstract class FraudSeverity {
   static const String kuning = 'kuning';
   static const String merah = 'merah';
   static const String hijau = 'hijau';
+  
+  // Alias uppercase biar kompatibel
+  static const String KUNING = 'kuning';
+  static const String MERAH = 'merah';
+  static const String HIJAU = 'hijau';
 }
