@@ -182,13 +182,28 @@ class StockMutationDao extends DatabaseAccessor<LocalDatabase> with _$StockMutat
     await (update(products)..where((p)=> p.id.equals(productId))).write(ProductsCompanion(stock: Value(running)));
   }
 
-  Stream<List<StockCardItemData>> watchAllStockMutations({String? mutationTypeFilter, String? keyword}) {
-    final k = keyword==null || keyword.isEmpty? null : '%$keyword%';
+   Stream<List<StockCardItemData>> watchAllStockMutations({String? mutationTypeFilter, String? keyword}) {
     var q = select(stockMutations).join([innerJoin(products, products.id.equalsExp(stockMutations.productId))]);
-    if(mutationTypeFilter!=null && mutationTypeFilter.isNotEmpty) q.where(stockMutations.type.equals(mutationTypeFilter));
-    if(k!=null) q.where(products.name.like(k) | (products.code.isNotNull() & products.code.like(k)) | stockMutations.referenceId.like(k) | stockMutations.referenceNo.like(k));
+    if (mutationTypeFilter != null && mutationTypeFilter.isNotEmpty) {
+      q.where(stockMutations.type.equals(mutationTypeFilter));
+    }
     q.orderBy([OrderingTerm.desc(stockMutations.date)]);
-    return q.watch().map((rows)=> rows.map((r)=> StockCardItemData(r.readTable(stockMutations), r.readTable(products))).toList());
+    
+    return q.watch().map((rows) {
+      var list = rows.map((r) => StockCardItemData(r.readTable(stockMutations), r.readTable(products))).toList();
+      
+      // Filter keyword di Dart (anti error | drift)
+      if (keyword != null && keyword.isNotEmpty) {
+        final k = keyword.toLowerCase();
+        list = list.where((e) {
+          return e.product.name.toLowerCase().contains(k) ||
+              (e.product.code ?? '').toLowerCase().contains(k) ||
+              (e.mutation.referenceId ?? '').toLowerCase().contains(k) ||
+              (e.mutation.referenceNo ?? '').toLowerCase().contains(k);
+        }).toList();
+      }
+      return list;
+    });
   }
 
   Stream<List<StockCardItemData>> watchKartuStok(String productId) {
