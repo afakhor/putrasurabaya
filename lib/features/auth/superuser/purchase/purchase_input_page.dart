@@ -19,9 +19,9 @@ class _PurchaseInputPageState extends ConsumerState<PurchaseInputPage> {
   DateTime dueDate = DateTime.now().add(const Duration(days: 30));
   final List<PurchaseItemsCompanion> items = [];
   final Map<String, ProductData> productCache = {};
-  String bayarMode = 'TEMPO'; // CASH / TEMPO / DP
+  String bayarMode = 'TEMPO';
   final dpCtrl = TextEditingController(text: '0');
-  File? notaFoto;
+  File? notaFoto; // OPTIONAL
   final fmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
   Future<void> _pickFoto() async {
@@ -37,12 +37,12 @@ class _PurchaseInputPageState extends ConsumerState<PurchaseInputPage> {
     final sisa = bayarMode == 'CASH' ? 0.0 : bayarMode == 'DP' ? (total - dp).clamp(0, double.infinity).toDouble() : total;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Kulak - Invoice Supplier', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold))),
+      appBar: AppBar(title: const Text('Kulak - Invoice Supplier (Foto Opsional)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold))),
       body: ListView(padding: const EdgeInsets.all(12), children: [
-        TextField(controller: invoiceCtrl, decoration: InputDecoration(labelText: 'No. Invoice Supplier * cek ganda', hintText: 'FAK-SUP-001', prefixIcon: const Icon(Icons.receipt), suffixIcon: IconButton(icon: const Icon(Icons.camera_alt), onPressed: _pickFoto), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        TextField(controller: invoiceCtrl, decoration: InputDecoration(labelText: 'No. Invoice Supplier * cek ganda', hintText: 'FAK-SUP-001', prefixIcon: const Icon(Icons.receipt), suffixIcon: IconButton(tooltip: 'Foto nota opsional', icon: const Icon(Icons.camera_alt), onPressed: _pickFoto), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         if (notaFoto != null) Padding(padding: const EdgeInsets.only(top: 8), child: Stack(children: [Image.file(notaFoto!, height: 120), Positioned(right: 0, child: IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => notaFoto = null)))])),
+        if (notaFoto == null) const Padding(padding: EdgeInsets.only(top: 4), child: Text('Foto nota opsional, boleh kosong', style: TextStyle(fontSize: 9, color: Colors.grey))),
         const SizedBox(height: 10),
-        // 2C: supplier autocomplete - FIX watchAllSuppliers tidak ada
         StreamBuilder<List<SupplierData>>(
           stream: db.select(db.suppliers).watch(),
           builder: (c, snap) {
@@ -90,7 +90,26 @@ class _PurchaseInputPageState extends ConsumerState<PurchaseInputPage> {
         return Autocomplete<ProductData>(displayStringForOption: (p) => '${p.code} ${p.name}', optionsBuilder: (t) => t.text.isEmpty ? all.take(10) : all.where((p) => p.name.toLowerCase().contains(t.text.toLowerCase()) || (p.code??'').toLowerCase().contains(t.text.toLowerCase())).take(10), onSelected: (p) { setD(() { sel = p; priceCtrl.text = p.buyPrice.toStringAsFixed(0); }); }, fieldViewBuilder: (c2, ctrl, foc, onSub) => TextField(controller: ctrl, focusNode: foc, decoration: const InputDecoration(labelText: 'Ketik Kode/Nama', prefixIcon: Icon(Icons.search))));
       }),
       Row(children: [Expanded(child: TextField(controller: qtyCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Qty'))), const SizedBox(width: 8), Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Harga Beli')))]),
-    ]), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')), ElevatedButton(onPressed: () { if (sel==null) return; final q = double.tryParse(qtyCtrl.text)??0; final pr = double.tryParse(priceCtrl.text)??0; if (q<=0||pr<=0) return; setState(() { productCache[sel!.id]=sel!; items.add(PurchaseItemsCompanion.insert(id: '${DateTime.now().microsecondsSinceEpoch}_${sel!.id}', purchaseId: drift.Value(invoiceCtrl.text.trim()), productId: drift.Value(sel!.id), quantity: drift.Value(q), buyPrice: drift.Value(pr), conversionFactor: const drift.Value(1), subtotal: drift.Value(q*pr))); }); Navigator.pop(c); }, child: const Text('Tambah'))])));
+    ]), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')), ElevatedButton(onPressed: () { 
+      if (sel==null) return; 
+      final q = double.tryParse(qtyCtrl.text)??0; 
+      final pr = double.tryParse(priceCtrl.text)??0; 
+      if (q<=0||pr<=0) return; 
+      setState(() { 
+        productCache[sel!.id]=sel!; 
+        // FIX TOTAL: purchase_items insert pakai String/double langsung, bukan Value
+        items.add(PurchaseItemsCompanion.insert(
+          id: '${DateTime.now().microsecondsSinceEpoch}_${sel!.id}',
+          purchaseId: invoiceCtrl.text.trim(),
+          productId: sel!.id,
+          quantity: q,
+          buyPrice: pr,
+          conversionFactor: 1,
+          subtotal: q*pr,
+        )); 
+      }); 
+      Navigator.pop(c); 
+    }, child: const Text('Tambah'))])));
   }
 
   Future<void> _simpan(LocalDatabase db, double total, double sisa) async {
@@ -102,21 +121,20 @@ class _PurchaseInputPageState extends ConsumerState<PurchaseInputPage> {
       return;
     }
     try {
-      // FIX: insert tanpa Value untuk required field
       await db.prosesPembelianPenyimpanan(
         dataPembelian: PurchasesCompanion.insert(
           id: id,
           invoiceNo: id,
           supplierId: selectedSupplier!.id,
           totalAmount: total,
-          paidAmount: total - sisa,
-          debtAmount: sisa,
+          paidAmount: drift.Value(total - sisa),
+          debtAmount: drift.Value(sisa),
           dueDate: drift.Value(dueDate),
-          userId: 'owner-01',
+          userId: drift.Value('owner-01'),
           createdAt: drift.Value(orderDate),
           status: drift.Value('completed'),
         ),
-        itemPembelian: items.map((e) => e.copyWith(purchaseId: drift.Value(id))).toList(),
+        itemPembelian: items,
       );
       if (bayarMode == 'DP' && (double.tryParse(dpCtrl.text)??0) >0) {
         final payable = await (db.select(db.payables)..where((t) => t.purchaseId.equals(id))).getSingleOrNull();
@@ -124,7 +142,7 @@ class _PurchaseInputPageState extends ConsumerState<PurchaseInputPage> {
           await db.payablesDao.bayarAngsuranHutang(payableId: payable.id, nominalBayar: double.parse(dpCtrl.text), paymentMethod: 'DP CASH', notes: 'DP awal $id');
         }
       }
-      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sukses $id'))); Navigator.pop(context); }
+      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sukses $id ${notaFoto==null?'(tanpa foto)':'(dengan foto)'}'))); Navigator.pop(context); }
     } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error $e'), backgroundColor: Colors.red)); }
   }
 }
