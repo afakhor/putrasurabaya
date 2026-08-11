@@ -21,9 +21,9 @@ import 'purchase/purchase_list_page.dart';
 import 'purchase/purchase_input_page.dart';
 
 // PIUTANG CUSTOMER - RECEIVABLES BARU INV-XXX-CSTMR
-import 'receivables/pages/receivables_dashboard_page.dart';
-import 'receivables/pages/receivables_input_page.dart';
-import 'receivables/pages/receivables_list_page.dart';
+import 'receivables/receivables_dashboard_page.dart';
+import 'receivables/receivables_input_page.dart';
+import 'receivables/receivables_list_page.dart';
 
 class MasterDataPage extends StatelessWidget {
   const MasterDataPage({super.key});
