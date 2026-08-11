@@ -23,9 +23,16 @@ class Payables extends Table {
 class Receivables extends Table {
   TextColumn get id => text()();
   TextColumn get transactionId => text().nullable()();
+  TextColumn get invoiceNo => text().nullable()(); // FIX BUILD - ini yang error
   TextColumn get customerId => text().nullable()();
+  TextColumn get customerIdRef => text().nullable()(); // FIX
   TextColumn get customerName => text().nullable()();
   TextColumn get salesId => text().nullable()();
+  TextColumn get salesmanId => text().nullable()(); // FIX
+  TextColumn get kenapaNgendap => text().withDefault(const Constant('MACET'))(); // FIX
+  IntColumn get umurNgendap => integer().withDefault(const Constant(0))(); // FIX
+  TextColumn get statusNgendapWarna => text().withDefault(const Constant('HIJAU'))(); // FIX
+  DateTimeColumn get invoiceDate => dateTime().nullable()(); // FIX
   RealColumn get totalAmount => real().withDefault(const Constant(0))();
   RealColumn get paidAmount => real().withDefault(const Constant(0))();
   RealColumn get remainingAmount => real().withDefault(const Constant(0))();
@@ -64,5 +71,7 @@ class Expenses extends Table {
   RealColumn get amount => real()();
   TextColumn get category => text().nullable()();
   DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get notes => text().nullable()(); // FIX
+  TextColumn get userId => text().nullable()(); // FIX
   @override Set<Column> get primaryKey => {id};
 }
