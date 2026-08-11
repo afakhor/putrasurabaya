@@ -55,7 +55,7 @@ class LocalDatabase extends _$LocalDatabase {
   AuditLogDao get fraudAlertDao => auditLogDao;
   ReportDao get reportDaoAlias => reportDao;
 
-  @override int get schemaVersion => 25;
+  @override int get schemaVersion => 26; // NAIK DARI 25 KE 26
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -68,6 +68,7 @@ class LocalDatabase extends _$LocalDatabase {
         canOverridePrice: const Value(true), canGiveDiscount: const Value(true), canVoidTransaction: const Value(true),
         canManageStock: const Value(true), canCreateCustomer: const Value(true), canCollectPayment: const Value(true),
         canProcessReturn: const Value(true), maxDiscountPercent: const Value(100), isSynced: const Value(false),
+        canDeleteTransaction: const Value(true), canEditHpp: const Value(true), canViewProfit: const Value(true), canViewDashboardBos: const Value(true),
       ));
       await categoryDao.seedDefaults();
     },
@@ -94,6 +95,38 @@ class LocalDatabase extends _$LocalDatabase {
         try { await m.addColumn(debtPayments, debtPayments.paymentDate); } catch(_){}
         try { await m.addColumn(debtPayments, debtPayments.paymentMethod); } catch(_){}
       }
+      // === PATCH v26 - RECEIVABLES.md TAMBAHAN BARU ===
+      if (from < 26) {
+        try { await m.addColumn(receivables, receivables.invoiceNo); } catch(_){}
+        try { await m.addColumn(receivables, receivables.salesmanId); } catch(_){}
+        try { await m.addColumn(receivables, receivables.customerIdRef); } catch(_){}
+        try { await m.addColumn(receivables, receivables.kenapaNgendap); } catch(_){}
+        try { await m.addColumn(receivables, receivables.umurNgendap); } catch(_){}
+        try { await m.addColumn(receivables, receivables.statusNgendapWarna); } catch(_){}
+        try { await m.addColumn(receivables, receivables.invoiceDate); } catch(_){}
+        try { await m.addColumn(receivables, receivables.customerName); } catch(_){}
+        try { await m.addColumn(receivables, receivables.salesId); } catch(_){}
+        try { await m.addColumn(receivables, receivables.amount); } catch(_){}
+        try { await m.addColumn(receivables, receivables.remaining); } catch(_){}
+        try { await m.addColumn(customers, customers.blacklistReason); } catch(_){}
+        try { await m.addColumn(customers, customers.blacklistBy); } catch(_){}
+        try { await m.addColumn(customers, customers.blacklistAt); } catch(_){}
+        try { await m.addColumn(customers, customers.kartuDosa); } catch(_){}
+        try { await m.addColumn(auditLogs, auditLogs.ipAddress); } catch(_){}
+        try { await m.addColumn(auditLogs, auditLogs.deviceId); } catch(_){}
+        try { await m.addColumn(fraudAlerts, fraudAlerts.referenceId); } catch(_){}
+        try { await m.addColumn(fraudAlerts, fraudAlerts.lossAmount); } catch(_){}
+        try { await m.addColumn(users, users.waNumber); } catch(_){}
+        try { await m.addColumn(users, users.canDeleteTransaction); } catch(_){}
+        try { await m.addColumn(users, users.canEditHpp); } catch(_){}
+        try { await m.addColumn(users, users.canViewProfit); } catch(_){}
+        try { await m.addColumn(users, users.canViewDashboardBos); } catch(_){}
+        try { await m.addColumn(expenses, expenses.notes); } catch(_){}
+        try { await m.addColumn(expenses, expenses.userId); } catch(_){}
+        try { await m.addColumn(payables, payables.supplierName); } catch(_){}
+        try { await m.addColumn(payables, payables.amount); } catch(_){}
+        try { await m.addColumn(payables, payables.remaining); } catch(_){}
+      }
     },
     beforeOpen: (details) async { await customStatement('PRAGMA foreign_keys = ON;'); },
   );
@@ -102,8 +135,9 @@ class LocalDatabase extends _$LocalDatabase {
     await transaction(() async {
       await into(transactions).insert(dataTransaksi);
       String custName = 'Umum';
-      if(dataTransaksi.customerId.value != null){
-        final c = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
+      String? custId = dataTransaksi.customerId.value;
+      if(custId != null){
+        final c = await (select(customers)..where((t)=> t.id.equals(custId))).getSingleOrNull();
         if(c != null) custName = c.name;
       }
       for (final item in itemTransaksi) {
@@ -120,18 +154,30 @@ class LocalDatabase extends _$LocalDatabase {
           total: item.subtotal.value
         );
       }
-      if (dataTransaksi.remainingDebt.value > 0 && dataTransaksi.customerId.value != null) {
+      if (dataTransaksi.remainingDebt.value > 0 && custId != null) {
+        final now = DateTime.now();
         await into(receivables).insert(ReceivablesCompanion.insert(
           id: 'RC-${dataTransaksi.id.value}',
           transactionId: Value(dataTransaksi.id.value),
-          customerId: Value(dataTransaksi.customerId.value!),
+          invoiceNo: Value(dataTransaksi.invoiceNo.value),
+          customerId: Value(custId),
+          customerIdRef: Value(custId),
+          customerName: Value(custName),
+          salesId: Value(dataTransaksi.salesId.value),
+          salesmanId: Value(dataTransaksi.salesId.value),
           totalAmount: Value(dataTransaksi.grandTotal.value),
+          amount: Value(dataTransaksi.grandTotal.value),
           paidAmount: Value(dataTransaksi.payAmount.value),
           remainingAmount: Value(dataTransaksi.remainingDebt.value),
-          dueDate: Value(DateTime.now().add(const Duration(days: 14))),
-          status: const Value('belum_lunas')
+          remaining: Value(dataTransaksi.remainingDebt.value),
+          dueDate: Value(dataTransaksi.dueDate.value ?? DateTime.now().add(const Duration(days: 14))),
+          invoiceDate: Value(now),
+          status: const Value('belum_lunas'),
+          kenapaNgendap: Value(custName == 'Umum' ? 'MACET' : 'TEMPO'),
+          umurNgendap: const Value(0),
+          statusNgendapWarna: const Value('HIJAU'),
         ));
-        final cust = await (select(customers)..where((t)=> t.id.equals(dataTransaksi.customerId.value!))).getSingleOrNull();
+        final cust = await (select(customers)..where((t)=> t.id.equals(custId))).getSingleOrNull();
         if(cust!=null){
           await (update(customers)..where((t)=> t.id.equals(cust.id))).write(
             CustomersCompanion(sisaHutang: Value(cust.sisaHutang + dataTransaksi.remainingDebt.value), updatedAt: Value(DateTime.now()))
@@ -155,13 +201,17 @@ class LocalDatabase extends _$LocalDatabase {
         );
       }
       if (dataPembelian.debtAmount.value > 0) {
+        final sup = await (select(suppliers)..where((t)=> t.id.equals(dataPembelian.supplierId.value))).getSingleOrNull();
         await into(payables).insert(PayablesCompanion.insert(
           id: 'PY-${dataPembelian.id.value}',
           purchaseId: Value(dataPembelian.id.value),
           supplierId: Value(dataPembelian.supplierId.value),
+          supplierName: Value(sup?.name),
           totalAmount: Value(dataPembelian.totalAmount.value),
+          amount: Value(dataPembelian.totalAmount.value),
           paidAmount: Value(dataPembelian.paidAmount.value),
           remainingAmount: Value(dataPembelian.debtAmount.value),
+          remaining: Value(dataPembelian.debtAmount.value),
           dueDate: Value(dataPembelian.dueDate.value?? DateTime.now().add(const Duration(days: 30))),
           status: const Value('belum_lunas')
         ));
@@ -169,11 +219,10 @@ class LocalDatabase extends _$LocalDatabase {
     });
   }
 
-  // FIX ANTI ERROR | : jangan pakai operator | di drift
   Future<void> onPayablePaid({required String invoiceNo, required double amount, required String userId}) async {
     var payable = await (select(payables)..where((t)=> t.purchaseId.equals(invoiceNo))).getSingleOrNull();
     payable ??= await (select(payables)..where((t)=> t.id.equals(invoiceNo))).getSingleOrNull();
-    if(payable==null) throw Exception('Payable $invoiceNo tidak ditemukan - bayar harus pilih InvoiceNo');
+    if(payable==null) throw Exception('Payable $invoiceNo tidak ditemukan');
     await payablesDao.bayarAngsuranHutang(payableId: payable.id, nominalBayar: amount, paymentMethod: 'CASH', notes: 'Bayar via Invoice $invoiceNo by $userId');
   }
 
@@ -182,13 +231,17 @@ class LocalDatabase extends _$LocalDatabase {
       await transaction(() async {
         await into(purchases).insert(dataPembelian.copyWith(status: const Value('in_transit')));
         if (dataPembelian.debtAmount.value > 0) {
+          final sup = await (select(suppliers)..where((t)=> t.id.equals(dataPembelian.supplierId.value))).getSingleOrNull();
           await into(payables).insert(PayablesCompanion.insert(
             id: 'PY-${dataPembelian.id.value}',
             purchaseId: Value(dataPembelian.id.value),
             supplierId: Value(dataPembelian.supplierId.value),
+            supplierName: Value(sup?.name),
             totalAmount: Value(dataPembelian.totalAmount.value),
+            amount: Value(dataPembelian.totalAmount.value),
             paidAmount: Value(dataPembelian.paidAmount.value),
             remainingAmount: Value(dataPembelian.debtAmount.value),
+            remaining: Value(dataPembelian.debtAmount.value),
             dueDate: Value(dataPembelian.dueDate.value?? DateTime.now().add(const Duration(days: 30))),
             status: const Value('belum_lunas')
           ));
