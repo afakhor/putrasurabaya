@@ -12,6 +12,10 @@ import 'stock/opname_stock_page.dart';
 import 'stock/perakitan_page.dart';
 import 'stock/mutasi_stock_page.dart';
 
+// HUTANG SUPPLIER - PAYABLES IPOS
+import 'payables/payables_list_page.dart';
+import 'payables/payables_dashboard_page.dart';
+
 class MasterDataPage extends StatelessWidget {
   const MasterDataPage({super.key});
 
@@ -42,6 +46,30 @@ class MasterDataPage extends StatelessWidget {
               _tile(ctx, Icons.swap_horiz_rounded, Colors.blue.shade700, 'Mutasi Stok + Kartu Stok', 'Buku Besar + Rapor 1 Barang + Kuning/Merah', const MutasiStokPage()),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showHutangMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.all(16),
+          children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            const Text('HUTANG SUPPLIER - ANTI BOCOR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Poppins')),
+            const Text('1 Faktur = 1 Payable = 1 Mutasi + CCTV Analytics', style: TextStyle(fontSize: 11, color: Colors.grey)),
+            const SizedBox(height: 16),
+            _tile(ctx, Icons.dashboard_rounded, Colors.red.shade700, 'Dashboard Hutang', 'Outstanding + Overdue + Aging + Top 5 Supplier', const PayablesDashboardPage()),
+            _tile(ctx, Icons.request_quote_rounded, Colors.orange.shade700, 'Daftar Hutang Supplier', 'Overdue / Due Soon / Belum Jatuh Tempo - Anti Fiktif', const PayablesListPage()),
+            _tile(ctx, Icons.analytics_rounded, Colors.purple.shade700, 'CCTV Hutang (Audit)', 'BAYAR_HUTANG + HUTANG_FIKTIF_DETECT', const PayablesListPage()),
+          ],
         ),
       ),
     );
@@ -91,6 +119,14 @@ class MasterDataPage extends StatelessWidget {
         'page': null,
       },
       {
+        'title': 'HUTANG\nSUPPLIER',
+        'subtitle': 'Dashboard + List',
+        'icon': Icons.request_quote_rounded,
+        'color': Colors.red.shade700,
+        'type': 'hutang',
+        'page': null,
+      },
+      {
         'title': 'Stok Opname',
         'subtitle': 'Fisik vs Program',
         'icon': Icons.rule_rounded,
@@ -119,14 +155,6 @@ class MasterDataPage extends StatelessWidget {
         'subtitle': 'PO & Masuk',
         'icon': Icons.shopping_cart_checkout_rounded,
         'color': Colors.purple.shade700,
-        'type': 'soon',
-        'page': null,
-      },
-      {
-        'title': 'Hutang Piutang',
-        'subtitle': 'Supplier & Customer',
-        'icon': Icons.request_quote_rounded,
-        'color': Colors.red.shade700,
         'type': 'soon',
         'page': null,
       },
@@ -160,10 +188,15 @@ class MasterDataPage extends StatelessWidget {
         itemBuilder: (c, i) {
           final m = menus[i];
           final isPersediaan = m['type'] == 'persediaan';
+          final isHutang = m['type'] == 'hutang';
           return GlassCard(
             onTap: () {
               if (isPersediaan) {
                 _showPersediaanMenu(context);
+                return;
+              }
+              if (isHutang) {
+                _showHutangMenu(context);
                 return;
               }
               final page = m['page'] as Widget?;
@@ -198,6 +231,16 @@ class MasterDataPage extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
                           child: const Text('6', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    if (isHutang)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                          child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
                         ),
                       ),
                   ],
