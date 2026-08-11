@@ -21,7 +21,7 @@ class _PurchaseInputPageState extends ConsumerState<PurchaseInputPage> {
   final Map<String, ProductData> productCache = {};
   String bayarMode = 'TEMPO';
   final dpCtrl = TextEditingController(text: '0');
-  File? notaFoto; // OPTIONAL
+  File? notaFoto; // OPTIONAL - boleh kosong
   final fmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
   Future<void> _pickFoto() async {
@@ -97,14 +97,13 @@ class _PurchaseInputPageState extends ConsumerState<PurchaseInputPage> {
       if (q<=0||pr<=0) return; 
       setState(() { 
         productCache[sel!.id]=sel!; 
-        // FIX TOTAL: purchase_items insert pakai String/double langsung, bukan Value
         items.add(PurchaseItemsCompanion.insert(
           id: '${DateTime.now().microsecondsSinceEpoch}_${sel!.id}',
           purchaseId: invoiceCtrl.text.trim(),
           productId: sel!.id,
           quantity: q,
           buyPrice: pr,
-          conversionFactor: 1,
+          conversionFactor: const drift.Value(1), // FIX: harus Value<double>
           subtotal: q*pr,
         )); 
       }); 
@@ -130,7 +129,7 @@ class _PurchaseInputPageState extends ConsumerState<PurchaseInputPage> {
           paidAmount: drift.Value(total - sisa),
           debtAmount: drift.Value(sisa),
           dueDate: drift.Value(dueDate),
-          userId: drift.Value('owner-01'),
+          userId: 'owner-01', // FIX: String bukan Value
           createdAt: drift.Value(orderDate),
           status: drift.Value('completed'),
         ),
