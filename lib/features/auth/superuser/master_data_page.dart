@@ -16,6 +16,10 @@ import 'stock/mutasi_stock_page.dart';
 import 'payables/payables_list_page.dart';
 import 'payables/payables_dashboard_page.dart';
 
+// PEMBELIAN / KULAK SUPPLIER - BARU
+import 'purchase/purchase_list_page.dart';
+import 'purchase/purchase_input_page.dart';
+
 class MasterDataPage extends StatelessWidget {
   const MasterDataPage({super.key});
 
@@ -68,7 +72,31 @@ class MasterDataPage extends StatelessWidget {
             const SizedBox(height: 16),
             _tile(ctx, Icons.dashboard_rounded, Colors.red.shade700, 'Dashboard Hutang', 'Outstanding + Overdue + Aging + Top 5 Supplier', const PayablesDashboardPage()),
             _tile(ctx, Icons.request_quote_rounded, Colors.orange.shade700, 'Daftar Hutang Supplier', 'Overdue / Due Soon / Belum Jatuh Tempo - Anti Fiktif', const PayablesListPage()),
-            _tile(ctx, Icons.analytics_rounded, Colors.purple.shade700, 'CCTV Hutang (Audit)', 'BAYAR_HUTANG + HUTANG_FIKTIF_DETECT', const PayablesListPage()),
+            _tile(ctx, Icons.analytics_rounded, Colors.purple.shade700, 'CCTV Hutang (Audit)', 'BAYAR_HUTANG + HUTANG_FIKTIF_DETECT', const PayablesDashboardPage()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPembelianMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.all(16),
+          children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            const Text('PEMBELIAN / KULAK SUPPLIER', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Poppins')),
+            const Text('Invoice Supplier + Auto Index + Masuk Hutang Supplier', style: TextStyle(fontSize: 11, color: Colors.grey)),
+            const SizedBox(height: 16),
+            _tile(ctx, Icons.list_alt_rounded, Colors.blue.shade700, 'List Faktur Kulak', 'Cari: No Faktur / Supplier / Tanggal - Auto Index', const PurchaseListPage()),
+            _tile(ctx, Icons.add_shopping_cart_rounded, Colors.green.shade700, 'Input Kulak Baru', 'Invoice Supplier + Supplier + Tanggal + Item', const PurchaseInputPage()),
+            _tile(ctx, Icons.request_quote_rounded, Colors.red.shade700, 'Lihat Hutang Supplier', 'Setelah kulak, hutang auto masuk sini', const PayablesListPage()),
           ],
         ),
       ),
@@ -104,7 +132,7 @@ class MasterDataPage extends StatelessWidget {
       },
       {
         'title': 'POS Kasir',
-        'subtitle': 'Barcode cepat',
+        'subtitle': 'Customer / Piutang',
         'icon': Icons.point_of_sale_rounded,
         'color': const Color(0xFF007F00),
         'type': 'soon',
@@ -152,10 +180,10 @@ class MasterDataPage extends StatelessWidget {
       },
       {
         'title': 'Pembelian',
-        'subtitle': 'PO & Masuk',
+        'subtitle': 'PO & Masuk + Hutang',
         'icon': Icons.shopping_cart_checkout_rounded,
         'color': Colors.purple.shade700,
-        'type': 'soon',
+        'type': 'pembelian',
         'page': null,
       },
       {
@@ -189,23 +217,17 @@ class MasterDataPage extends StatelessWidget {
           final m = menus[i];
           final isPersediaan = m['type'] == 'persediaan';
           final isHutang = m['type'] == 'hutang';
+          final isPembelian = m['type'] == 'pembelian';
           return GlassCard(
             onTap: () {
-              if (isPersediaan) {
-                _showPersediaanMenu(context);
-                return;
-              }
-              if (isHutang) {
-                _showHutangMenu(context);
-                return;
-              }
+              if (isPersediaan) { _showPersediaanMenu(context); return; }
+              if (isHutang) { _showHutangMenu(context); return; }
+              if (isPembelian) { _showPembelianMenu(context); return; }
               final page = m['page'] as Widget?;
               if (page!= null) {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => page));
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${m['title']} - Segera hadir')),
-                );
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${m['title']} - Segera hadir')));
               }
             },
             child: Column(
@@ -224,25 +246,11 @@ class MasterDataPage extends StatelessWidget {
                       child: Icon(m['icon'] as IconData, size: 32, color: m['color'] as Color),
                     ),
                     if (isPersediaan)
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-                          child: const Text('6', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
+                      Positioned(right: -4, top: -4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)), child: const Text('6', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)))),
                     if (isHutang)
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-                          child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
+                      Positioned(right: -4, top: -4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)), child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
+                    if (isPembelian)
+                      Positioned(right: -4, top: -4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(10)), child: const Text('KULAK', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
                   ],
                 ),
                 const SizedBox(height: 12),
