@@ -8,10 +8,10 @@ class AgingChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fmt = NumberFormat.compactCurrency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
-    final a0 = summary['aging_0_30'] as double??? 0;
-    final a31 = summary['aging_31_60'] as double??? 0;
-    final a60 = summary['aging_60plus'] as double??? 0;
-    final total = (a0+a31+a60)==0?1:(a0+a31+a60);
+    final a0 = summary['aging_0_30'] as double? ?? 0;
+    final a31 = summary['aging_31_60'] as double? ?? 0;
+    final a60 = summary['aging_60plus'] as double? ?? 0;
+    final total = (a0+a31+a60)==0 ? 1 : (a0+a31+a60);
 
     Widget bar(String label, double val, Color c){
       final pct = val/total;
