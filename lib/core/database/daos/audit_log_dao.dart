@@ -16,9 +16,12 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
     required String actionType,
     String? tableName,
     String? recordId,
+    String? referenceId,
     String? oldValue,
     String? newValue,
     String? description,
+    String? ipAddress,
+    String? deviceId,
   }) async {
     await into(auditLogs).insert(AuditLogsCompanion.insert(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -27,10 +30,12 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
       actionType: actionType,
       tblName: Value(tableName),
       recordId: Value(recordId),
-      referenceId: Value(recordId),
+      referenceId: Value(referenceId ?? recordId),
       oldValue: Value(oldValue),
       newValue: Value(newValue),
       description: Value(description),
+      ipAddress: Value(ipAddress),
+      deviceId: Value(deviceId),
     ));
   }
 
@@ -44,7 +49,7 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
     String? oldValueJson,
     String? newValueJson,
     String? description,
-  }) => logAction(userId: userId, userRole: userRole, actionType: actionType, tableName: tableName, recordId: recordId ?? referenceId, oldValue: oldValueJson, newValue: newValueJson, description: description);
+  }) => logAction(userId: userId, userRole: userRole, actionType: actionType, tableName: tableName, recordId: recordId ?? referenceId, referenceId: referenceId, oldValue: oldValueJson, newValue: newValueJson, description: description);
 
   Stream<List<AuditLogData>> watchRecentAuditLogs({int limit = 50}) {
     var q = select(auditLogs);
@@ -81,6 +86,8 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
     String fraudCategory = FraudCategory.general,
     String severity = FraudSeverity.kuning,
     String? auditLogId,
+    String? referenceId,
+    double lossAmount = 0,
   }) async {
     await into(fraudAlerts).insert(FraudAlertsCompanion.insert(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -92,11 +99,13 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
       fraudCategory: Value(fraudCategory),
       severity: Value(severity),
       auditLogId: Value(auditLogId),
+      referenceId: Value(referenceId),
+      lossAmount: Value(lossAmount),
     ));
   }
 
-  Future<void> pushFraud({required String userId, required String alertType, required String title, required String description, String category = 'general', String severity = 'kuning', String? auditLogId}) =>
-    createFraudAlert(userId: userId, alertType: alertType, title: title, description: description, detailAnalysis: description, fraudCategory: category, severity: severity, auditLogId: auditLogId);
+  Future<void> pushFraud({required String userId, required String alertType, required String title, required String description, String category = 'general', String severity = 'kuning', String? auditLogId, String? referenceId, double lossAmount = 0}) =>
+    createFraudAlert(userId: userId, alertType: alertType, title: title, description: description, detailAnalysis: description, fraudCategory: category, severity: severity, auditLogId: auditLogId, referenceId: referenceId, lossAmount: lossAmount);
 
   Stream<List<FraudAlertData>> watchActiveFraudAlerts() {
     var q = select(fraudAlerts);
@@ -112,7 +121,6 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
   }
 
   Stream<List<FraudAlertData>> watchAllFraudAlerts() => watchAllAlerts();
-
   Stream<List<AuditLogData>> watchByTable(String tableName) {
     var q = select(auditLogs);
     q.where((t) => t.tblName.equals(tableName));
@@ -120,7 +128,6 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
     q.limit(100);
     return q.watch();
   }
-
   Stream<List<FraudAlertData>> watchMerah() {
     var q = select(fraudAlerts);
     q.where((t) => t.severity.equals('merah'));
@@ -128,24 +135,29 @@ class AuditLogDao extends DatabaseAccessor<LocalDatabase> with _$AuditLogDaoMixi
     q.limit(50);
     return q.watch();
   }
-
   Stream<List<FraudAlertData>> watchAllActive() {
     var q = select(fraudAlerts);
     q.orderBy([(t) => OrderingTerm.desc(t.createdAt)]);
     q.limit(100);
     return q.watch();
   }
-
   Future<List<FraudAlertData>> getAllUnresolved() {
     var q = select(fraudAlerts);
     q.where((t) => t.isResolved.equals(false));
     return q.get();
   }
-
   Future<void> resolveAlert(String id, String ownerUserId) async {
     var q = update(fraudAlerts);
     q.where((t) => t.id.equals(id));
     await q.write(FraudAlertsCompanion(isResolved: const Value(true), resolvedBy: Value(ownerUserId), isRead: const Value(true)));
+  }
+
+  // TAMBAHAN RECEIVABLES.md VI
+  Stream<List<FraudAlertData>> watchSalesmanBiangNgendap() {
+    var q = select(fraudAlerts);
+    q.where((t) => t.fraudCategory.equals('piutang_macat') | t.fraudCategory.equals('jual_rugi'));
+    q.orderBy([(t) => OrderingTerm.desc(t.lossAmount)]);
+    return q.watch();
   }
 }
 
