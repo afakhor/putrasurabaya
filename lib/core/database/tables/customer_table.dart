@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart';
-
 @DataClassName('CustomerData')
 class Customers extends Table {
   TextColumn get id => text()();
@@ -18,13 +17,10 @@ class Customers extends Table {
   RealColumn get sisaHutang => real().withDefault(const Constant(0))();
   TextColumn get notes => text().nullable()();
   TextColumn get status => text().withDefault(const Constant('aktif'))();
-  
-  // TAMBAHAN RECEIVABLES.md V.5 & VIII
-  TextColumn get blacklistReason => text().nullable()(); // alasan blacklist
-  TextColumn get blacklistBy => text().nullable()(); // ownerId
+  TextColumn get blacklistReason => text().nullable()();
+  TextColumn get blacklistBy => text().nullable()();
   DateTimeColumn get blacklistAt => dateTime().nullable()();
-  TextColumn get kartuDosa => text().nullable()(); // JSON: [{tgl, item ngendap, janji bayar, sales}]
-
+  TextColumn get kartuDosa => text().nullable()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
