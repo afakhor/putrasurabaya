@@ -5,6 +5,7 @@ import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/supplier_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/purchase_table.dart';
 import 'package:ud_putra_kasir/core/database/tables/stock_mutation_table.dart';
+import 'package:ud_putra_kasir/core/database/tables/audit_log_table.dart';
 import 'package:ud_putra_kasir/core/database/constant/constant_debt_status.dart';
 
 part 'payables_dao.g.dart';
@@ -15,7 +16,6 @@ class PayableWithSupplier {
   PayableWithSupplier({required this.payable, required this.supplier});
 }
 
-// === IPOS LOGIC TAMBAHAN - TIDAK UBAH CLASS LAMA ===
 enum PayableStatus { lunas, belumJatuhTempo, dueSoon, overdue }
 
 extension PayableX on PayableData {
@@ -35,7 +35,7 @@ extension DateX on DateTime {
   bool isSameDay(DateTime other) => year == other.year && month == other.month && day == other.day;
 }
 
-@DriftAccessor(tables: [Payables, DebtPayments, Suppliers, Purchases, PurchaseItems, StockMutations])
+@DriftAccessor(tables: [Payables, DebtPayments, Suppliers, Purchases, PurchaseItems, StockMutations, AuditLogs, FraudAlerts])
 class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixin {
   PayablesDao(LocalDatabase db) : super(db);
 
@@ -52,11 +52,12 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixi
 
   Stream<List<PayableWithSupplier>> watchActivePayablesWithSupplier() {
     final q = select(payables).join([innerJoin(suppliers, suppliers.id.equalsExp(payables.supplierId))])
-     ..where(payables.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
-     ..orderBy([OrderingTerm.asc(payables.dueDate)]);
+    ..where(payables.status.isNotIn([DebtStatus.paid, DebtStatus.lunas]))
+    ..orderBy([OrderingTerm.asc(payables.dueDate)]);
     return q.watch().map((rows) => rows.map((r) => PayableWithSupplier(payable: r.readTable(payables), supplier: r.readTable(suppliers))).toList());
   }
 
+  // === PATCH ANALYTICS NYAMBUNG CCTV ===
   Future<bool> bayarAngsuranHutang({required String payableId, required double nominalBayar, required String paymentMethod, String? notes}) async {
     if (nominalBayar <= 0) throw Exception('Nominal tidak valid');
     return transaction(() async {
@@ -66,9 +67,13 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixi
       final newPaid = item.paidAmount + actualBayar;
       final newRemaining = item.totalAmount - newPaid;
       final newStatus = DebtStatus.tentukanStatus(newRemaining, actualBayar);
+
+      final oldSisa = item.remainingAmount;
+
       await (update(payables)..where((tbl) => tbl.id.equals(payableId))).write(
         PayablesCompanion(paidAmount: Value(newPaid), remainingAmount: Value(newRemaining < 0? 0 : newRemaining), status: Value(newStatus), isSynced: const Value(false), updatedAt: Value(DateTime.now()))
       );
+
       await into(debtPayments).insert(DebtPaymentsCompanion.insert(
         id: 'PAY-AP-${DateTime.now().millisecondsSinceEpoch}',
         refId: Value(payableId),
@@ -80,6 +85,37 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixi
         isSynced: const Value(false),
         paymentDate: Value(DateTime.now())
       ));
+
+      // === 1 BARIS KUNCI ANALYTICS ===
+      final logId = 'LOG-PAY-${DateTime.now().microsecondsSinceEpoch}';
+      await into(auditLogs).insert(AuditLogsCompanion.insert(
+        id: logId,
+        userId: 'owner-01',
+        userRole: const Value('owner'),
+        actionType: 'BAYAR_HUTANG',
+        tblName: const Value('payables'),
+        referenceId: Value(item.purchaseId?? payableId),
+        recordId: Value(payableId),
+        oldValue: Value('{"purchaseId":"${item.purchaseId}","supplier":"${item.supplierName}","sisa_lama":$oldSisa,"status_lama":"${item.status}"}'),
+        newValue: Value('{"bayar":$actualBayar,"sisa_baru":$newRemaining,"lunas_baru":$newPaid,"method":"$paymentMethod","status_baru":"$newStatus"}'),
+        description: Value('BAYAR HUTANG ${item.purchaseId} Supplier ${item.supplierName} Bayar $actualBayar Sisa $oldSisa -> $newRemaining via $paymentMethod ${notes??""}'),
+      ));
+
+      // Jika overdue >7 hari bayar, masuk fraud kategori telat bayar history
+      if(item.daysOverdue > 7){
+        await into(fraudAlerts).insert(FraudAlertsCompanion.insert(
+          id: 'ALT-PAY-${DateTime.now().microsecondsSinceEpoch}',
+          userId: 'owner-01',
+          alertType: 'bayar_overdue',
+          title: Value('BAYAR OVERDUE ${item.purchaseId}'),
+          description: Value('Hutang ${item.purchaseId} telat ${item.daysOverdue} hari baru dibayar $actualBayar'),
+          detailAnalysis: Value('Hutang ${item.purchaseId} supplier ${item.supplierName} telat ${item.daysOverdue} hari sisa $oldSisa dibayar $actualBayar via $paymentMethod'),
+          fraudCategory: Value('hutang_overdue'),
+          severity: Value('kuning'),
+          auditLogId: Value(logId),
+        ));
+      }
+
       return true;
     });
   }
@@ -87,10 +123,9 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixi
   Stream<List<DebtPaymentData>> watchPaymentHistory(String payableId) =>
     (select(debtPayments)..where((tbl) => tbl.refId.equals(payableId) & tbl.type.equals('payable'))..orderBy([(tbl) => OrderingTerm.desc(tbl.paymentDate)])).watch();
 
-  // ==================== TAMBAHAN IPOS LOGIC - TIDAK UBAH YANG LAMA ====================
   List<PayableData> getUrgentPayables(List<PayableData> all) {
     return all.where((p) => p.remainingAmount > 0).toList()
-     ..sort((a,b) => (a.dueDate??DateTime.now()).compareTo(b.dueDate??DateTime.now()));
+    ..sort((a,b) => (a.dueDate?? DateTime.now()).compareTo(b.dueDate?? DateTime.now()));
   }
 
   Future<Map<String, dynamic>> payableSummary() async {
@@ -124,7 +159,34 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixi
   Future<bool> isPayableFiktif(PayableData p) async {
     final invNo = p.purchaseId?? p.id;
     final mutasi = await (select(stockMutations)..where((m)=> m.referenceNo.equals(invNo) | m.referenceId.equals(invNo))).get();
-    return mutasi.isEmpty;
+    if(mutasi.isEmpty){
+      final logId = 'LOG-FIKTIF-${DateTime.now().microsecondsSinceEpoch}';
+      await into(auditLogs).insert(AuditLogsCompanion.insert(
+        id: logId,
+        userId: 'SYSTEM',
+        userRole: const Value('system'),
+        actionType: 'HUTANG_FIKTIF_DETECT',
+        tblName: const Value('payables'),
+        referenceId: Value(invNo),
+        recordId: Value(p.id),
+        oldValue: Value('{"total":${p.totalAmount}}'),
+        newValue: Value('{"mutasi":0}'),
+        description: Value('DETEKSI HUTANG FIKTIF ${p.purchaseId} supplier ${p.supplierName} Rp ${p.totalAmount} tanpa mutasi pembelian'),
+      ));
+      await into(fraudAlerts).insert(FraudAlertsCompanion.insert(
+        id: 'ALT-FIKTIF-${DateTime.now().microsecondsSinceEpoch}',
+        userId: 'SYSTEM',
+        alertType: 'hutang_fiktif',
+        title: Value('HUTANG FIKTIF ${p.purchaseId}'),
+        description: Value('Payable ${p.id} supplier ${p.supplierName} Rp ${p.totalAmount} tanpa mutasi pembelian ref $invNo'),
+        detailAnalysis: Value('Payable ${p.id} supplier ${p.supplierName} tanpa StockMutations referenceNo $invNo - indikasi nota fiktif'),
+        fraudCategory: Value('hutang_fiktif'),
+        severity: Value('merah'),
+        auditLogId: Value(logId),
+      ));
+      return true;
+    }
+    return false;
   }
 
   Future<List<String>> getLevel1MerahAlerts() async {
