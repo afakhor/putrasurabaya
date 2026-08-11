@@ -16,9 +16,14 @@ import 'stock/mutasi_stock_page.dart';
 import 'payables/payables_list_page.dart';
 import 'payables/payables_dashboard_page.dart';
 
-// PEMBELIAN / KULAK SUPPLIER - BARU
+// PEMBELIAN / KULAK SUPPLIER
 import 'purchase/purchase_list_page.dart';
 import 'purchase/purchase_input_page.dart';
+
+// PIUTANG CUSTOMER - RECEIVABLES BARU INV-XXX-CSTMR
+import '../../receivables/pages/receivables_dashboard_page.dart';
+import '../../receivables/pages/receivables_input_page.dart';
+import '../../receivables/pages/receivables_list_page.dart';
 
 class MasterDataPage extends StatelessWidget {
   const MasterDataPage({super.key});
@@ -103,6 +108,31 @@ class MasterDataPage extends StatelessWidget {
     );
   }
 
+  // === BARU: PIUTANG CUSTOMER ===
+  void _showPiutangMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.all(16),
+          children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            const Text('PIUTANG CUSTOMER - ANTI NGENDOWN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Poppins')),
+            const Text('INV-DDMMYY-IDCSTMR-NAMA-JAM-RAND + CCTV + Aging MERAH', style: TextStyle(fontSize: 11, color: Colors.grey)),
+            const SizedBox(height: 16),
+            _tile(ctx, Icons.dashboard_rounded, Colors.green.shade700, 'Dashboard Piutang Bos', 'Uang Nyangkut + Aging 0-7, 8-30, 31-60, >60 + Top 10 Overdue', const ReceivablesDashboardPage()),
+            _tile(ctx, Icons.add_card_rounded, Colors.blue.shade700, 'Input Piutang Baru', 'Auto INV-XXX-CSTMR + Pilih Kenapa Ngendap', const ReceivablesInputPage()),
+            _tile(ctx, Icons.list_alt_rounded, Colors.orange.shade700, 'Daftar Piutang Aktif', 'Search + JT Hari Ini + Overdue MERAH', const ReceivablesListPage()),
+          ],
+        ),
+      ),
+    );
+  }
+
   static Widget _tile(BuildContext ctx, IconData icon, Color color, String title, String subtitle, Widget page) {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -131,11 +161,11 @@ class MasterDataPage extends StatelessWidget {
         'page': const ProductPage()
       },
       {
-        'title': 'POS Kasir',
-        'subtitle': 'Customer / Piutang',
-        'icon': Icons.point_of_sale_rounded,
-        'color': const Color(0xFF007F00),
-        'type': 'soon',
+        'title': 'PIUTANG\nCUSTOMER',
+        'subtitle': 'INV-XXX + Aging MERAH',
+        'icon': Icons.credit_score_rounded,
+        'color': Colors.green.shade700,
+        'type': 'piutang',
         'page': null,
       },
       {
@@ -218,11 +248,13 @@ class MasterDataPage extends StatelessWidget {
           final isPersediaan = m['type'] == 'persediaan';
           final isHutang = m['type'] == 'hutang';
           final isPembelian = m['type'] == 'pembelian';
+          final isPiutang = m['type'] == 'piutang';
           return GlassCard(
             onTap: () {
               if (isPersediaan) { _showPersediaanMenu(context); return; }
               if (isHutang) { _showHutangMenu(context); return; }
               if (isPembelian) { _showPembelianMenu(context); return; }
+              if (isPiutang) { _showPiutangMenu(context); return; }
               final page = m['page'] as Widget?;
               if (page!= null) {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => page));
@@ -251,6 +283,8 @@ class MasterDataPage extends StatelessWidget {
                       Positioned(right: -4, top: -4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)), child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
                     if (isPembelian)
                       Positioned(right: -4, top: -4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(10)), child: const Text('KULAK', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
+                    if (isPiutang)
+                      Positioned(right: -4, top: -4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(10)), child: const Text('INV', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
                   ],
                 ),
                 const SizedBox(height: 12),
