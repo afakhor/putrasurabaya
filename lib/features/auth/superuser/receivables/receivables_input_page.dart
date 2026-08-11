@@ -4,6 +4,14 @@ import 'package:drift/drift.dart' as drift;
 import 'package:ud_putra_kasir/core/database/local_database.dart';
 import 'invoice_generator.dart';
 
+// === PROVIDER FIX - TARUH DI ATAS ===
+final allCustomersStreamProvider = StreamProvider<List<CustomerData>>((ref) {
+  final db = ref.watch(localDatabaseProvider);
+  return db.customerDao.watchAllCustomers();
+});
+// salesmenStreamProvider sudah ada di user_dao.dart, jangan bikin lagi di sini
+// kita pakai yang dari user_dao
+
 class ReceivablesInputPage extends ConsumerStatefulWidget {
   const ReceivablesInputPage({super.key});
   @override ConsumerState<ReceivablesInputPage> createState() => _ReceivablesInputPageState();
@@ -36,7 +44,7 @@ class _ReceivablesInputPageState extends ConsumerState<ReceivablesInputPage> {
     final total = double.tryParse(_totalCtrl.text) ?? 0;
     final dp = double.tryParse(_dpCtrl.text) ?? 0;
     if (total <=0) return;
-    
+
     final db = ref.read(localDatabaseProvider);
     await db.receivablesDao.catatPiutangBaru(
       transactionId: _autoInvoice,
@@ -57,8 +65,8 @@ class _ReceivablesInputPageState extends ConsumerState<ReceivablesInputPage> {
   @override
   Widget build(BuildContext context) {
     final customersAsync = ref.watch(allCustomersStreamProvider);
-    final salesAsync = ref.watch(salesmenStreamProvider);
-    
+    final salesAsync = ref.watch(salesmenStreamProvider); // dari user_dao.dart
+
     return Scaffold(
       appBar: AppBar(title: const Text('Input Piutang Baru - Anti Ngendown')),
       body: Form(
@@ -66,7 +74,6 @@ class _ReceivablesInputPageState extends ConsumerState<ReceivablesInputPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Auto Invoice Display
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue)),
@@ -80,7 +87,6 @@ class _ReceivablesInputPageState extends ConsumerState<ReceivablesInputPage> {
               ),
             ),
             const SizedBox(height: 16),
-            // Pilih Customer
             customersAsync.when(
               data: (list) => DropdownButtonFormField<CustomerData>(
                 value: _selectedCustomer,
