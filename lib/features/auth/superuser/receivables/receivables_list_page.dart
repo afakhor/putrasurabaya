@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
+import 'receivables_dashboard_page.dart'; // <-- INI KUNCINYA, provider ada di sini
 
 class ReceivablesListPage extends ConsumerWidget {
   const ReceivablesListPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Ambil dari dashboard_page.dart
     final listAsync = ref.watch(activeReceivablesStreamProvider);
 
     return Scaffold(
