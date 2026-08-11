@@ -24,6 +24,8 @@ import 'purchase/purchase_input_page.dart';
 import 'receivables/receivables_dashboard_page.dart';
 import 'receivables/receivables_input_page.dart';
 import 'receivables/receivables_list_page.dart';
+import 'receivables/invoice_generator.dart';
+
 
 class MasterDataPage extends StatelessWidget {
   const MasterDataPage({super.key});
