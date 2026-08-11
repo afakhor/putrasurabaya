@@ -10,31 +10,56 @@ class AppTheme {
   const AppTheme({required this.name, required this.themeData, required this.backgroundBuilder});
 }
 
-// ===== GLASS CARD AMAN ICON =====
+// ===== GLASS CARD ANTI CACAT =====
 class GlassCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets? padding;
   final double radius;
   final VoidCallback? onTap;
   const GlassCard({super.key, required this.child, this.padding, this.radius = 20, this.onTap});
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Warna text yang DIJAMIN kontras
+    final textColor = isDark ? Colors.white : const Color(0xFF1E1E1E);
+    final subTextColor = isDark ? Colors.white70 : const Color(0xFF3A3A3A);
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(radius),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
             padding: padding ?? const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.82),
+              // FIX: Dark lebih solid, Light lebih solid
+              color: isDark 
+                ? const Color(0xFF1E293B).withValues(alpha: 0.55) 
+                : Colors.white.withValues(alpha: 0.88),
               borderRadius: BorderRadius.circular(radius),
-              border: Border.all(color: isDark ? Colors.white.withOpacity(0.15) : Colors.black.withOpacity(0.06)),
+              border: Border.all(
+                color: isDark 
+                  ? Colors.white.withValues(alpha: 0.18) 
+                  : Colors.black.withValues(alpha: 0.07),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-            child: child,
+            child: DefaultTextStyle.merge(
+              style: TextStyle(color: textColor),
+              child: IconTheme(
+                data: IconThemeData(color: textColor),
+                child: child,
+              ),
+            ),
           ),
         ),
       ),
@@ -43,57 +68,122 @@ class GlassCard extends StatelessWidget {
 }
 
 class _AnimatedBlob extends StatefulWidget {
-  final double size; final Color color; final Duration duration;
+  final double size;
+  final Color color;
+  final Duration duration;
   const _AnimatedBlob({required this.size, required this.color, required this.duration});
   @override State<_AnimatedBlob> createState() => _AnimatedBlobState();
 }
+
 class _AnimatedBlobState extends State<_AnimatedBlob> with SingleTickerProviderStateMixin {
   late AnimationController _c;
-  @override void initState(){ super.initState(); _c = AnimationController(vsync: this, duration: widget.duration)..repeat(reverse: true); }
+  @override void initState(){ 
+    super.initState(); 
+    _c = AnimationController(vsync: this, duration: widget.duration)..repeat(reverse: true); 
+  }
   @override void dispose(){ _c.dispose(); super.dispose(); }
   @override Widget build(BuildContext context){
-    return AnimatedBuilder(animation: _c, builder: (_, __) => Transform.scale(
-      scale: 1 + (_c.value * 0.18),
-      child: Container(width: widget.size, height: widget.size, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [widget.color, widget.color.withOpacity(0)]))),
-    ));
+    return AnimatedBuilder(
+      animation: _c, 
+      builder: (_, __) => Transform.scale(
+        scale: 1 + (_c.value * 0.18),
+        child: Container(
+          width: widget.size, height: widget.size, 
+          decoration: BoxDecoration(
+            shape: BoxShape.circle, 
+            gradient: RadialGradient(
+              colors: [widget.color, widget.color.withValues(alpha: 0)],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
 class _BlobData {
-  final double? top, bottom, left, right; final double size; final Color color;
+  final double? top, bottom, left, right; 
+  final double size; 
+  final Color color;
   const _BlobData({this.top, this.bottom, this.left, this.right, required this.size, required this.color});
 }
 
 class _MeshWrapper extends StatelessWidget {
-  final Color baseColor; final List<_BlobData> blobs; final Widget child;
+  final Color baseColor; 
+  final List<_BlobData> blobs; 
+  final Widget child;
   const _MeshWrapper({required this.baseColor, required this.blobs, required this.child});
+  
   @override Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Stack(children: [
       Container(color: baseColor),
-      ...blobs.map((b) => Positioned(top: b.top, bottom: b.bottom, left: b.left, right: b.right, child: _AnimatedBlob(size: b.size, color: b.color, duration: Duration(seconds: 5 + math.Random().nextInt(4))))),
-      Positioned.fill(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 90, sigmaY: 90), child: Container(color: Colors.transparent))),
+      ...blobs.map((b) => Positioned(
+        top: b.top, bottom: b.bottom, left: b.left, right: b.right, 
+        child: _AnimatedBlob(
+          size: b.size, 
+          color: b.color, 
+          // FIX: durasi stabil, tidak random di build
+          duration: Duration(seconds: 6 + (b.size.toInt() % 4)),
+        ),
+      )),
+      // Blur utama
+      Positioned.fill(child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80), 
+        child: Container(color: Colors.transparent),
+      )),
+      // FIX KUNCI ANTI CACAT: Scrim penjamin kontras
+      Positioned.fill(
+        child: Container(
+          color: isDark 
+            ? Colors.black.withValues(alpha: 0.15) 
+            : Colors.white.withValues(alpha: 0.22),
+        ),
+      ),
       child,
     ]);
   }
 }
 
 class AppThemes {
-  // FIX ICON ANEH + GOOGLE FONT - INI KUNCINYA
   static ThemeData _baseTheme(Brightness b) {
+    final isDark = b == Brightness.dark;
     final base = ThemeData(brightness: b, useMaterial3: true);
-    final poppinsText = GoogleFonts.poppinsTextTheme(base.textTheme);
+    // FIX: paksa warna text yang solid, bukan yang bisa jadi transparan
+    final textColor = isDark ? Colors.white : const Color(0xFF1A1C1E);
+    
+    TextTheme textTheme = GoogleFonts.poppinsTextTheme(base.textTheme);
+    textTheme = textTheme.apply(
+      bodyColor: textColor,
+      displayColor: textColor,
+      decorationColor: textColor,
+    );
+
     return base.copyWith(
       scaffoldBackgroundColor: Colors.transparent,
-      textTheme: poppinsText,
-      primaryTextTheme: GoogleFonts.poppinsTextTheme(base.primaryTextTheme),
-      appBarTheme: const AppBarTheme(backgroundColor: Colors.transparent, elevation: 0, scrolledUnderElevation: 0),
-      iconTheme: IconThemeData(color: b == Brightness.dark ? Colors.white : Colors.black87),
-      listTileTheme: ListTileThemeData(iconColor: b == Brightness.dark ? Colors.white : Colors.black87),
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: isDark ? const Color(0xFF7C3AED) : const Color(0xFF00BFA6),
+        brightness: b,
+      ),
+      textTheme: textTheme,
+      primaryTextTheme: textTheme,
+      appBarTheme: AppBarTheme(
+        backgroundColor: Colors.transparent, 
+        elevation: 0, 
+        scrolledUnderElevation: 0,
+        iconTheme: IconThemeData(color: textColor),
+        titleTextStyle: GoogleFonts.poppins(
+          color: textColor, fontSize: 20, fontWeight: FontWeight.w600
+        ),
+      ),
+      iconTheme: IconThemeData(color: textColor),
+      listTileTheme: ListTileThemeData(iconColor: textColor, textColor: textColor),
     );
   }
 
-  static final blendedBright = AppTheme(name: 'Blended Bright Teal', themeData: _baseTheme(Brightness.light), backgroundBuilder: ({required child}) => Stack(children: [ Container(color: const Color(0xFFFFFDF9)), Positioned(top: -100, left: -50, child: _AnimatedBlob(size: 400, color: const Color(0xFFEAD09D).withOpacity(0.9), duration: const Duration(seconds: 6))), Positioned(top: 150, right: -100, child: _AnimatedBlob(size: 450, color: const Color(0xFFB9D7EA).withOpacity(0.9), duration: const Duration(seconds: 8))), Positioned(bottom: -50, left: -100, child: _AnimatedBlob(size: 400, color: const Color(0xFFD6C7E8).withOpacity(0.9), duration: const Duration(seconds: 7))), Positioned.fill(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 70, sigmaY: 70), child: Container(color: Colors.white.withOpacity(0.15)))), SafeArea(child: child), ]));
-  static final goldenGreen = AppTheme(name: 'Golden Hour', themeData: _baseTheme(Brightness.light), backgroundBuilder: ({required child}) => Stack(children: [ Container(color: const Color(0xFFDFB76C)), Positioned(bottom: -50, right: -50, child: _AnimatedBlob(size: 380, color: const Color(0xFF9FA872), duration: const Duration(seconds: 5))), Positioned(top: 40, left: 20, child: _AnimatedBlob(size: 200, color: const Color(0xFFFFF9E6), duration: const Duration(seconds: 4))), Positioned.fill(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60), child: Container(color: Colors.transparent))), SafeArea(child: child), ]));
+  // === SEMUA THEMA KAMU TETAP SAMA, HANYA BUILDER DIPERBAIKI ===
+  static final blendedBright = AppTheme(name: 'Blended Bright Teal', themeData: _baseTheme(Brightness.light), backgroundBuilder: ({required child}) => Stack(children: [ Container(color: const Color(0xFFFFFDF9)), Positioned(top: -100, left: -50, child: _AnimatedBlob(size: 400, color: const Color(0xFFEAD09D).withValues(alpha: 0.9), duration: const Duration(seconds: 6))), Positioned(top: 150, right: -100, child: _AnimatedBlob(size: 450, color: const Color(0xFFB9D7EA).withValues(alpha: 0.9), duration: const Duration(seconds: 8))), Positioned(bottom: -50, left: -100, child: _AnimatedBlob(size: 400, color: const Color(0xFFD6C7E8).withValues(alpha: 0.9), duration: const Duration(seconds: 7))), Positioned.fill(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 70, sigmaY: 70), child: Container(color: Colors.white.withValues(alpha: 0.15)))), SafeArea(child: child), ]));
+  static final goldenGreen = AppTheme(name: 'Golden Hour', themeData: _baseTheme(Brightness.light), backgroundBuilder: ({required child}) => Stack(children: [ Container(color: const Color(0xFFDFB76C)), Positioned(bottom: -50, right: -50, child: _AnimatedBlob(size: 380, color: const Color(0xFF9FA872), duration: const Duration(seconds: 5))), Positioned(top: 40, left: 20, child: _AnimatedBlob(size: 200, color: const Color(0xFFFFF9E6), duration: const Duration(seconds: 4))), Positioned.fill(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60), child: Container(color: Colors.transparent))), Positioned.fill(child: Container(color: Colors.white.withValues(alpha: 0.1))), SafeArea(child: child), ]));
   static final aurora = AppTheme(name: 'Aurora Borealis', themeData: _baseTheme(Brightness.dark), backgroundBuilder: ({required child}) => _MeshWrapper(baseColor: const Color(0xFF0F172A), blobs: const [_BlobData(top: -100, left: -80, size: 500, color: Color(0xFF7C3AED)), _BlobData(top: 100, right: -100, size: 450, color: Color(0xFF06B6D4)), _BlobData(bottom: -80, left: 20, size: 500, color: Color(0xFFEC4899))], child: SafeArea(child: child)));
   static final sunset = AppTheme(name: 'Sunset Sorbet', themeData: _baseTheme(Brightness.light), backgroundBuilder: ({required child}) => _MeshWrapper(baseColor: const Color(0xFFFFF7ED), blobs: const [_BlobData(top: -120, left: -50, size: 450, color: Color(0xFFFF8A65)), _BlobData(top: 200, right: -80, size: 400, color: Color(0xFFFFB74D)), _BlobData(bottom: -100, left: -50, size: 450, color: Color(0xFFF48FB1))], child: SafeArea(child: child)));
   static final midnight = AppTheme(name: 'Midnight Galaxy', themeData: _baseTheme(Brightness.dark), backgroundBuilder: ({required child}) => _MeshWrapper(baseColor: const Color(0xFF020617), blobs: const [_BlobData(top: -100, left: -100, size: 500, color: Color(0xFF1E3A8A)), _BlobData(bottom: -120, right: -80, size: 550, color: Color(0xFF581C87)), _BlobData(top: 300, left: 50, size: 300, color: Color(0xFF0E7490))], child: SafeArea(child: child)));
