@@ -1,4 +1,3 @@
-// lib/core/database/tables/user_table.dart
 import 'package:drift/drift.dart';
 
 @DataClassName('UserData')
@@ -6,11 +5,12 @@ class Users extends Table {
   TextColumn get id => text()();
   TextColumn get username => text().nullable()();
   TextColumn get name => text()();
-  TextColumn get role => text()();
+  TextColumn get role => text()(); // owner, admin, kasir, salesman
   TextColumn get passwordHash => text().nullable()();
   TextColumn get pinCode => text().nullable()();
   TextColumn get apiKey => text().nullable()();
   TextColumn get phone => text().nullable()();
+  TextColumn get waNumber => text().nullable()(); // untuk Auto WA Struk
   TextColumn get salesArea => text().nullable()();
   TextColumn get address => text().nullable()();
   TextColumn get status => text().withDefault(const Constant('aktif'))();
@@ -22,6 +22,12 @@ class Users extends Table {
   BoolColumn get canProcessReturn => boolean().withDefault(const Constant(false))();
   BoolColumn get canVoidTransaction => boolean().withDefault(const Constant(false))();
   BoolColumn get canManageStock => boolean().withDefault(const Constant(false))();
+  // TAMBAHAN KEAMANAN X
+  BoolColumn get canDeleteTransaction => boolean().withDefault(const Constant(false))();
+  BoolColumn get canEditHpp => boolean().withDefault(const Constant(false))();
+  BoolColumn get canViewProfit => boolean().withDefault(const Constant(false))();
+  BoolColumn get canViewDashboardBos => boolean().withDefault(const Constant(false))();
+  
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
