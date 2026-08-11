@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/dao/user_dao.dart'; // <-- TAMBAH INI
 import 'invoice_generator.dart';
 
+// Provider lokal - tidak perlu import user_dao.dart lagi
 final allCustomersStreamProvider = StreamProvider<List<CustomerData>>((ref) {
   final db = ref.watch(localDatabaseProvider);
   return db.customerDao.watchAllCustomers();
+});
+
+final salesmenStreamProviderLocal = StreamProvider<List<UserData>>((ref) {
+  final db = ref.watch(localDatabaseProvider);
+  return db.userDao.watchAllSalesmen();
 });
 
 class ReceivablesInputPage extends ConsumerStatefulWidget {
@@ -43,7 +48,7 @@ class _ReceivablesInputPageState extends ConsumerState<ReceivablesInputPage> {
   @override
   Widget build(BuildContext context) {
     final customersAsync = ref.watch(allCustomersStreamProvider);
-    final salesAsync = ref.watch(salesmenStreamProvider);
+    final salesAsync = ref.watch(salesmenStreamProviderLocal);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Input Piutang Baru')),
