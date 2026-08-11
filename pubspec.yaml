@@ -32,6 +32,9 @@ dependencies:
   share_plus: ^10.0.0     # Untuk mengirim file ke WhatsApp
   shared_preferences: ^2.2.2
   google_fonts: ^6.1.0
+  # TAMBAHAN KUNCI 99% ANTI CRACK
+  flutter_secure_storage: ^9.2.2
+  encrypt: ^5.0.3
 flutter:
   uses-material-design: true
 dev_dependencies:
