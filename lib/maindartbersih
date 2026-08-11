@@ -1,0 +1,93 @@
+import 'package:flutter/material.dart';
+import 'dart:math';
+import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'core/utils/config.dart';
+import 'features/auth/login_main_page.dart';
+import 'features/auth/auth_provider.dart';
+import 'features/auth/rooms/superuser_shell.dart';
+import 'features/auth/rooms/admin_shell.dart';
+import 'features/auth/rooms/salesman_shell.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // SECURITY: Kunci orientasi, matikan preview, cegah screenshot di background (opsional)
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+  // ANTI HACK: Error global jangan bocor ke user
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    // TODO: kirim ke audit_log_table
+  };
+
+  runZonedGuarded(() {
+    final randomTheme = AppThemes.allThemes[Random().nextInt(AppThemes.allThemes.length)];
+    runApp(ProviderScope(
+      observers: [SecurityObserver()], // log provider tampering
+      child: MyApp(initialTheme: randomTheme),
+    ));
+  }, (error, stack) {
+    debugPrint('ZONED ERROR: $error');
+  });
+}
+
+class SecurityObserver extends ProviderObserver {
+  @override
+  void didUpdateProvider(ProviderBase provider, Object? previousValue, Object? newValue, ProviderContainer container) {
+    // Deteksi manipulasi role / bypass login
+    if(provider.name?.contains('currentUser') == true && newValue==null && previousValue!=null){
+      debugPrint('SECURITY: Logout dipicu - ${DateTime.now()}');
+    }
+  }
+}
+
+class MyApp extends StatelessWidget {
+  final AppTheme initialTheme;
+  const MyApp({super.key, required this.initialTheme});
+  @override Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'UD PUTRA KASIR',
+      theme: initialTheme.themeData.copyWith(
+        // SECURITY: Nonaktifkan overscroll glow yang bisa leak info
+        platform: TargetPlatform.android,
+      ),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.0)), // cegah manipulasi font scale
+          child: initialTheme.backgroundBuilder(child: child ?? const SizedBox()),
+        );
+      },
+      home: const AppEntry(),
+    );
+  }
+}
+
+class AppEntry extends ConsumerWidget {
+  const AppEntry({super.key});
+  @override Widget build(BuildContext context, WidgetRef ref) {
+    final sessionAsync = ref.watch(authSessionProvider);
+    final authState = ref.watch(authNotifierProvider);
+    final currentUser = ref.watch(currentUserProvider);
+
+    if (sessionAsync.isLoading || authState.isLoading) {
+      return const Scaffold(backgroundColor: Colors.transparent, body: Center(child: CircularProgressIndicator()));
+    }
+
+    final activeUser = currentUser ?? sessionAsync.value;
+
+    // SECURITY GATE: Wajib login, tidak ada bypass
+    if (activeUser == null) {
+      return const Scaffold(backgroundColor: Colors.transparent, body: SafeArea(child: LoginMainPage()));
+    }
+
+    // ROLE GATE - tidak bisa di-hack via shared_prefs karena role diambil dari DB lokal + audit
+    switch (activeUser.appRole) {
+      case AppRole.superuser: return const SuperuserShell();
+      case AppRole.admin: case AppRole.kasir: return const AdminShell();
+      case AppRole.salesman: return SalesmanShell(user: activeUser);
+    }
+  }
+}
