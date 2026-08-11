@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
 
 class PurchaseInputPage extends ConsumerStatefulWidget {
@@ -12,218 +14,117 @@ class PurchaseInputPage extends ConsumerStatefulWidget {
 
 class _PurchaseInputPageState extends ConsumerState<PurchaseInputPage> {
   final invoiceCtrl = TextEditingController();
-  final keywordCtrl = TextEditingController(); // untuk auto index
   SupplierData? selectedSupplier;
   DateTime orderDate = DateTime.now();
-  DateTime? dueDate;
+  DateTime dueDate = DateTime.now().add(const Duration(days: 30));
   final List<PurchaseItemsCompanion> items = [];
   final Map<String, ProductData> productCache = {};
-  
+  String bayarMode = 'TEMPO'; // CASH / TEMPO / DP
+  final dpCtrl = TextEditingController(text: '0');
+  File? notaFoto;
   final fmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
-  final fmtDate = DateFormat('dd MMM yyyy');
 
-  @override
-  void dispose() {
-    invoiceCtrl.dispose();
-    keywordCtrl.dispose();
-    super.dispose();
+  Future<void> _pickFoto() async {
+    final x = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 50);
+    if (x != null) setState(() => notaFoto = File(x.path));
   }
 
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(localDatabaseProvider);
+    final total = items.fold(0.0, (p, e) => p + (e.buyPrice.value * e.quantity.value));
+    final dp = double.tryParse(dpCtrl.text) ?? 0;
+    final sisa = bayarMode == 'CASH' ? 0.0 : bayarMode == 'DP' ? (total - dp).clamp(0, double.infinity).toDouble() : total;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Kulak Barang - Supplier', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
-      body: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
-          // === HEADER INVOICE SUPPLIER + KEYWORD AUTO INDEX ===
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(children: [
-                // Keyword pencarian faktur (auto complete)
-                TextField(
-                  controller: keywordCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'Cari Faktur / Supplier / Tanggal (Auto Index)',
-                    hintText: 'Ketik INV-xxx, Nama Supplier, atau 12 Agu',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: IconButton(icon: const Icon(Icons.clear), onPressed: () => keywordCtrl.clear()),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onChanged: (v) => setState(() {}),
-                ),
-                const SizedBox(height: 12),
-                // Invoice Asli dari Supplier
-                TextField(
-                  controller: invoiceCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'No. Invoice Supplier * WAJIB',
-                    hintText: 'Contoh: FAK-SUP-2024-001',
-                    prefixIcon: const Icon(Icons.receipt_long),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // Autocomplete Supplier
-                StreamBuilder<List<SupplierData>>(
-                  stream: db.supplierDao.watchAllSuppliers(),
-                  builder: (c, snap) {
-                    final allSup = snap.data ?? [];
-                    // filter by keyword auto index
-                    final filtered = keywordCtrl.text.isEmpty ? allSup : allSup.where((s) => 
-                      s.name.toLowerCase().contains(keywordCtrl.text.toLowerCase()) || 
-                      s.id.toLowerCase().contains(keywordCtrl.text.toLowerCase())
-                    ).toList();
-                    
-                    return Autocomplete<SupplierData>(
-                      displayStringForOption: (s) => s.name,
-                      optionsBuilder: (text) {
-                        if (text.text.isEmpty) return filtered;
-                        return filtered.where((s) => s.name.toLowerCase().contains(text.text.toLowerCase()));
-                      },
-                      onSelected: (s) => setState(() => selectedSupplier = s),
-                      fieldViewBuilder: (ctx, ctrl, focus, onSubmit) {
-                        if (selectedSupplier != null && ctrl.text.isEmpty) {
-                          ctrl.text = selectedSupplier!.name;
-                        }
-                        return TextField(
-                          controller: ctrl,
-                          focusNode: focus,
-                          decoration: InputDecoration(
-                            labelText: 'Supplier *',
-                            prefixIcon: const Icon(Icons.store),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                        );
-                      },
-                      optionsViewBuilder: (ctx, onSel, opts) {
-                        return Align(alignment: Alignment.topLeft, child: Material(elevation: 4, child: SizedBox(width: 300, child: ListView.builder(shrinkWrap: true, itemCount: opts.length, itemBuilder: (_, i) {
-                          final s = opts.elementAt(i);
-                          return ListTile(title: Text(s.name), subtitle: Text(s.id), onTap: () => onSel(s));
-                        }))));
-                      },
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(child: ListTile(dense: true, title: const Text('Tgl Order', style: TextStyle(fontSize: 11)), subtitle: Text(fmtDate.format(orderDate), style: const TextStyle(fontWeight: FontWeight.bold)), onTap: () async {
-                    final d = await showDatePicker(context: context, firstDate: DateTime(2023), lastDate: DateTime(2030), initialDate: orderDate);
-                    if (d != null) setState(() => orderDate = d);
-                  })),
-                  Expanded(child: ListTile(dense: true, title: const Text('Jatuh Tempo', style: TextStyle(fontSize: 11)), subtitle: Text(dueDate == null ? 'Pilih' : fmtDate.format(dueDate!), style: const TextStyle(fontWeight: FontWeight.bold)), onTap: () async {
-                    final d = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: DateTime.now().add(const Duration(days: 30)));
-                    if (d != null) setState(() => dueDate = d);
-                  })),
-                ]),
-              ]),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-          // === LIST BARANG ===
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Item Barang', style: TextStyle(fontWeight: FontWeight.bold)),
-            ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Tambah Barang'), onPressed: () => _showAddBarangDialog(db)),
-          ]),
-          const SizedBox(height: 8),
-          if (items.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(20), child: Center(child: Text('Belum ada barang, tambah dulu')))),
-          ...items.map((it) {
-            final prod = productCache[it.productId.value];
-            return Card(margin: const EdgeInsets.only(bottom: 4), child: ListTile(dense: true, title: Text('${prod?.name ?? it.productId.value} x${it.quantity.value}'), subtitle: Text('Beli ${fmt.format(it.buyPrice.value)} | Sub ${fmt.format(it.buyPrice.value * it.quantity.value)}'), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 18), onPressed: () => setState(() => items.remove(it)))));
-          }),
-
-          const SizedBox(height: 16),
-          // === TOTAL ===
-          Card(color: Colors.grey.shade100, child: Padding(padding: const EdgeInsets.all(12), child: Column(children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Total Kulak:'), Text(fmt.format(items.fold(0.0, (p, e) => p + (e.buyPrice.value * e.quantity.value))), style: const TextStyle(fontWeight: FontWeight.bold))]),
-          ]))),
-
-          const SizedBox(height: 16),
-          SizedBox(width: double.infinity, child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade800, padding: const EdgeInsets.all(14)), icon: const Icon(Icons.save, color: Colors.white), label: const Text('SIMPAN KULAK -> AUTO MASUK HUTANG SUPPLIER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)), onPressed: items.isEmpty || selectedSupplier == null || invoiceCtrl.text.isEmpty ? null : () => _simpanKulak(db))),
-          const SizedBox(height: 80),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Kulak - Invoice Supplier', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold))),
+      body: ListView(padding: const EdgeInsets.all(12), children: [
+        TextField(controller: invoiceCtrl, decoration: InputDecoration(labelText: 'No. Invoice Supplier * cek ganda', hintText: 'FAK-SUP-001', prefixIcon: const Icon(Icons.receipt), suffixIcon: IconButton(icon: const Icon(Icons.camera_alt), onPressed: _pickFoto), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        if (notaFoto != null) Padding(padding: const EdgeInsets.only(top: 8), child: Stack(children: [Image.file(notaFoto!, height: 120), Positioned(right: 0, child: IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => notaFoto = null)))])),
+        const SizedBox(height: 10),
+        // 2C: supplier autocomplete - FIX watchAllSuppliers tidak ada
+        StreamBuilder<List<SupplierData>>(
+          stream: db.select(db.suppliers).watch(),
+          builder: (c, snap) {
+            final all = snap.data ?? [];
+            return Autocomplete<SupplierData>(
+              displayStringForOption: (s) => s.name,
+              optionsBuilder: (t) => t.text.isEmpty ? all : all.where((s) => s.name.toLowerCase().contains(t.text.toLowerCase())),
+              onSelected: (s) => setState(() => selectedSupplier = s),
+              fieldViewBuilder: (ctx, ctrl, focus, onSub) => TextField(controller: ctrl, focusNode: focus, decoration: InputDecoration(labelText: 'Supplier * Auto Complete', prefixIcon: const Icon(Icons.store), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+            );
+          },
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: ListTile(dense: true, title: const Text('Tgl Order', style: TextStyle(fontSize: 10)), subtitle: Text(DateFormat('dd MMM yyyy').format(orderDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)), onTap: () async { final d = await showDatePicker(context: context, firstDate: DateTime(2023), lastDate: DateTime.now(), initialDate: orderDate); if (d != null) setState(() => orderDate = d); })),
+          Expanded(child: ListTile(dense: true, title: const Text('Jatuh Tempo', style: TextStyle(fontSize: 10)), subtitle: Text(DateFormat('dd MMM yyyy').format(dueDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)), onTap: () async { final d = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: dueDate); if (d != null) setState(() => dueDate = d); })),
+        ]),
+        const Divider(),
+        const Text('Mode Bayar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+        Row(children: [ _chip('CASH','Lunas'), _chip('TEMPO','Tempo'), _chip('DP','DP') ]),
+        if (bayarMode == 'DP') TextField(controller: dpCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Nominal DP'), onChanged: (_) => setState(() {})),
+        const SizedBox(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Item', style: TextStyle(fontWeight: FontWeight.bold)), ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Tambah'), onPressed: () => _addBarang(db))]),
+        ...items.map((it) => Card(child: ListTile(dense: true, title: Text('${productCache[it.productId.value]?.name ?? it.productId.value} x${it.quantity.value}', style: const TextStyle(fontSize: 12)), subtitle: Text(fmt.format(it.buyPrice.value * it.quantity.value), style: const TextStyle(fontSize: 10)), trailing: IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), onPressed: () => setState(() => items.remove(it)))))),
+        const SizedBox(height: 12),
+        Card(color: Colors.grey.shade100, child: Padding(padding: const EdgeInsets.all(12), child: Column(children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Total'), Text(fmt.format(total), style: const TextStyle(fontWeight: FontWeight.bold))]),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Sisa Hutang ($bayarMode)'), Text(fmt.format(sisa), style: TextStyle(fontWeight: FontWeight.bold, color: sisa>0?Colors.red:Colors.green))]),
+        ]))),
+        const SizedBox(height: 12),
+        SizedBox(width: double.infinity, child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade800), icon: const Icon(Icons.save, color: Colors.white), label: Text('SIMPAN ${invoiceCtrl.text} -> ${sisa>0?'HUTANG':'LUNAS'}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)), onPressed: items.isEmpty || selectedSupplier == null || invoiceCtrl.text.isEmpty ? null : () => _simpan(db, total, sisa))),
+      ]),
     );
   }
 
-  void _showAddBarangDialog(LocalDatabase db) {
+  Widget _chip(String v, String l) => Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(label: Text(l, style: const TextStyle(fontSize: 11)), selected: bayarMode == v, onSelected: (_) => setState(() => bayarMode = v)));
+
+  void _addBarang(LocalDatabase db) {
     final qtyCtrl = TextEditingController(text: '1');
     final priceCtrl = TextEditingController();
-    ProductData? selectedProd;
-
-    showDialog(context: context, builder: (c) => StatefulBuilder(builder: (ctx, setD) => AlertDialog(
-      title: const Text('Tambah Barang Kulak'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        // Auto Complete Produk
-        StreamBuilder<List<ProductData>>(stream: db.productDao.watchActiveProducts(), builder: (cc, snap) {
-          final allProd = snap.data ?? [];
-          return Autocomplete<ProductData>(
-            displayStringForOption: (p) => '${p.code} - ${p.name}',
-            optionsBuilder: (txt) {
-              if (txt.text.isEmpty) return allProd.take(10);
-              final k = txt.text.toLowerCase();
-              return allProd.where((p) => p.name.toLowerCase().contains(k) || (p.code ?? '').toLowerCase().contains(k)).take(10);
-            },
-            onSelected: (p) { setD(() { selectedProd = p; priceCtrl.text = p.buyPrice.toStringAsFixed(0); }); },
-            fieldViewBuilder: (c2, ctrl, focus, onSub) => TextField(controller: ctrl, focusNode: focus, decoration: const InputDecoration(labelText: 'Ketik Nama / Kode Barang', prefixIcon: Icon(Icons.search))),
-          );
-        }),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: TextField(controller: qtyCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Qty'))),
-          const SizedBox(width: 8),
-          Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Harga Beli'))),
-        ]),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')),
-        ElevatedButton(onPressed: () {
-          if (selectedProd == null) return;
-          final qty = double.tryParse(qtyCtrl.text) ?? 0;
-          final price = double.tryParse(priceCtrl.text) ?? 0;
-          if (qty <=0 || price <=0) return;
-          setState(() {
-            productCache[selectedProd!.id] = selectedProd!;
-            items.add(PurchaseItemsCompanion.insert(productId: drift.Value(selectedProd!.id), quantity: drift.Value(qty), buyPrice: drift.Value(price), conversionFactor: const drift.Value(1), subtotal: drift.Value(qty * price)));
-          });
-          Navigator.pop(c);
-        }, child: const Text('Tambah')),
-      ],
-    )));
+    ProductData? sel;
+    showDialog(context: context, builder: (c) => StatefulBuilder(builder: (ctx, setD) => AlertDialog(title: const Text('Tambah Barang'), content: Column(mainAxisSize: MainAxisSize.min, children: [
+      StreamBuilder<List<ProductData>>(stream: db.productDao.watchActiveProducts(), builder: (cc, snap) {
+        final all = snap.data ?? [];
+        return Autocomplete<ProductData>(displayStringForOption: (p) => '${p.code} ${p.name}', optionsBuilder: (t) => t.text.isEmpty ? all.take(10) : all.where((p) => p.name.toLowerCase().contains(t.text.toLowerCase()) || (p.code??'').toLowerCase().contains(t.text.toLowerCase())).take(10), onSelected: (p) { setD(() { sel = p; priceCtrl.text = p.buyPrice.toStringAsFixed(0); }); }, fieldViewBuilder: (c2, ctrl, foc, onSub) => TextField(controller: ctrl, focusNode: foc, decoration: const InputDecoration(labelText: 'Ketik Kode/Nama', prefixIcon: Icon(Icons.search))));
+      }),
+      Row(children: [Expanded(child: TextField(controller: qtyCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Qty'))), const SizedBox(width: 8), Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Harga Beli')))]),
+    ]), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')), ElevatedButton(onPressed: () { if (sel==null) return; final q = double.tryParse(qtyCtrl.text)??0; final pr = double.tryParse(priceCtrl.text)??0; if (q<=0||pr<=0) return; setState(() { productCache[sel!.id]=sel!; items.add(PurchaseItemsCompanion.insert(id: '${DateTime.now().microsecondsSinceEpoch}_${sel!.id}', purchaseId: drift.Value(invoiceCtrl.text.trim()), productId: drift.Value(sel!.id), quantity: drift.Value(q), buyPrice: drift.Value(pr), conversionFactor: const drift.Value(1), subtotal: drift.Value(q*pr))); }); Navigator.pop(c); }, child: const Text('Tambah'))])));
   }
 
-  Future<void> _simpanKulak(LocalDatabase db) async {
-    final total = items.fold(0.0, (p, e) => p + (e.buyPrice.value * e.quantity.value));
-    final id = invoiceCtrl.text.trim(); // pakai invoice supplier sebagai ID
-    
+  Future<void> _simpan(LocalDatabase db, double total, double sisa) async {
+    final id = invoiceCtrl.text.trim();
+    final dup = await (db.select(db.purchases)..where((t) => t.invoiceNo.equals(id))).getSingleOrNull();
+    if (dup != null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Invoice $id sudah ada - duplikat!'), backgroundColor: Colors.red));
+      return;
+    }
     try {
-      // RULE EMAS: 1 Faktur = 1 Payable = 1 Mutasi
+      // FIX: insert tanpa Value untuk required field
       await db.prosesPembelianPenyimpanan(
         dataPembelian: PurchasesCompanion.insert(
           id: id,
-          invoiceNo: drift.Value(id),
-          supplierId: drift.Value(selectedSupplier!.id),
-          totalAmount: drift.Value(total),
-          paidAmount: const drift.Value(0), // full hutang dulu
-          debtAmount: drift.Value(total),
-          dueDate: drift.Value(dueDate ?? DateTime.now().add(const Duration(days: 30))),
-          userId: drift.Value('owner-01'),
+          invoiceNo: id,
+          supplierId: selectedSupplier!.id,
+          totalAmount: total,
+          paidAmount: total - sisa,
+          debtAmount: sisa,
+          dueDate: drift.Value(dueDate),
+          userId: 'owner-01',
           createdAt: drift.Value(orderDate),
-          status: const drift.Value('completed'),
+          status: drift.Value('completed'),
         ),
         itemPembelian: items.map((e) => e.copyWith(purchaseId: drift.Value(id))).toList(),
       );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kulak $id berhasil! Stok nambah + Hutang masuk Daftar Hutang Supplier Rp ${fmt.format(total)}')));
-        Navigator.pop(context);
+      if (bayarMode == 'DP' && (double.tryParse(dpCtrl.text)??0) >0) {
+        final payable = await (db.select(db.payables)..where((t) => t.purchaseId.equals(id))).getSingleOrNull();
+        if (payable != null) {
+          await db.payablesDao.bayarAngsuranHutang(payableId: payable.id, nominalBayar: double.parse(dpCtrl.text), paymentMethod: 'DP CASH', notes: 'DP awal $id');
+        }
       }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
-    }
+      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sukses $id'))); Navigator.pop(context); }
+    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error $e'), backgroundColor: Colors.red)); }
   }
 }
