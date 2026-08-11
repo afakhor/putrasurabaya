@@ -5,7 +5,8 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:encrypt/encrypt.dart' as enc;
 import 'core/utils/config.dart';
 import 'features/auth/login_main_page.dart';
 import 'features/auth/auth_provider.dart';
@@ -13,39 +14,18 @@ import 'features/auth/rooms/superuser_shell.dart';
 import 'features/auth/rooms/admin_shell.dart';
 import 'features/auth/rooms/salesman_shell.dart';
 
-// ================= INI SAKLAR PATEN MILIKMU =================
-// true = LOCK / KUNCI 48 JAM AKTIF (buat dijual trial)
-// false = UNLOCK / PERMANEN (buat buka punya customer yang sudah bayar)
+// ========= SAKLAR KAMU =========
 const bool PATEN_AKTIF = true; 
 const int BATAS_JAM_TRIAL = 48;
-// =============================================================
+// ================================
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-  };
-
   runZonedGuarded(() {
     final randomTheme = AppThemes.allThemes[Random().nextInt(AppThemes.allThemes.length)];
-    runApp(ProviderScope(
-      observers: [SecurityObserver()],
-      child: MyApp(initialTheme: randomTheme),
-    ));
-  }, (error, stack) {
-    debugPrint('ZONED ERROR: $error');
-  });
-}
-
-class SecurityObserver extends ProviderObserver {
-  @override
-  void didUpdateProvider(ProviderBase provider, Object? previousValue, Object? newValue, ProviderContainer container) {
-    if(provider.name?.contains('currentUser') == true && newValue==null && previousValue!=null){
-      debugPrint('SECURITY: Logout dipicu - ${DateTime.now()}');
-    }
-  }
+    runApp(ProviderScope(child: MyApp(initialTheme: randomTheme)));
+  }, (e,s) => debugPrint('ERR: $e'));
 }
 
 class MyApp extends StatelessWidget {
@@ -56,18 +36,11 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'UD PUTRA KASIR',
       theme: initialTheme.themeData.copyWith(platform: TargetPlatform.android),
-      builder: (context, child) {
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.0)),
-          child: initialTheme.backgroundBuilder(child: child ?? const SizedBox()),
-        );
-      },
-      home: const PatenGate(), // <-- GATE PATEN DISINI
+      home: const PatenGate(),
     );
   }
 }
 
-// ================= LOGIKA PATEN ANTI INSTALL ULANG =================
 class PatenGate extends StatefulWidget {
   const PatenGate({super.key});
   @override State<PatenGate> createState() => _PatenGateState();
@@ -76,88 +49,78 @@ class PatenGate extends StatefulWidget {
 class _PatenGateState extends State<PatenGate> {
   bool loading = true;
   bool isLocked = false;
-  Duration sisa = Duration.zero;
+  final _secure = const FlutterSecureStorage();
 
-  @override
-  void initState() {
-    super.initState();
-    _cekPaten();
+  // ENKRIPSI
+  String _encrypt(String t){
+    final key = enc.Key.fromUtf8('putra_sby_16byte'); // kunci 16 huruf
+    final iv = enc.IV.fromUtf8('kasir_putra_16bt');
+    return enc.Encrypter(enc.AES(key)).encrypt(t, iv: iv).base64;
+  }
+  String _decrypt(String e){
+    final key = enc.Key.fromUtf8('putra_sby_16byte');
+    final iv = enc.IV.fromUtf8('kasir_putra_16bt');
+    return enc.Encrypter(enc.AES(key)).decrypt64(e, iv: iv);
   }
 
   Future<File> _getLockFile() async {
-    // File ini TIDAK ikut terhapus saat uninstall di kebanyakan HP Android
-    // Path: /storage/emulated/0/Documents/.ud_putra_license
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      // simpan di folder induk Documents biar aman
-      final hiddenDir = Directory('/storage/emulated/0/Documents');
-      if(!await hiddenDir.exists()){
-        return File('${dir.path}/.license');
-      }
-      return File('${hiddenDir.path}/.ud_putra_license_v3');
-    } catch(e){
-      final dir = await getTemporaryDirectory();
-      return File('${dir.path}/.license');
-    }
+    return File('/storage/emulated/0/Documents/.sys_data_cache');
   }
 
   Future<void> _cekPaten() async {
-    // JIKA PATEN NON-AKTIF OLEHMU, LANGSUNG LOLOS
-    if (!PATEN_AKTIF) {
-      setState(() { loading = false; isLocked = false; });
-      return;
-    }
+    if (!PATEN_AKTIF) { setState((){loading=false; isLocked=false;}); return; }
 
     final prefs = await SharedPreferences.getInstance();
     final file = await _getLockFile();
     
-    DateTime? firstRun;
-
-    // 1. Cek dari file hidden (paling kuat)
-    if(await file.exists()){
-      try{ firstRun = DateTime.parse(await file.readAsString()); } catch(_){}
+    String? saved = await _secure.read(key: 'sys_core');
+    if(saved == null && await file.exists()){
+      try{ saved = await file.readAsString(); }catch(_){}
     }
-    // 2. Cek dari SharedPrefs (cadangan)
-    if(firstRun == null){
-      final s = prefs.getString('first_run_v3');
-      if(s != null) firstRun = DateTime.tryParse(s);
-    }
+    saved ??= prefs.getString('first_run_v3');
 
-    // 3. Jika belum pernah sama sekali, ini install pertama
-    if(firstRun == null){
-      firstRun = DateTime.now();
-      await prefs.setString('first_run_v3', firstRun.toIso8601String());
-      try{ await file.writeAsString(firstRun.toIso8601String()); } catch(_){}
-    } else {
-      // Sinkronisasi ulang biar kalau user hapus 1, tetap ada cadangan
-      await prefs.setString('first_run_v3', firstRun.toIso8601String());
-      try{ await file.writeAsString(firstRun.toIso8601String()); } catch(_){}
+    if(saved == null){
+      final now = DateTime.now().toIso8601String();
+      final encData = _encrypt(now);
+      await _secure.write(key: 'sys_core', value: encData);
+      await prefs.setString('first_run_v3', encData);
+      try{ await file.create(recursive: true); await file.writeAsString(encData); }catch(_){}
+      setState((){loading=false; isLocked=false;});
+      return;
     }
 
-    final diff = DateTime.now().difference(firstRun);
-    if(diff.inHours >= BATAS_JAM_TRIAL){
-      setState(() { loading = false; isLocked = true; sisa = Duration.zero; });
-    } else {
-      setState(() { loading = false; isLocked = false; sisa = Duration(hours: BATAS_JAM_TRIAL) - diff; });
+    try{
+      final ori = _decrypt(saved);
+      final firstRun = DateTime.parse(ori);
+      final diff = DateTime.now().difference(firstRun);
+      // sinkronisasi ulang
+      await _secure.write(key: 'sys_core', value: saved);
+      await prefs.setString('first_run_v3', saved);
+      try{ await file.writeAsString(saved); }catch(_){}
+
+      if(diff.inHours >= BATAS_JAM_TRIAL){
+        setState((){loading=false; isLocked=true;});
+      } else {
+        setState((){loading=false; isLocked=false;});
+      }
+    } catch(_){
+      // kalau file dirusak hacker, langsung lock
+      setState((){loading=false; isLocked=true;});
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if(loading){
-      return const Scaffold(backgroundColor: Colors.transparent, body: Center(child: CircularProgressIndicator()));
-    }
-    if(isLocked){
-      return _HalamanTerkunci();
-    }
-    // Jika tidak terkunci, baru masuk ke logic login asli kamu
+  @override void initState() { super.initState(); _cekPaten(); }
+
+  @override Widget build(BuildContext context) {
+    if(loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if(isLocked) return const _HalamanTerkunci();
     return const AppEntry();
   }
 }
 
 class _HalamanTerkunci extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
+  const _HalamanTerkunci();
+  @override Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Center(child: Padding(
@@ -167,7 +130,7 @@ class _HalamanTerkunci extends StatelessWidget {
           SizedBox(height: 20),
           Text("APLIKASI TERKUNCI", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
           SizedBox(height: 12),
-          Text("Masa trial $BATAS_JAM_TRIAL jam sudah habis.\nHubungi Developer UD PUTRA untuk aktivasi permanen.\n\nWalau dihapus dan install ulang tetap terkunci.", textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)),
+          Text("Masa trial $BATAS_JAM_TRIAL jam habis.\nHapus install ulang tetap terkunci.", textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)),
           SizedBox(height: 30),
           ElevatedButton(onPressed: (){ SystemNavigator.pop(); }, child: Text("KELUAR")),
         ]),
@@ -175,45 +138,15 @@ class _HalamanTerkunci extends StatelessWidget {
     );
   }
 }
-// ================= END LOGIKA PATEN =================
 
 class AppEntry extends ConsumerWidget {
   const AppEntry({super.key});
   @override Widget build(BuildContext context, WidgetRef ref) {
     final sessionAsync = ref.watch(authSessionProvider);
-    final authState = ref.watch(authNotifierProvider);
     final currentUser = ref.watch(currentUserProvider);
-
-    if (sessionAsync.isLoading || authState.isLoading) {
-      return const Scaffold(backgroundColor: Colors.transparent, body: Center(child: CircularProgressIndicator()));
-    }
-
+    if (sessionAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     final activeUser = currentUser ?? sessionAsync.value;
-
-    if (activeUser == null) {
-      return Scaffold(
-        backgroundColor: Colors.transparent, 
-        body: SafeArea(
-          child: Column(children: [
-            // Tampilkan sisa trial kalau PATEN aktif
-            if(PATEN_AKTIF) FutureBuilder(
-              future: SharedPreferences.getInstance(),
-              builder: (c, snap){
-                if(!snap.hasData) return SizedBox();
-                final s = snap.data!.getString('first_run_v3');
-                if(s==null) return SizedBox();
-                final first = DateTime.tryParse(s);
-                if(first==null) return SizedBox();
-                final sisa = Duration(hours: BATAS_JAM_TRIAL) - DateTime.now().difference(first);
-                return Container(width: double.infinity, color: Colors.orange, padding: EdgeInsets.all(6), child: Text("TRIAL SISA: ${sisa.inHours} JAM ${sisa.inMinutes%60} MENIT", textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)));
-              }
-            ),
-            Expanded(child: LoginMainPage()),
-          ])
-        )
-      );
-    }
-
+    if (activeUser == null) return const Scaffold(body: SafeArea(child: LoginMainPage()));
     switch (activeUser.appRole) {
       case AppRole.superuser: return const SuperuserShell();
       case AppRole.admin: case AppRole.kasir: return const AdminShell();
