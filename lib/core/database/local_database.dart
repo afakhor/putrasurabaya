@@ -98,7 +98,6 @@ class LocalDatabase extends _$LocalDatabase {
     beforeOpen: (details) async { await customStatement('PRAGMA foreign_keys = ON;'); },
   );
 
-  // RULE EMAS: 1 Faktur Beli = 1 Payable = 1 Batch Mutasi via invoiceNo
   Future<void> prosesTransaksiPenyimpanan({required TransactionsCompanion dataTransaksi, required List<TransactionItemsCompanion> itemTransaksi}) async {
     await transaction(() async {
       await into(transactions).insert(dataTransaksi);
@@ -170,19 +169,18 @@ class LocalDatabase extends _$LocalDatabase {
     });
   }
 
-  // RULE EMAS: Tidak boleh bayar global, harus via invoiceNo
+  // FIX ANTI ERROR | : jangan pakai operator | di drift
   Future<void> onPayablePaid({required String invoiceNo, required double amount, required String userId}) async {
-    final payable = await (select(payables)..where((t)=> t.purchaseId.equals(invoiceNo) | t.id.equals(invoiceNo))).getSingleOrNull();
+    var payable = await (select(payables)..where((t)=> t.purchaseId.equals(invoiceNo))).getSingleOrNull();
+    payable ??= await (select(payables)..where((t)=> t.id.equals(invoiceNo))).getSingleOrNull();
     if(payable==null) throw Exception('Payable $invoiceNo tidak ditemukan - bayar harus pilih InvoiceNo');
     await payablesDao.bayarAngsuranHutang(payableId: payable.id, nominalBayar: amount, paymentMethod: 'CASH', notes: 'Bayar via Invoice $invoiceNo by $userId');
   }
 
   Future<void> onPurchaseCreatedFull({required PurchasesCompanion dataPembelian, required List<PurchaseItemsCompanion> items, bool isBarangDiterima = true}) async {
     if(!isBarangDiterima){
-      // markAsStokDalamPerjalanan - logic IPOS
       await transaction(() async {
         await into(purchases).insert(dataPembelian.copyWith(status: const Value('in_transit')));
-        // tidak buat mutasi stok, hanya payable
         if (dataPembelian.debtAmount.value > 0) {
           await into(payables).insert(PayablesCompanion.insert(
             id: 'PY-${dataPembelian.id.value}',
