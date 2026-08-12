@@ -26,6 +26,8 @@ import 'receivables/receivables_input_page.dart';
 import 'receivables/receivables_list_page.dart';
 import 'receivables/invoice_generator.dart';
 
+// LAPORAN HARIAN - BARU BOS
+import 'reports/daily_report_page.dart';
 
 class MasterDataPage extends StatelessWidget {
   const MasterDataPage({super.key});
@@ -110,7 +112,6 @@ class MasterDataPage extends StatelessWidget {
     );
   }
 
-  // === BARU: PIUTANG CUSTOMER ===
   void _showPiutangMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -129,6 +130,31 @@ class MasterDataPage extends StatelessWidget {
             _tile(ctx, Icons.dashboard_rounded, Colors.green.shade700, 'Dashboard Piutang Bos', 'Uang Nyangkut + Aging 0-7, 8-30, 31-60, >60 + Top 10 Overdue', const ReceivablesDashboardPage()),
             _tile(ctx, Icons.add_card_rounded, Colors.blue.shade700, 'Input Piutang Baru', 'Auto INV-XXX-CSTMR + Pilih Kenapa Ngendap', const ReceivablesInputPage()),
             _tile(ctx, Icons.list_alt_rounded, Colors.orange.shade700, 'Daftar Piutang Aktif', 'Search + JT Hari Ini + Overdue MERAH', const ReceivablesListPage()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLaporanMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.all(16),
+          children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            const Text('LAPORAN HARIAN - AUTO SYNC', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Poppins')),
+            const Text('Omset + Laba Rugi + Neraca + Void + Mutasi Stock', style: TextStyle(fontSize: 11, color: Colors.grey)),
+            const SizedBox(height: 16),
+            _tile(ctx, Icons.today_rounded, Colors.indigo.shade700, 'Laporan Harian Lengkap', 'Omset, Laba Rugi, Neraca, Void, Mutasi - Filter Tanggal', const DailyReportPage()),
+            _tile(ctx, Icons.bar_chart_rounded, Colors.green.shade700, 'Laporan Omset', 'Harian / Mingguan / Bulanan + Grafik', const DailyReportPage()),
+            _tile(ctx, Icons.account_balance_wallet_rounded, Colors.purple.shade700, 'Laporan Neraca', 'Aset Lancar + Tetap + Hutang + Modal Auto', const DailyReportPage()),
+            _tile(ctx, Icons.block_rounded, Colors.red.shade700, 'Laporan Void', 'Siapa Nge-Void + Alasan + CCTV', const DailyReportPage()),
           ],
         ),
       ),
@@ -219,11 +245,11 @@ class MasterDataPage extends StatelessWidget {
         'page': null,
       },
       {
-        'title': 'Laporan',
-        'subtitle': 'Laba & Omset',
+        'title': 'LAPORAN\nHARIAN',
+        'subtitle': 'Omset + Laba + Neraca',
         'icon': Icons.analytics_rounded,
         'color': Colors.amber.shade800,
-        'type': 'soon',
+        'type': 'laporan',
         'page': null,
       },
     ];
@@ -251,12 +277,14 @@ class MasterDataPage extends StatelessWidget {
           final isHutang = m['type'] == 'hutang';
           final isPembelian = m['type'] == 'pembelian';
           final isPiutang = m['type'] == 'piutang';
+          final isLaporan = m['type'] == 'laporan';
           return GlassCard(
             onTap: () {
               if (isPersediaan) { _showPersediaanMenu(context); return; }
               if (isHutang) { _showHutangMenu(context); return; }
               if (isPembelian) { _showPembelianMenu(context); return; }
               if (isPiutang) { _showPiutangMenu(context); return; }
+              if (isLaporan) { _showLaporanMenu(context); return; }
               final page = m['page'] as Widget?;
               if (page!= null) {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => page));
@@ -287,6 +315,8 @@ class MasterDataPage extends StatelessWidget {
                       Positioned(right: -4, top: -4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(10)), child: const Text('KULAK', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
                     if (isPiutang)
                       Positioned(right: -4, top: -4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(10)), child: const Text('INV', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
+                    if (isLaporan)
+                      Positioned(right: -4, top: -4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.indigo, borderRadius: BorderRadius.circular(10)), child: const Text('AUTO', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
                   ],
                 ),
                 const SizedBox(height: 12),
