@@ -28,6 +28,7 @@ import 'receivables/receivables_list_page.dart';
 // LAPORAN - AUTO SYNC
 import 'reports/daily_report_page.dart';
 import 'reports/monthly_report_page.dart';
+import 'reports/closing_book_report_page.dart';
 
 class MasterDataPage extends StatelessWidget {
   const MasterDataPage({super.key});
@@ -48,7 +49,7 @@ class MasterDataPage extends StatelessWidget {
             children: [
               Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
-              const Text('PERSEDIAAN - UD PUTRA SBY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Poppins')),
+              const Text('PERSEDIAAN - UD PUTRA SBY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 16),
               _tile(ctx, Icons.inventory_2_rounded, Colors.blue.shade700, 'Master Barang', 'Stok ReadOnly + Min Stock', const MasterBarangPage()),
               _tile(ctx, Icons.download_rounded, Colors.green.shade700, 'Item Masuk', 'Pembelian / Hadiah / Retur', const ItemMasukPage()),
@@ -64,56 +65,44 @@ class MasterDataPage extends StatelessWidget {
   }
 
   void _showHutangMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(16), children: [
-        const Text('HUTANG SUPPLIER - ANTI BOCOR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 16),
-        _tile(ctx, Icons.dashboard_rounded, Colors.red.shade700, 'Dashboard Hutang', 'Outstanding + Overdue + Aging', const PayablesDashboardPage()),
-        _tile(ctx, Icons.request_quote_rounded, Colors.orange.shade700, 'Daftar Hutang Supplier', 'Overdue / Due Soon', const PayablesListPage()),
-      ])),
-    );
+    showModalBottomSheet(context: context, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))), builder: (ctx) => SafeArea(child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(16), children: [
+      const Text('HUTANG SUPPLIER - ANTI BOCOR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 16),
+      _tile(ctx, Icons.dashboard_rounded, Colors.red.shade700, 'Dashboard Hutang', 'Outstanding + Overdue', const PayablesDashboardPage()),
+      _tile(ctx, Icons.request_quote_rounded, Colors.orange.shade700, 'Daftar Hutang', 'Overdue / Due Soon', const PayablesListPage()),
+    ])));
   }
 
   void _showPembelianMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(16), children: [
-        const Text('PEMBELIAN / KULAK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 16),
-        _tile(ctx, Icons.list_alt_rounded, Colors.blue.shade700, 'List Faktur Kulak', 'No Faktur / Supplier', const PurchaseListPage()),
-        _tile(ctx, Icons.add_shopping_cart_rounded, Colors.green.shade700, 'Input Kulak Baru', 'Auto Hutang', const PurchaseInputPage()),
-      ])),
-    );
+    showModalBottomSheet(context: context, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))), builder: (ctx) => SafeArea(child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(16), children: [
+      const Text('PEMBELIAN / KULAK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 16),
+      _tile(ctx, Icons.list_alt_rounded, Colors.blue.shade700, 'List Faktur Kulak', 'No Faktur / Supplier', const PurchaseListPage()),
+      _tile(ctx, Icons.add_shopping_cart_rounded, Colors.green.shade700, 'Input Kulak Baru', 'Auto Hutang', const PurchaseInputPage()),
+    ])));
   }
 
   void _showPiutangMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(16), children: [
-        const Text('PIUTANG CUSTOMER - ANTI NGENDOWN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 16),
-        _tile(ctx, Icons.dashboard_rounded, Colors.green.shade700, 'Dashboard Piutang Bos', 'Uang Nyangkut + Aging', const ReceivablesDashboardPage()),
-        _tile(ctx, Icons.add_card_rounded, Colors.blue.shade700, 'Input Piutang Baru', 'Auto INV-XXX-CSTMR', const ReceivablesInputPage()),
-        _tile(ctx, Icons.list_alt_rounded, Colors.orange.shade700, 'Daftar Piutang Aktif', 'JT Hari Ini + MERAH', const ReceivablesListPage()),
-      ])),
-    );
+    showModalBottomSheet(context: context, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))), builder: (ctx) => SafeArea(child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(16), children: [
+      const Text('PIUTANG CUSTOMER - ANTI NGENDOWN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 16),
+      _tile(ctx, Icons.dashboard_rounded, Colors.green.shade700, 'Dashboard Piutang', 'Uang Nyangkut + Aging', const ReceivablesDashboardPage()),
+      _tile(ctx, Icons.add_card_rounded, Colors.blue.shade700, 'Input Piutang Baru', 'Auto INV-XXX-CSTMR', const ReceivablesInputPage()),
+      _tile(ctx, Icons.list_alt_rounded, Colors.orange.shade700, 'Daftar Piutang Aktif', 'JT Hari Ini + MERAH', const ReceivablesListPage()),
+    ])));
   }
 
   void _showLaporanMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(16), children: [
-        const Text('LAPORAN - AUTO SYNC STOCK & ASET', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const Text('Omset + Laba Rugi + Neraca + Void + Hutang Piutang Stock', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
         const SizedBox(height: 16),
-        _tile(ctx, Icons.today_rounded, Colors.indigo.shade700, 'Laporan Harian Lengkap', 'Omset, Laba Rugi, Neraca, Void, Mutasi - Filter Tanggal', const DailyReportPage()),
-        _tile(ctx, Icons.calendar_month_rounded, Colors.purple.shade700, 'Laporan Bulanan Rekap', 'Rekap Hutang, Piutang, Stock + Filtering + Autocomplete', const MonthlyReportPage()),
-        _tile(ctx, Icons.account_balance_wallet_rounded, Colors.teal.shade700, 'Neraca Auto Sync', 'Aset Lancar + Tetap + Hutang + Modal', const DailyReportPage()),
+        const Text('LAPORAN - AUTO SYNC + TUTUP BUKU', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const Text('Omset + Laba Rugi + Neraca + Hutang Piutang + Stock + Kunci Periode', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        const SizedBox(height: 16),
+        _tile(ctx, Icons.today_rounded, Colors.indigo.shade700, 'Laporan Harian Lengkap', 'Omset, Laba Rugi, Neraca, Void, Mutasi', const DailyReportPage()),
+        _tile(ctx, Icons.calendar_month_rounded, Colors.purple.shade700, 'Laporan Bulanan Rekap', 'Hutang + Piutang + Stock + Filter + Autocomplete', const MonthlyReportPage()),
+        _tile(ctx, Icons.lock_rounded, Colors.black87, 'TUTUP BUKU FINAL BOS', 'Laba Rugi + Neraca Balance + Kunci Periode + Auto Stock Awal', const ClosingBookReportPage()),
         _tile(ctx, Icons.block_rounded, Colors.red.shade700, 'Laporan Void CCTV', 'Siapa Nge-Void + Alasan', const DailyReportPage()),
       ])),
     );
@@ -142,7 +131,7 @@ class MasterDataPage extends StatelessWidget {
       {'title': 'Stok Opname', 'subtitle': 'Fisik vs Program', 'icon': Icons.rule_rounded, 'color': Colors.orange.shade800, 'type': 'page', 'page': const OpnameStockPage()},
       {'title': 'Mutasi & Kartu', 'subtitle': 'Besar + Per Barang', 'icon': Icons.history_edu_rounded, 'color': Colors.indigo, 'type': 'page', 'page': const MutasiStokPage()},
       {'title': 'Pembelian', 'subtitle': 'PO & Masuk', 'icon': Icons.shopping_cart_checkout_rounded, 'color': Colors.purple.shade700, 'type': 'pembelian', 'page': null},
-      {'title': 'LAPORAN\nAUTO SYNC', 'subtitle': 'Harian + Bulanan', 'icon': Icons.analytics_rounded, 'color': Colors.amber.shade800, 'type': 'laporan', 'page': null},
+      {'title': 'LAPORAN &\nTUTUP BUKU', 'subtitle': 'Harian + Bulanan + Kunci', 'icon': Icons.analytics_rounded, 'color': Colors.black87, 'type': 'laporan', 'page': null},
     ];
 
     return Scaffold(
@@ -154,6 +143,7 @@ class MasterDataPage extends StatelessWidget {
         itemCount: menus.length,
         itemBuilder: (c, i) {
           final m = menus[i];
+          final isLaporan = m['type'] == 'laporan';
           return GlassCard(
             onTap: () {
               final type = m['type'] as String;
@@ -166,7 +156,10 @@ class MasterDataPage extends StatelessWidget {
               if (page!= null) Navigator.push(context, MaterialPageRoute(builder: (_) => page));
             },
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: (m['color'] as Color).withOpacity(0.15), shape: BoxShape.circle), child: Icon(m['icon'] as IconData, size: 32, color: m['color'] as Color)),
+              Stack(clipBehavior: Clip.none, children: [
+                Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: (m['color'] as Color).withOpacity(0.15), shape: BoxShape.circle), child: Icon(m['icon'] as IconData, size: 32, color: m['color'] as Color)),
+                if(isLaporan) Positioned(right: -6, top: -6, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(10)), child: const Text('FINAL', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
+              ]),
               const SizedBox(height: 12),
               Text(m['title'] as String, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, height: 1.2)),
               const SizedBox(height: 4),
