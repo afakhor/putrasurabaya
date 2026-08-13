@@ -10,80 +10,67 @@ class ShortcutPage extends ConsumerWidget {
   @override Widget build(BuildContext context, WidgetRef ref) {
     final db = ref.watch(localDatabaseProvider);
     final fmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: ListView(padding: const EdgeInsets.all(12), children: [
-        // HEADER
-        Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(16)), child: Row(children: [const Icon(Icons.bolt, color: Colors.amber, size: 28), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('SHORTCUT BOS - REAL TIME', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)), Text('Dari barang ready sampai lunas, semua auto sync tanpa admin', style: TextStyle(color: Colors.white70, fontSize: 11))]))])),
-
-        const SizedBox(height: 12),
-        // ===== SHORTCUT 1: BARANG READY SAMPAI TERJUAL + PIUTANG =====
-        _sectionTitle('1. PENJUALAN & PIUTANG (Ready -> Terjual -> Lunas)', Colors.green),
-        _shortcutCard(
-          icon: Icons.point_of_sale_rounded, color: Colors.green, title: 'Input Barang Ready Jual Sampai Terjual',
-          desc: 'Tier 1,2,3 + Mutasi harga + Stok real-time',
-          onTap: () => Navigator.pushNamed(context, '/pos'),
-          trailing: StreamBuilder<List<ProductData>>(stream: db.productDao.watchActiveProducts(), builder: (_, s){ final count=s.data?.length??0; return Text('$count SKU Ready', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green)); }),
+      appBar: AppBar(title: const Text('SHORTCUT BOS - REALTIME', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), backgroundColor: Colors.black, foregroundColor: Colors.white),
+      body: ListView(padding: const EdgeInsets.all(10), children: [
+        _header('SHORTCUT 1', 'INPUT INVOICE', Colors.indigo, Icons.receipt_long_rounded),
+        _cardAB(context, color: Colors.indigo,
+          aTitle: 'Opsi Input Invoice Pembelian', aDesc: 'Banyak item + harga kulak + stock realtime + supplier', aIcon: Icons.shopping_cart_rounded, onATap: () => _go(context, '/purchase'),
+          bTitle: 'Opsi Input Invoice Penjualan', bDesc: 'Banyak item + harga jual tier 1,2,3 + stock realtime + customer', bIcon: Icons.point_of_sale_rounded, onBTap: () => _go(context, '/pos'),
+          dataWidget: StreamBuilder<List<ProductData>>(stream: db.productDao.watchActiveProducts(), builder: (_, s){ final prods=s.data??[]; final low=prods.where((e)=> e.stock<=e.minStock).length; return Row(children: [Expanded(child: _miniStat('${prods.length} SKU', 'Ready', Colors.green)), Expanded(child: _miniStat('$low SKU', 'Nipis', Colors.red))]); }),
         ),
-        _shortcutCard(
-          icon: Icons.receipt_long_rounded, color: Colors.orange, title: 'List Invoice Piutang Belum Lunas Sampai Lunas',
-          desc: 'Tunai / Transfer / BG / Cek + Mutasi pembayaran',
-          onTap: () => Navigator.pushNamed(context, '/receivables'),
-          trailing: StreamBuilder<List<ReceivableData>>(stream: db.receivablesDao.watchActiveReceivables().map((list)=> list.map((e)=> e.receivable).toList()), builder: (_, s){ final data=s.data??[]; final total=data.fold<double>(0, (p,e)=> p+e.remainingAmount); return Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text('${data.length} INV', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), Text(fmt.format(total), style: const TextStyle(fontSize: 9, color: Colors.orange))]); }),
+        _header('SHORTCUT 2', 'INPUT PEMBAYARAN', Colors.green, Icons.payments_rounded),
+        _cardAB(context, color: Colors.green,
+          aTitle: 'Opsi Input Pembayaran Hutang', aDesc: 'Tunai / TF / BG / Titipan sampai lunas + log', aIcon: Icons.request_quote_rounded, onATap: () => _go(context, '/payables'),
+          bTitle: 'Opsi Input Pembayaran Piutang', bDesc: 'Tunai / TF / BG / Titipan sampai lunas + log', bIcon: Icons.payments_rounded, onBTap: () => _go(context, '/receivables'),
+          dataWidget: Row(children: [
+            Expanded(child: StreamBuilder<List<PayableData>>(stream: db.payablesDao.watchActivePayables(), builder: (_, s){ final data=s.data??[]; return _miniStat(fmt.format(data.fold<double>(0,(p,e)=>p+e.remainingAmount)), 'Hutang ${data.length}', Colors.red); })),
+            const SizedBox(width: 6),
+            Expanded(child: StreamBuilder<List<ReceivableData>>(stream: (db.select(db.receivables)..where((t)=> t.remainingAmount.isBiggerThanValue(0))).watch(), builder: (_, s){ final data=s.data??[]; return _miniStat(fmt.format(data.fold<double>(0,(p,e)=>p+e.remainingAmount)), 'Piutang ${data.length}', Colors.orange); })),
+          ]),
         ),
-        StreamBuilder<List<dynamic>>(stream: db.receivablesDao.watchOverdueReceivables().map((list)=> list.map((e)=> e.receivable).toList()), builder: (_, s){
-          final overdue=s.data??[];
-          if(overdue.isEmpty) return const SizedBox();
-          return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.shade200)), child: Row(children: [Icon(Icons.warning_rounded, color: Colors.red.shade700, size: 20), const SizedBox(width: 8), Expanded(child: Text('${overdue.length} Piutang OVERDUE ${fmt.format(overdue.fold<double>(0,(p,e)=>p+e.remainingAmount))}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade700))), TextButton(onPressed: ()=> Navigator.pushNamed(context, '/receivables'), child: const Text('Lihat', style: TextStyle(fontSize: 11)))]));
-        }),
-
-        const SizedBox(height: 12),
-        // ===== SHORTCUT 2: BARANG MASUK SAMPAI SIAP JUAL + HUTANG =====
-        _sectionTitle('2. PEMBELIAN & HUTANG (Masuk -> Ready -> Lunas)', Colors.blue),
-        _shortcutCard(
-          icon: Icons.inventory_rounded, color: Colors.blue, title: 'Input Barang Masuk Sampai Siap Jual',
-          desc: 'Harga beli + Rak + Mutasi masuk + HPP auto',
-          onTap: () => Navigator.pushNamed(context, '/purchase'),
-          trailing: FutureBuilder<List<StockMutationData>>(future: (db.select(db.stockMutations)..where((t)=> t.type.equals('masuk') | t.type.equals('pembelian'))..orderBy([(t)=> OrderingTerm.desc(t.date)])..limit(1)).get(), builder: (_, s){ final last=s.data?.isNotEmpty==true? s.data!.first : null; return Text(last==null?'Belum ada': '${DateFormat('dd/MM HH:mm').format(last.date)}', style: const TextStyle(fontSize: 9)); }),
+        _header('SHORTCUT 3', 'MASTER PICKER', Colors.orange, Icons.touch_app_rounded),
+        _cardAB(context, color: Colors.orange,
+          aTitle: 'A - Pilih Customer / Supplier', aDesc: 'Cari + sisa hutang/piutang + umur', aIcon: Icons.people_alt_rounded, onATap: () => _go(context, '/master-data'),
+          bTitle: 'B - Pilih Item / Invoice', bDesc: 'Cari SKU + stock + harga + history', bIcon: Icons.inventory_2_rounded, onBTap: () => _go(context, '/master-data'),
+          dataWidget: Row(children: [
+            Expanded(child: StreamBuilder<List<CustomerData>>(stream: db.customerDao.watchAllCustomers(), builder: (_, s)=> _miniStat('${s.data?.length??0} Cust', 'Customer', Colors.indigo))),
+            const SizedBox(width: 6),
+            Expanded(child: StreamBuilder<List<SupplierData>>(stream: db.supplierDao.watchAllSuppliers(), builder: (_, s)=> _miniStat('${s.data?.length??0} Supp', 'Supplier', Colors.teal))),
+          ]),
         ),
-        _shortcutCard(
-          icon: Icons.request_quote_rounded, color: Colors.red, title: 'List Invoice Kulak Belum Lunas Sampai Lunas',
-          desc: 'Tunai / Transfer / BG + Mutasi hutang ke supplier',
-          onTap: () => Navigator.pushNamed(context, '/payables'),
-          trailing: StreamBuilder<List<PayableData>>(stream: db.payablesDao.watchActivePayables(), builder: (_, s){ final data=s.data??[]; final total=data.fold<double>(0, (p,e)=> p+e.remainingAmount); return Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text('${data.length} Faktur', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), Text(fmt.format(total), style: const TextStyle(fontSize: 9, color: Colors.red))]); }),
+        _header('SHORTCUT 4', 'MUTASI STOCK REALTIME', Colors.blue, Icons.swap_horiz_rounded),
+        _cardAB(context, color: Colors.blue,
+          aTitle: 'A - Stock Masuk / Opname', aDesc: 'Pembelian + retur + opname', aIcon: Icons.arrow_downward_rounded, onATap: () => _go(context, '/stock-in'),
+          bTitle: 'B - Stock Keluar / Jual', bDesc: 'Penjualan + rusak + kartu stock', bIcon: Icons.arrow_upward_rounded, onBTap: () => _go(context, '/stock-out'),
+          dataWidget: FutureBuilder<List<StockMutationData>>(future: (db.select(db.stockMutations)..orderBy([(t)=> OrderingTerm(expression: t.date, mode: OrderingMode.desc)])..limit(3)).get(), builder: (_, s){ final mut=s.data??[]; if(mut.isEmpty) return const Text('Belum ada mutasi', style: TextStyle(fontSize: 9)); return Column(children: mut.map((m)=> Row(children: [Icon(m.quantity>0?Icons.arrow_downward:Icons.arrow_upward, size: 10, color: m.quantity>0?Colors.green:Colors.red), const SizedBox(width: 4), Expanded(child: Text('${m.productId} ${m.type} ${m.quantity}', style: const TextStyle(fontSize: 9)))] )).toList()); }),
         ),
-
-        const SizedBox(height: 12),
-        // ===== SHORTCUT 3: PENTING LAINNYA REALTIME =====
-        _sectionTitle('3. SHORTCUT PENTING LAINNYA (Realtime)', Colors.purple),
-        Row(children: [
-          Expanded(child: _miniCard(icon: Icons.trending_down_rounded, color: Colors.red, title: 'Stock NIPIS', subtitle: 'Auto detect', onTap: ()=> Navigator.pushNamed(context, '/low-stock'), stream: db.productDao.getLowStockProducts().asStream().map((l)=> '${l.length} SKU'))),
-          const SizedBox(width: 8),
-          Expanded(child: _miniCard(icon: Icons.local_fire_department_rounded, color: Colors.orange, title: 'Stock MATI 90 Hari', subtitle: 'Tidak laku', onTap: ()=> Navigator.pushNamed(context, '/dead-stock'), stream: Future.value('Cek').asStream())),
-        ]),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: _miniCard(icon: Icons.people_alt_rounded, color: Colors.indigo, title: 'Top Customer Ngutang', subtitle: 'Paling sering', onTap: ()=> Navigator.pushNamed(context, '/top-debtors'), stream: db.customerDao.watchTopDebtors().map((l)=> '${l.length} Cust'))),
-          const SizedBox(width: 8),
-          Expanded(child: _miniCard(icon: Icons.category_rounded, color: Colors.teal, title: 'Laba Per Kategori', subtitle: 'Auto sync', onTap: ()=> Navigator.pushNamed(context, '/category-profit'), stream: Future.value('Realtime').asStream())),
-        ]),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: _miniCard(icon: Icons.money_off_rounded, color: Colors.pink, title: 'Pengeluaran Hari Ini', subtitle: 'Biaya operasional', onTap: ()=> Navigator.pushNamed(context, '/expenses'), stream: (db.select(db.expenses)..where((t)=> t.date.isBiggerOrEqualValue(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)))).watch().map((l)=> fmt.format(l.fold<double>(0,(p,e)=>p+e.amount))))),
-          const SizedBox(width: 8),
-          Expanded(child: _miniCard(icon: Icons.lock_rounded, color: Colors.black, title: 'Tutup Buku', subtitle: 'Kunci periode', onTap: ()=> Navigator.pushNamed(context, '/closing-book'), stream: Future.value('Siap').asStream())),
-        ]),
-
-        const SizedBox(height: 20),
-        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: isDark? const Color(0xFF1E293B) : Colors.indigo.shade50, borderRadius: BorderRadius.circular(12)), child: const Row(children: [Icon(Icons.info_outline, size: 16), SizedBox(width: 8), Expanded(child: Text('Semua shortcut real-time dari awal (1 Jan 2022) sampai hari ini. Tanpa input admin, auto update dari transaksi jual/beli.', style: TextStyle(fontSize: 10)))])),
+        _header('SHORTCUT 5', 'HARGA & LABA REALTIME', Colors.purple, Icons.trending_up_rounded),
+        _cardAB(context, color: Colors.purple,
+          aTitle: 'A - Pricing Tier 1,2,3', aDesc: 'HPP vs Jual umum vs tier + margin', aIcon: Icons.price_change_rounded, onATap: () => _go(context, '/pricing'),
+          bTitle: 'B - Laba Rugi + Modal', bDesc: 'Omset, HPP, biaya, laba, modal akhir', bIcon: Icons.account_balance_wallet_rounded, onBTap: () => _go(context, '/closing-book'),
+          dataWidget: FutureBuilder<Map<String,dynamic>>(future: db.reportDao.getRealTimeReport(), builder: (_, s){ final d=s.data; if(d==null) return const Text('Loading...', style: TextStyle(fontSize: 9)); return Row(children: [Expanded(child: _miniStat(fmt.format(d['omset']), 'Omset', Colors.green)), Expanded(child: _miniStat(fmt.format(d['labaBersih']), 'Laba', (d['labaBersih'] as double)>=0?Colors.green:Colors.red))]); }),
+        ),
         const SizedBox(height: 80),
       ]),
     );
   }
 
-  Widget _sectionTitle(String t, Color c) => Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Row(children: [Container(width: 4, height: 16, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2))), const SizedBox(width: 8), Text(t, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: c))]));
-  Widget _shortcutCard({required IconData icon, required Color color, required String title, required String desc, required VoidCallback onTap, Widget? trailing}) => Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: color, size: 22)), title: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), subtitle: Text(desc, style: const TextStyle(fontSize: 10)), trailing: trailing ?? const Icon(Icons.chevron_right, size: 18), onTap: onTap));
-  Widget _miniCard({required IconData icon, required Color color, required String title, required String subtitle, required VoidCallback onTap, required Stream<String> stream}) => Card(child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(icon, color: color, size: 18), const SizedBox(width: 6), Expanded(child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)))]), const SizedBox(height: 4), Text(subtitle, style: const TextStyle(fontSize: 9, color: Colors.grey)), const SizedBox(height: 6), StreamBuilder<String>(stream: stream, builder: (_, s)=> Text(s.data??'...', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color))) ]))));
+  void _go(BuildContext context, String route){
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Shortcut $route - Hubungkan ke page Bos'), duration: const Duration(seconds: 1)));
+  }
+
+  Widget _header(String no, String title, Color c, IconData icon) => Container(margin: const EdgeInsets.only(top: 14, bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(12)), child: Row(children: [Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)), child: Icon(icon, color: c, size: 18)), const SizedBox(width: 8), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(no, style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.bold)), Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))])]));
+  Widget _cardAB(BuildContext context, {required Color color, required String aTitle, required String aDesc, required IconData aIcon, required VoidCallback onATap, required String bTitle, required String bDesc, required IconData bIcon, required VoidCallback onBTap, required Widget dataWidget}) {
+    return Card(margin: const EdgeInsets.only(bottom: 12), elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), child: Column(children: [
+      InkWell(onTap: onATap, borderRadius: const BorderRadius.vertical(top: Radius.circular(16)), child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)), child: Icon(aIcon, color: color, size: 20)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(aTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)), Text(aDesc, style: const TextStyle(fontSize: 10, color: Colors.grey)), Container(margin: const EdgeInsets.only(top: 4), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(6)), child: const Text('BANYAK ITEM + HARGA + STOCK REALTIME', style: TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.bold)))]))]))),
+      Divider(height: 1, color: color.withOpacity(0.2)),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Row(children: [Expanded(child: Divider(color: color.withOpacity(0.3))), Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text('===', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 10))), Expanded(child: Divider(color: color.withOpacity(0.3)))])),
+      InkWell(onTap: onBTap, child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)), child: Icon(bIcon, color: color, size: 20)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(bTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)), Text(bDesc, style: const TextStyle(fontSize: 10, color: Colors.grey))]))]))),
+      Divider(height: 1, color: color.withOpacity(0.2)),
+      Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.06), borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(Icons.bolt, size: 12, color: color), const SizedBox(width: 4), Text('DATA A/B REAL TIME', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color))]), const SizedBox(height: 6), dataWidget])),
+    ]));
+  }
+  Widget _miniStat(String v, String l, Color c) => Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: c.withOpacity(0.2))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(v, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: c), maxLines: 1, overflow: TextOverflow.ellipsis), Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey))]));
 }
