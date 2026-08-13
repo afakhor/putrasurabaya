@@ -10,7 +10,7 @@ import '../superuser/manage_users_page.dart';
 import '../superuser/audit_fraud_page.dart';
 import '../superuser/master_data_page.dart';
 import '../superuser/owner_settings_page.dart';
-import '../superuser/shortcut_page.dart'; // GANTI DARI report_page.dart
+import '../superuser/shortcut_page.dart';
 
 class SuperuserShell extends ConsumerStatefulWidget {
   const SuperuserShell({super.key});
@@ -19,12 +19,13 @@ class SuperuserShell extends ConsumerStatefulWidget {
 
 class _SuperuserShellState extends ConsumerState<SuperuserShell> {
   int _index = 0;
-  static const List<Widget> _pages = [
-    DashboardOwnerPage(),
-    ManageUsersPage(),
-    AuditFraudPage(),
-    MasterDataPage(),
-    ShortcutPage(), // GANTI DARI ReportPage()
+  // FIX: pakai final, bukan const, biar tidak error const widget
+  static final List<Widget> _pages = [
+    const DashboardOwnerPage(),
+    const ManageUsersPage(),
+    const AuditFraudPage(),
+    const MasterDataPage(),
+    const ShortcutPage(),
   ];
 
   Future<void> _doLogout() async {
@@ -35,10 +36,10 @@ class _SuperuserShellState extends ConsumerState<SuperuserShell> {
         backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Konfirmasi Logout', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
-        content: Text('Yakin keluar dari superuser? Session akan dihapus.', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontFamily: 'Poppins', fontSize: 13)),
+        content: Text('Yakin keluar dari superuser?', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontFamily: 'Poppins', fontSize: 13)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Batal', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54, fontFamily: 'Poppins'))),
-          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), onPressed: () => Navigator.pop(ctx, true), child: const Text('Logout', style: TextStyle(fontFamily: 'Poppins'))),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white), onPressed: () => Navigator.pop(ctx, true), child: const Text('Logout')),
         ],
       ),
     );
@@ -57,7 +58,7 @@ class _SuperuserShellState extends ConsumerState<SuperuserShell> {
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(64),
         child: ClipRRect(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15), child: AppBar(
-          backgroundColor: surfaceColor.withOpacity(isDark ? 0.65 : 0.78), elevation: 0, scrolledUnderElevation: 0, centerTitle: false,
+          backgroundColor: surfaceColor.withOpacity(isDark ? 0.65 : 0.78), elevation: 0, scrolledUnderElevation: 0,
           title: Row(children: [
             Container(padding: const EdgeInsets.all(7), decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle), child: const Icon(Icons.admin_panel_settings_rounded, color: Colors.white, size: 18)),
             const SizedBox(width: 10),
@@ -77,18 +78,14 @@ class _SuperuserShellState extends ConsumerState<SuperuserShell> {
       bottomNavigationBar: Container(
         margin: const EdgeInsets.all(12),
         child: ClipRRect(borderRadius: BorderRadius.circular(24), child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15), child: Container(
-          decoration: BoxDecoration(color: surfaceColor.withOpacity(isDark ? 0.70 : 0.82), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08), width: 1.2)),
-          child: NavigationBarTheme(data: NavigationBarThemeData(
-            indicatorColor: Colors.black,
-            labelTextStyle: WidgetStateProperty.resolveWith((s){ final sel=s.contains(WidgetState.selected); return TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: sel?FontWeight.bold:FontWeight.w500, color: sel?Colors.white:(isDark?Colors.white54:Colors.black54)); }),
-            iconTheme: WidgetStateProperty.resolveWith((s){ final sel=s.contains(WidgetState.selected); return IconThemeData(size: 22, color: sel?Colors.white:iconColor); }),
-          ), child: NavigationBar(backgroundColor: Colors.transparent, elevation: 0, height: 65, selectedIndex: _index, onDestinationSelected: (i)=> setState(()=> _index=i), destinations: const [
+          decoration: BoxDecoration(color: surfaceColor.withOpacity(isDark ? 0.70 : 0.82), borderRadius: BorderRadius.circular(24)),
+          child: NavigationBar(backgroundColor: Colors.transparent, elevation: 0, height: 65, selectedIndex: _index, onDestinationSelected: (i)=> setState(()=> _index=i), destinations: const [
             NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
             NavigationDestination(icon: Icon(Icons.people_outline_rounded), selectedIcon: Icon(Icons.people_rounded), label: 'Akses'),
             NavigationDestination(icon: Icon(Icons.security_outlined), selectedIcon: Icon(Icons.security_rounded), label: 'Audit'),
             NavigationDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2_rounded), label: 'Master'),
             NavigationDestination(icon: Icon(Icons.bolt_outlined), selectedIcon: Icon(Icons.bolt_rounded), label: 'Shortcut'),
-          ])),
+          ]),
         ))),
       ),
     );
