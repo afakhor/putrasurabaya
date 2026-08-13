@@ -10,8 +10,11 @@ part 'product_dao.g.dart';
 class ProductDao extends DatabaseAccessor<LocalDatabase> with _$ProductDaoMixin {
   ProductDao(LocalDatabase db) : super(db);
 
+  // === UNTUK REPORTS REAL TIME DARI AWAL ===
+  Future<List<ProductData>> getAllProducts() => select(products).get();
+  Stream<List<ProductData>> watchProducts() => select(products).watch();
+
   Stream<List<ProductData>> watchAll() => select(products).watch();
-  // FIX ANTI BLANK: data lama yang status null tetap tampil
   Stream<List<ProductData>> watchActiveProducts() {
     return (select(products)
     ..where((t) => t.statusActive.equals('aktif') | t.statusActive.isNull() | t.statusActive.equals('') )
