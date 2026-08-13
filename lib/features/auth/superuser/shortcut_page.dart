@@ -34,11 +34,12 @@ class ShortcutPage extends ConsumerWidget {
         _cardAB(context, color: Colors.orange,
           aTitle: 'A - Pilih Customer / Supplier', aDesc: 'Cari + sisa hutang/piutang + umur', aIcon: Icons.people_alt_rounded, onATap: () => _go(context, '/master-data'),
           bTitle: 'B - Pilih Item / Invoice', bDesc: 'Cari SKU + stock + harga + history', bIcon: Icons.inventory_2_rounded, onBTap: () => _go(context, '/master-data'),
-          dataWidget: Row(children: [
-            Expanded(child: StreamBuilder<List<CustomerData>>(stream: db.customerDao.watchAllCustomers(), builder: (_, s)=> _miniStat('${s.data?.length??0} Cust', 'Customer', Colors.indigo))),
-            const SizedBox(width: 6),
-            Expanded(child: StreamBuilder<List<SupplierData>>(stream: db.supplierDao.watchAllSuppliers(), builder: (_, s)=> _miniStat('${s.data?.length??0} Supp', 'Supplier', Colors.teal))),
-          ]),
+         
+dataWidget: Row(children: [
+  Expanded(child: StreamBuilder<List<CustomerData>>(stream: (db.select(db.customers)..where((c)=> c.status.equals('aktif'))).watch(), builder: (_, s)=> _miniStat('${s.data?.length??0} Cust', 'Customer', Colors.indigo))),
+  const SizedBox(width: 6),
+  Expanded(child: StreamBuilder<List<SupplierData>>(stream: db.supplierDao.watchAll(), builder: (_, s)=> _miniStat('${s.data?.length??0} Supp', 'Supplier', Colors.teal))),
+]),
         ),
         _header('SHORTCUT 4', 'MUTASI STOCK REALTIME', Colors.blue, Icons.swap_horiz_rounded),
         _cardAB(context, color: Colors.blue,
