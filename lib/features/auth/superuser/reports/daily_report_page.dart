@@ -1,6 +1,8 @@
+import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
+import 'package:ud_putra_kasir/core/database/daos/report_dao.dart';
 import 'package:intl/intl.dart';
 
 final reportDateProvider = StateProvider<DateTimeRange>((ref) {
@@ -13,11 +15,10 @@ final dailyReportProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final range = ref.watch(reportDateProvider);
   final laporan = await db.reportDao.getLaporanLabaRugi(range.start, range.end);
   final daily = await db.reportDao.getDailyOmsetSummary(startDate: range.start, endDate: range.end);
-  final payables = await (db.select(db.payables)..where((t)=> t.createdAt.isBetweenValues(range.start, range.end))).get();
-  final receivables = await (db.select(db.receivables)..where((t)=> t.createdAt.isBetweenValues(range.start, range.end))).get();
-  final products = await db.select(db.products).get();
-  final mutasi = await (db.select(db.stockMutations)..where((t)=> t.date.isBetweenValues(range.start, range.end))..orderBy([(t)=> OrderingTerm.desc(t.date)])..limit(20)).get();
-  return {'laporan': laporan, 'daily': daily, 'payables': payables, 'receivables': receivables, 'products': products, 'mutasi': mutasi};
+  final payables = await (db.select(db.payables)..where((t)=> t.createdAt.isBiggerOrEqualValue(range.start) & t.createdAt.isSmallerOrEqualValue(range.end))).get();
+  final receivables = await (db.select(db.receivables)..where((t)=> t.createdAt.isBiggerOrEqualValue(range.start) & t.createdAt.isSmallerOrEqualValue(range.end))).get();
+  final mutasi = await (db.select(db.stockMutations)..where((t)=> t.date.isBiggerOrEqualValue(range.start) & t.date.isSmallerOrEqualValue(range.end))..orderBy([(t)=> OrderingTerm(expression: t.date, mode: OrderingMode.desc)])..limit(20)).get();
+  return {'laporan': laporan, 'daily': daily, 'payables': payables, 'receivables': receivables, 'mutasi': mutasi};
 });
 
 class DailyReportPage extends ConsumerWidget {
@@ -47,7 +48,7 @@ class DailyReportPage extends ConsumerWidget {
               _row('LABA BERSIH', f.format(laporan.labaBersih), laporan.labaBersih>=0?Colors.green:Colors.red, true),
             ]))),
             Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children:[
-              const Text('Mutasi Stock Real-Time (Pembelian/Penjualan/Opname)', style: TextStyle(fontWeight: FontWeight.bold, fontSize:11)),
+              const Text('Mutasi Stock Real-Time', style: TextStyle(fontWeight: FontWeight.bold, fontSize:11)),
               const Divider(),
               ...(d['mutasi'] as List<StockMutationData>).map((m)=> ListTile(dense:true, leading: Icon(m.type=='masuk'||m.type=='pembelian'?Icons.arrow_downward:Icons.arrow_upward, color: m.quantity>0?Colors.green:Colors.red, size:16), title: Text('${m.productId} | ${m.type}', style: const TextStyle(fontSize:10)), subtitle: Text('${DateFormat('dd/MM HH:mm').format(m.date)} | ${m.referenceNo??""}', style: const TextStyle(fontSize:9)), trailing: Text('${m.quantity>0?"+":""}${m.quantity}', style: TextStyle(fontSize:11, fontWeight: FontWeight.bold, color: m.quantity>0?Colors.green:Colors.red)))),
             ]))),
