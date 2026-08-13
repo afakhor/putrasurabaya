@@ -145,15 +145,6 @@ Future<bool> isPayableFiktif(PayableData p) async {
   return false;
 }
 
-Future<List<String>> getLevel1MerahAlerts() async {
-  final all = await (select(payables)..where((t)=> t.remainingAmount.isBiggerThanValue(0))).get();
-  final alerts=<String>[];
-  for(final p in all){
-    final days = p.dueDate==null? -999 : DateTime.now().difference(p.dueDate!).inDays;
-    if(p.remainingAmount>0 && days>7) alerts.add('HUTANG OVERDUE: ${p.supplierName} - ${p.purchaseId} Telat $days hari');
-  }
-  return alerts;
-}
 } // <-- KURUNG TUTUP CLASS DI SINI
 
 final payablesDaoProvider = Provider<PayablesDao>((ref) => PayablesDao(ref.watch(localDatabaseProvider)));
