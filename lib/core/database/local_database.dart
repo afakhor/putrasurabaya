@@ -11,6 +11,7 @@ import 'tables/supplier_table.dart';
 import 'tables/category_table.dart';
 import 'tables/purchase_table.dart';
 import 'tables/audit_log_table.dart';
+import 'tables/closing_book_table.dart';
 import 'daos/user_dao.dart';
 import 'daos/dashboard_dao.dart';
 import 'daos/category_dao.dart';
@@ -24,9 +25,10 @@ import 'daos/audit_log_dao.dart';
 import 'daos/transaction_dao.dart';
 import 'daos/report_dao.dart';
 import 'daos/shift_dao.dart';
+import 'daos/expense_dao.dart';
 part 'local_database.g.dart';
 
-@DriftDatabase(tables: [Users, ShiftKasir, Categories, Products, ProductAssets, ProductUnits, ProductVariants, Suppliers, StockMutations, Purchases, PurchaseItems, Transactions, TransactionItems, Customers, Payables, Receivables, DebtPayments, Expenses, AuditLogs, FraudAlerts])
+@DriftDatabase(tables: [Users, ShiftKasir, Categories, Products, ProductAssets, ProductUnits, ProductVariants, Suppliers, StockMutations, Purchases, PurchaseItems, Transactions, TransactionItems, Customers, Payables, Receivables, DebtPayments, Expenses, AuditLogs, FraudAlerts, ClosingBooks, CategoryReportSnapshots])
 class LocalDatabase extends _$LocalDatabase {
   LocalDatabase() : super(driftDatabase(name: 'putra_sby_db_v21'));
   late final UserDao userDao = UserDao(this);
@@ -42,8 +44,11 @@ class LocalDatabase extends _$LocalDatabase {
   late final TransactionDao transactionDao = TransactionDao(this);
   late final ReportDao reportDao = ReportDao(this);
   late final ShiftDao shiftDao = ShiftDao(this);
+  late final ExpenseDao expenseDao = ExpenseDao(this);
   AuditLogDao get fraudAlertDao => auditLogDao;
-  @override int get schemaVersion => 26;
+  
+  @override int get schemaVersion => 27;
+  
   @override MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
@@ -51,25 +56,29 @@ class LocalDatabase extends _$LocalDatabase {
       await categoryDao.seedDefaults();
     },
     onUpgrade: (Migrator m, int from, int to) async {
-      // Untuk upgrade dari versi lama, semua kolom baru akan dibuat otomatis via createAll jika belum ada
-      // Jangan addColumn manual di v26 karena sudah ada di definisi table - biar build_runner generate dulu
+      if(from < 27){
+        await m.createTable(closingBooks);
+        await m.createTable(categoryReportSnapshots);
+      }
     },
     beforeOpen: (details) async { await customStatement('PRAGMA foreign_keys = ON;'); },
   );
 
+  // LOGIKA LAMA - TIDAK DIUBAH SAMA SEKALI
   Future<void> prosesTransaksiPenyimpanan({required TransactionsCompanion dataTransaksi, required List<TransactionItemsCompanion> itemTransaksi}) async {
     await transaction(() async {
       await into(transactions).insert(dataTransaksi);
       String custName = 'Umum'; String? custId = dataTransaksi.customerId.value;
-      if(custId != null){ final c = await (select(customers)..where((t)=> t.id.equals(custId))).getSingleOrNull(); if(c != null) custName = c.name; }
+      if(custId!= null){ final c = await (select(customers)..where((t)=> t.id.equals(custId))).getSingleOrNull(); if(c!= null) custName = c.name; }
       for (final item in itemTransaksi) { await into(transactionItems).insert(item); await stockMutationDao.catatPenjualanDirect(productId: item.productId.value, qty: item.quantity.value * item.conversionFactor.value, refNo: dataTransaksi.invoiceNo.value, userId: dataTransaksi.salesId.value?? 'kasir-01', customerName: custName, paymentStatus: dataTransaksi.status.value.toUpperCase(), tier: item.selectedTier.value, hargaJual: item.appliedTierPrice.value, total: item.subtotal.value); }
-      if (dataTransaksi.remainingDebt.value > 0 && custId != null) {
+      if (dataTransaksi.remainingDebt.value > 0 && custId!= null) {
         final now = DateTime.now();
-        await into(receivables).insert(ReceivablesCompanion.insert(id: 'RC-${dataTransaksi.id.value}', transactionId: Value(dataTransaksi.id.value), invoiceNo: Value(dataTransaksi.invoiceNo.value), customerId: Value(custId), customerIdRef: Value(custId), customerName: Value(custName), salesId: Value(dataTransaksi.salesId.value), salesmanId: Value(dataTransaksi.salesId.value), totalAmount: Value(dataTransaksi.grandTotal.value), amount: Value(dataTransaksi.grandTotal.value), paidAmount: Value(dataTransaksi.payAmount.value), remainingAmount: Value(dataTransaksi.remainingDebt.value), remaining: Value(dataTransaksi.remainingDebt.value), dueDate: Value(dataTransaksi.dueDate.value ?? DateTime.now().add(const Duration(days: 14))), invoiceDate: Value(now), status: const Value('belum_lunas'), kenapaNgendap: Value('MACET'), umurNgendap: const Value(0), statusNgendapWarna: const Value('HIJAU')));
+        await into(receivables).insert(ReceivablesCompanion.insert(id: 'RC-${dataTransaksi.id.value}', transactionId: Value(dataTransaksi.id.value), invoiceNo: Value(dataTransaksi.invoiceNo.value), customerId: Value(custId), customerIdRef: Value(custId), customerName: Value(custName), salesId: Value(dataTransaksi.salesId.value), salesmanId: Value(dataTransaksi.salesId.value), totalAmount: Value(dataTransaksi.grandTotal.value), amount: Value(dataTransaksi.grandTotal.value), paidAmount: Value(dataTransaksi.payAmount.value), remainingAmount: Value(dataTransaksi.remainingDebt.value), remaining: Value(dataTransaksi.remainingDebt.value), dueDate: Value(dataTransaksi.dueDate.value?? DateTime.now().add(const Duration(days: 14))), invoiceDate: Value(now), status: const Value('belum_lunas'), kenapaNgendap: Value('MACET'), umurNgendap: const Value(0), statusNgendapWarna: const Value('HIJAU')));
         final cust = await (select(customers)..where((t)=> t.id.equals(custId))).getSingleOrNull(); if(cust!=null){ await (update(customers)..where((t)=> t.id.equals(cust.id))).write(CustomersCompanion(sisaHutang: Value(cust.sisaHutang + dataTransaksi.remainingDebt.value), updatedAt: Value(DateTime.now()))); }
       }
     });
   }
+  
   Future<void> prosesPembelianPenyimpanan({required PurchasesCompanion dataPembelian, required List<PurchaseItemsCompanion> itemPembelian}) async {
     await transaction(() async {
       await into(purchases).insert(dataPembelian);
@@ -77,8 +86,28 @@ class LocalDatabase extends _$LocalDatabase {
       if (dataPembelian.debtAmount.value > 0) { final sup = await (select(suppliers)..where((t)=> t.id.equals(dataPembelian.supplierId.value))).getSingleOrNull(); await into(payables).insert(PayablesCompanion.insert(id: 'PY-${dataPembelian.id.value}', purchaseId: Value(dataPembelian.id.value), supplierId: Value(dataPembelian.supplierId.value), supplierName: Value(sup?.name), totalAmount: Value(dataPembelian.totalAmount.value), amount: Value(dataPembelian.totalAmount.value), paidAmount: Value(dataPembelian.paidAmount.value), remainingAmount: Value(dataPembelian.debtAmount.value), remaining: Value(dataPembelian.debtAmount.value), dueDate: Value(dataPembelian.dueDate.value?? DateTime.now().add(const Duration(days: 30))), status: const Value('belum_lunas'))); }
     });
   }
-  Future<void> onPayablePaid({required String invoiceNo, required double amount, required String userId}) async { var payable = await (select(payables)..where((t)=> t.purchaseId.equals(invoiceNo))).getSingleOrNull(); payable ??= await (select(payables)..where((t)=> t.id.equals(invoiceNo))).getSingleOrNull(); if(payable==null) throw Exception('Payable $invoiceNo tidak ditemukan'); await payablesDao.bayarAngsuranHutang(payableId: payable.id, nominalBayar: amount, paymentMethod: 'CASH', notes: 'Bayar via Invoice $invoiceNo by $userId'); }
-  Future<void> onPurchaseCreatedFull({required PurchasesCompanion dataPembelian, required List<PurchaseItemsCompanion> items, bool isBarangDiterima = true}) async { if(!isBarangDiterima){ await transaction(() async { await into(purchases).insert(dataPembelian.copyWith(status: const Value('in_transit'))); if (dataPembelian.debtAmount.value > 0) { final sup = await (select(suppliers)..where((t)=> t.id.equals(dataPembelian.supplierId.value))).getSingleOrNull(); await into(payables).insert(PayablesCompanion.insert(id: 'PY-${dataPembelian.id.value}', purchaseId: Value(dataPembelian.id.value), supplierId: Value(dataPembelian.supplierId.value), supplierName: Value(sup?.name), totalAmount: Value(dataPembelian.totalAmount.value), amount: Value(dataPembelian.totalAmount.value), paidAmount: Value(dataPembelian.paidAmount.value), remainingAmount: Value(dataPembelian.debtAmount.value), remaining: Value(dataPembelian.debtAmount.value), dueDate: Value(dataPembelian.dueDate.value?? DateTime.now().add(const Duration(days: 30))), status: const Value('belum_lunas'))); } }); } else { await prosesPembelianPenyimpanan(dataPembelian: dataPembelian, itemPembelian: items); } }
+  
+  Future<void> onPayablePaid({required String invoiceNo, required double amount, required String userId}) async { 
+    var payable = await (select(payables)..where((t)=> t.purchaseId.equals(invoiceNo))).getSingleOrNull(); 
+    payable??= await (select(payables)..where((t)=> t.id.equals(invoiceNo))).getSingleOrNull(); 
+    if(payable==null) throw Exception('Payable $invoiceNo tidak ditemukan'); 
+    await payablesDao.bayarAngsuranHutang(payableId: payable.id, nominalBayar: amount, paymentMethod: 'CASH', notes: 'Bayar via Invoice $invoiceNo by $userId'); 
+  }
+
+  // INI YANG HILANG DI VERSI BARU KAMU - SAYA KEMBALIKAN BIAR PEMBELIAN IN_TRANSIT TETAP JALAN
+  Future<void> onPurchaseCreatedFull({required PurchasesCompanion dataPembelian, required List<PurchaseItemsCompanion> items, bool isBarangDiterima = true}) async { 
+    if(!isBarangDiterima){ 
+      await transaction(() async { 
+        await into(purchases).insert(dataPembelian.copyWith(status: const Value('in_transit'))); 
+        if (dataPembelian.debtAmount.value > 0) { 
+          final sup = await (select(suppliers)..where((t)=> t.id.equals(dataPembelian.supplierId.value))).getSingleOrNull(); 
+          await into(payables).insert(PayablesCompanion.insert(id: 'PY-${dataPembelian.id.value}', purchaseId: Value(dataPembelian.id.value), supplierId: Value(dataPembelian.supplierId.value), supplierName: Value(sup?.name), totalAmount: Value(dataPembelian.totalAmount.value), amount: Value(dataPembelian.totalAmount.value), paidAmount: Value(dataPembelian.paidAmount.value), remainingAmount: Value(dataPembelian.debtAmount.value), remaining: Value(dataPembelian.debtAmount.value), dueDate: Value(dataPembelian.dueDate.value?? DateTime.now().add(const Duration(days: 30))), status: const Value('belum_lunas'))); 
+        } 
+      }); 
+    } else { 
+      await prosesPembelianPenyimpanan(dataPembelian: dataPembelian, itemPembelian: items); 
+    } 
+  }
 }
 final localDatabaseProvider = Provider<LocalDatabase>((ref) { final db = LocalDatabase(); ref.keepAlive(); return db; });
 final allProductsStreamProvider = StreamProvider<List<ProductData>>((ref) { final db = ref.watch(localDatabaseProvider); return db.productDao.watchActiveProducts(); });
