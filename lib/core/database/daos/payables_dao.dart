@@ -123,6 +123,37 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixi
     }
     return alerts;
   }
+
+Future<bool> isPayableFiktif(PayableData p) async {
+  final invNo = p.purchaseId?? p.id;
+  final mutasi = await (select(stockMutations)..where((m)=> m.referenceNo.equals(invNo) | m.referenceId.equals(invNo))).get();
+  if(mutasi.isEmpty){
+    final logId = 'LOG-FIKTIF-${DateTime.now().microsecondsSinceEpoch}';
+    await into(auditLogs).insert(AuditLogsCompanion.insert(
+      id: logId, userId: 'SYSTEM', userRole: const Value('system'), actionType: 'HUTANG_FIKTIF_DETECT',
+      tblName: const Value('payables'), referenceId: Value(invNo), recordId: Value(p.id),
+      oldValue: Value('{"total":${p.totalAmount}}'), newValue: Value('{"mutasi":0}'),
+      description: Value('DETEKSI HUTANG FIKTIF ${p.purchaseId}'),
+    ));
+    await into(fraudAlerts).insert(FraudAlertsCompanion.insert(
+      id: 'ALT-FIKTIF-${DateTime.now().microsecondsSinceEpoch}', userId: 'SYSTEM', alertType: 'hutang_fiktif',
+      title: Value('HUTANG FIKTIF ${p.purchaseId}'), description: Value('Payable ${p.id} tanpa mutasi $invNo'),
+      detailAnalysis: Value('Tanpa StockMutations ref $invNo'), fraudCategory: Value('hutang_fiktif'), severity: Value('merah'), auditLogId: Value(logId),
+    ));
+    return true;
+  }
+  return false;
+}
+
+Future<List<String>> getLevel1MerahAlerts() async {
+  final all = await (select(payables)..where((t)=> t.remainingAmount.isBiggerThanValue(0))).get();
+  final alerts=<String>[];
+  for(final p in all){
+    final days = p.dueDate==null? -999 : DateTime.now().difference(p.dueDate!).inDays;
+    if(p.remainingAmount>0 && days>7) alerts.add('HUTANG OVERDUE: ${p.supplierName} - ${p.purchaseId} Telat $days hari');
+  }
+  return alerts;
+}
 } // <-- KURUNG TUTUP CLASS DI SINI
 
 final payablesDaoProvider = Provider<PayablesDao>((ref) => PayablesDao(ref.watch(localDatabaseProvider)));
