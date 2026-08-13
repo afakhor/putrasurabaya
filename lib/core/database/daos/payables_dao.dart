@@ -33,7 +33,6 @@ extension DateX on DateTime {
 class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixin {
   PayablesDao(LocalDatabase db) : super(db);
 
-  // === YANG BARU - UNTUK REPORTS REAL TIME ===
   Future<List<PayableData>> getAllPayables() => select(payables).get();
   Stream<List<PayableData>> watchAll() => select(payables).watch();
   Future<double> getTotalActivePayableAmount() async {
@@ -43,7 +42,6 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixi
   Future<List<PayableData>> getByDateRange(DateTime start, DateTime end) =>
     (select(payables)..where((t)=> t.createdAt.isBetweenValues(start, end))).get();
 
-  // === YANG LAMA - TETAP ADA ===
   Future<String> insertPurchaseTransaction({required PurchasesCompanion dataPembelian, required List<PurchaseItemsCompanion> itemPembelian}) async {
     await db.prosesPembelianPenyimpanan(dataPembelian: dataPembelian, itemPembelian: itemPembelian);
     return dataPembelian.id.value;
@@ -112,5 +110,19 @@ class PayablesDao extends DatabaseAccessor<LocalDatabase> with _$PayablesDaoMixi
       'countOverdue7': outstanding.where((p)=> p.daysOverdue >7).length,
     };
   }
-}
+
+  // ====== TARUH DI SINI BOS, DI DALAM CLASS SEBELUM TUTUP ======
+  Future<List<String>> getLevel1MerahAlerts() async {
+    final all = await (select(payables)..where((t)=> t.remainingAmount.isBiggerThanValue(0))).get();
+    final alerts=<String>[];
+    for(final p in all){
+      final days = p.dueDate==null? -999 : DateTime.now().difference(p.dueDate!).inDays;
+      if(p.remainingAmount>0 && days>7){
+        alerts.add('HUTANG OVERDUE: ${p.supplierName} - ${p.purchaseId} Telat $days hari Rp ${p.remainingAmount}');
+      }
+    }
+    return alerts;
+  }
+} // <-- KURUNG TUTUP CLASS DI SINI
+
 final payablesDaoProvider = Provider<PayablesDao>((ref) => PayablesDao(ref.watch(localDatabaseProvider)));
