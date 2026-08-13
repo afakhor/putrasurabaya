@@ -1,9 +1,12 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:ud_putra_kasir/core/database/local_database.dart';
-import 'package:ud_putra_kasir/core/database/tables/transaction_table.dart';
-import 'package:ud_putra_kasir/core/database/tables/finance_table.dart';
-import 'package:ud_putra_kasir/core/database/tables/product_table.dart';
+import '../local_database.dart';
+import '../tables/transaction_table.dart';
+import '../tables/finance_table.dart';
+import '../tables/product_table.dart';
+import '../tables/category_table.dart';
+import '../tables/purchase_table.dart';
+import '../tables/closing_book_table.dart'; // pastikan ada file ini
 
 part 'report_dao.g.dart';
 
@@ -59,10 +62,17 @@ class DailyOmsetReportData {
   TransactionItems,
   Expenses,
   Products,
+  Categories,
+  Payables,
+  Receivables,
+  Purchases,
+  ClosingBooks,
+  CategoryReportSnapshots
 ])
 class ReportDao extends DatabaseAccessor<LocalDatabase> with _$ReportDaoMixin {
   ReportDao(LocalDatabase db) : super(db);
 
+  // ========== LAMA - TETAP DIPERTAHANKAN ==========
   Future<LaporanLabaRugiData> getLaporanLabaRugi(DateTime startDate, DateTime endDate) async {
     final start = DateTime(startDate.year, startDate.month, startDate.day, 0, 0, 0);
     final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
@@ -70,8 +80,8 @@ class ReportDao extends DatabaseAccessor<LocalDatabase> with _$ReportDaoMixin {
     final rows = await (select(transactionItems).join([
       innerJoin(transactions, transactions.id.equalsExp(transactionItems.transactionId))
     ])
-     ..where(transactions.date.isBetweenValues(start, end) & transactions.status.isNotIn(['CANCELLED', 'VOID', 'Batal', 'void'])))
-       .get();
+    ..where(transactions.date.isBetweenValues(start, end) & transactions.status.isNotIn(['CANCELLED', 'VOID', 'Batal', 'void'])))
+      .get();
 
     double omset = 0.0;
     double totalHpp = 0.0;
@@ -86,13 +96,11 @@ class ReportDao extends DatabaseAccessor<LocalDatabase> with _$ReportDaoMixin {
     }
 
     final labaKotor = omset - totalHpp;
-
-    // FIX: expenseDate -> date, amount.sum()
     final expenseSum = expenses.amount.sum();
     final expRow = await (selectOnly(expenses)
-         ..addColumns([expenseSum])
-         ..where(expenses.date.isBetweenValues(start, end)))
-       .getSingle();
+        ..addColumns([expenseSum])
+        ..where(expenses.date.isBetweenValues(start, end)))
+      .getSingle();
 
     final totalExpenses = expRow.read(expenseSum)?? 0.0;
     final labaBersih = labaKotor - totalExpenses;
@@ -123,11 +131,10 @@ class ReportDao extends DatabaseAccessor<LocalDatabase> with _$ReportDaoMixin {
       innerJoin(transactions, transactions.id.equalsExp(transactionItems.transactionId)),
       innerJoin(products, products.id.equalsExp(transactionItems.productId)),
     ])
-     ..where(transactions.date.isBetweenValues(start, end) & transactions.status.isNotIn(['CANCELLED', 'VOID', 'Batal', 'void'])))
-       .get();
+    ..where(transactions.date.isBetweenValues(start, end) & transactions.status.isNotIn(['CANCELLED', 'VOID', 'Batal', 'void'])))
+      .get();
 
     final Map<String, TopProductReportData> grouped = {};
-
     for (final row in rows) {
       final item = row.readTable(transactionItems);
       final product = row.readTable(products);
@@ -158,7 +165,6 @@ class ReportDao extends DatabaseAccessor<LocalDatabase> with _$ReportDaoMixin {
         );
       }
     }
-
     final list = grouped.values.toList();
     list.sort((a, b) => b.totalQuantity.compareTo(a.totalQuantity));
     return list.take(limit).toList();
@@ -170,19 +176,15 @@ class ReportDao extends DatabaseAccessor<LocalDatabase> with _$ReportDaoMixin {
   }) async {
     final start = DateTime(startDate.year, startDate.month, startDate.day, 0, 0, 0);
     final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
-
     final validTransactions = await (select(transactions)
-         ..where((tbl) => tbl.date.isBetweenValues(start, end) & tbl.status.isNotIn(['CANCELLED', 'VOID', 'Batal', 'void']))
-         ..orderBy([(tbl) => OrderingTerm.asc(tbl.date)]))
-       .get();
-
-    // Ambil items untuk hitung profit harian
+        ..where((tbl) => tbl.date.isBetweenValues(start, end) & tbl.status.isNotIn(['CANCELLED', 'VOID', 'Batal', 'void']))
+        ..orderBy([(tbl) => OrderingTerm.asc(tbl.date)]))
+      .get();
     final items = await (select(transactionItems).join([
       innerJoin(transactions, transactions.id.equalsExp(transactionItems.transactionId))
     ])
-     ..where(transactions.date.isBetweenValues(start, end)))
-       .get();
-
+    ..where(transactions.date.isBetweenValues(start, end)))
+      .get();
     final Map<String, double> profitByTx = {};
     for (var r in items) {
       final it = r.readTable(transactionItems);
@@ -190,14 +192,12 @@ class ReportDao extends DatabaseAccessor<LocalDatabase> with _$ReportDaoMixin {
       final profit = it.subtotal - (it.buyPriceAtTransaction * qtyBase);
       profitByTx[it.transactionId] = (profitByTx[it.transactionId]?? 0) + profit;
     }
-
     final Map<String, DailyOmsetReportData> dailyMap = {};
     for (final tx in validTransactions) {
       final dateKey = "${tx.date.year}-${tx.date.month.toString().padLeft(2, '0')}-${tx.date.day.toString().padLeft(2, '0')}";
       final txDate = DateTime(tx.date.year, tx.date.month, tx.date.day);
       final omset = tx.grandTotal;
       final profit = profitByTx[tx.id]?? 0;
-
       if (dailyMap.containsKey(dateKey)) {
         final existing = dailyMap[dateKey]!;
         dailyMap[dateKey] = DailyOmsetReportData(
@@ -217,6 +217,67 @@ class ReportDao extends DatabaseAccessor<LocalDatabase> with _$ReportDaoMixin {
     }
     return dailyMap.values.toList();
   }
+
+  // ========== BARU - REAL TIME DARI AWAL SAMPAI AKHIR + CATEGORY ==========
+  Future<Map<String, dynamic>> getRealTimeReport({DateTime? start, DateTime? end}) async {
+    final startDate = start?? DateTime(2022,1,1);
+    final endDate = end?? DateTime.now();
+
+    final trans = await (select(transactions)..where((t)=> t.date.isBetweenValues(startDate, endDate))).get();
+    final transIds = trans.map((e)=> e.id).toList();
+    final items = transIds.isEmpty? <TransactionItemData>[] : await (select(transactionItems)..where((t)=> t.transactionId.isIn(transIds))).get();
+    final allProducts = await select(products).get();
+    final allCategories = await select(categories).get();
+    final allPayables = await (select(payables)..where((t)=> t.createdAt.isBetweenValues(startDate, endDate))).get();
+    final allReceivables = await (select(receivables)..where((t)=> t.createdAt.isBetweenValues(startDate, endDate))).get();
+    final allPurchases = await (select(purchases)..where((t)=> t.date.isBetweenValues(startDate, endDate))).get();
+    final allExpenses = await (select(expenses)..where((t)=> t.date.isBetweenValues(startDate, endDate))).get();
+
+    final omset = trans.fold<double>(0, (p,e)=> p+e.grandTotal);
+    final hpp = items.fold<double>(0, (p,e)=> p + (e.buyPriceAtTransaction * e.quantity * e.conversionFactor));
+    final totalBeli = allPurchases.fold<double>(0, (p,e)=> p+e.totalAmount);
+    final biaya = allExpenses.fold<double>(0, (p,e)=> p+e.amount);
+    final labaKotor = omset - hpp;
+    final labaBersih = labaKotor - biaya;
+
+    final Map<String, Map<String, dynamic>> categoryMap = {};
+    for(final cat in allCategories){
+      final catProducts = allProducts.where((p)=> p.categoryId==cat.id).toList();
+      final catProductIds = catProducts.map((e)=> e.id).toSet();
+      final catItems = items.where((i)=> catProductIds.contains(i.productId)).toList();
+      final catOmset = catItems.fold<double>(0, (p,e)=> p+e.subtotal);
+      final catHpp = catItems.fold<double>(0, (p,e)=> p + (e.buyPriceAtTransaction * e.quantity * e.conversionFactor));
+      final catStockVal = catProducts.fold<double>(0, (p,e)=> p + (e.stock * e.buyPrice));
+      categoryMap[cat.id] = {
+        'name': cat.name,
+        'color': cat.colorHex,
+        'omset': catOmset,
+        'hpp': catHpp,
+        'laba': catOmset - catHpp,
+        'qty': catItems.fold<double>(0, (p,e)=> p+e.quantity),
+        'stockVal': catStockVal,
+        'skuCount': catProducts.length,
+      };
+    }
+
+    return {
+      'omset': omset, 'hpp': hpp, 'totalBeli': totalBeli, 'biaya': biaya,
+      'labaKotor': labaKotor, 'labaBersih': labaBersih,
+      'stockAkhir': allProducts.fold<double>(0, (p,e)=> p + (e.stock * e.buyPrice)),
+      'piutang': allReceivables.fold<double>(0, (p,e)=> p+e.remainingAmount),
+      'hutang': allPayables.fold<double>(0, (p,e)=> p+e.remainingAmount),
+      'transCount': trans.length,
+      'categoryMap': categoryMap,
+      'topCategory': categoryMap.entries.isEmpty? null : categoryMap.entries.reduce((a,b)=> (a.value['laba'] as double) > (b.value['laba'] as double)? a : b),
+      'worstCategory': categoryMap.entries.isEmpty? null : categoryMap.entries.reduce((a,b)=> (a.value['laba'] as double) < (b.value['laba'] as double)? a : b),
+    };
+  }
+
+  Future<void> lockClosingBook(ClosingBooksCompanion data) async {
+    await into(closingBooks).insert(data);
+  }
+
+  Future<List<ClosingBookData>> getAllClosingBooks() => (select(closingBooks)..orderBy([(t)=> OrderingTerm.desc(t.createdAt)])).get();
 }
 
 final reportDaoProvider = Provider<ReportDao>((ref) {
