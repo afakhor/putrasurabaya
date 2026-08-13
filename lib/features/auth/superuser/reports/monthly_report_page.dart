@@ -1,6 +1,8 @@
+import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ud_putra_kasir/core/database/local_database.dart';
+import 'package:ud_putra_kasir/core/database/daos/report_dao.dart';
 import 'package:intl/intl.dart';
 
 class MonthlyFilter {
@@ -14,8 +16,8 @@ final monthlyFilterProvider = StateProvider<MonthlyFilter>((ref) => MonthlyFilte
 final monthlyReportProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final db = ref.watch(localDatabaseProvider);
   final f = ref.watch(monthlyFilterProvider);
-  final payables = await (db.select(db.payables)..where((t)=> t.createdAt.isBetweenValues(f.startDate, f.endDate.add(const Duration(days:1))))).get();
-  final receivables = await (db.select(db.receivables)..where((t)=> t.createdAt.isBetweenValues(f.startDate, f.endDate.add(const Duration(days:1))))).get();
+  final payables = await (db.select(db.payables)..where((t)=> t.createdAt.isBiggerOrEqualValue(f.startDate) & t.createdAt.isSmallerOrEqualValue(f.endDate.add(const Duration(days:1))))).get();
+  final receivables = await (db.select(db.receivables)..where((t)=> t.createdAt.isBiggerOrEqualValue(f.startDate) & t.createdAt.isSmallerOrEqualValue(f.endDate.add(const Duration(days:1))))).get();
   final products = await db.select(db.products).get();
   final categories = await db.select(db.categories).get();
   final laporan = await db.reportDao.getLaporanLabaRugi(f.startDate, f.endDate);
@@ -48,8 +50,6 @@ class MonthlyReportPage extends ConsumerWidget {
         Container(color:Colors.indigo.shade50,padding:const EdgeInsets.all(10),child:Column(children:[
           Row(children:[
             Expanded(child: InkWell(onTap:()async{ final picked=await showDateRangePicker(context:context,firstDate:DateTime(2022,1,1),lastDate:DateTime.now(),initialDateRange:DateTimeRange(start:filter.startDate,end:filter.endDate)); if(picked!=null) ref.read(monthlyFilterProvider.notifier).state=filter.copyWith(startDate:picked.start,endDate:picked.end,periode:'${df.format(picked.start)} - ${df.format(picked.end)}'); }, child: Container(padding:const EdgeInsets.all(8),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(8),border:Border.all(color:Colors.indigo)),child:Row(children:[const Icon(Icons.date_range,size:14),const SizedBox(width:4),Expanded(child:Text(filter.periode=='AWAL_AKHIR'?'Dari Awal (1 Jan 2022) - Hari Ini':filter.periode,style:const TextStyle(fontSize:11,fontWeight:FontWeight.bold),overflow:TextOverflow.ellipsis))])))),
-            const SizedBox(width:6),
-            PopupMenuButton<String>(onSelected:(v){ if(v=='AWAL_AKHIR') ref.read(monthlyFilterProvider.notifier).state=MonthlyFilter(); if(v=='BULAN_INI') ref.read(monthlyFilterProvider.notifier).state=filter.copyWith(startDate:DateTime(DateTime.now().year,DateTime.now().month,1),endDate:DateTime.now(),periode:'BULAN INI'); },itemBuilder:(_)=>const[PopupMenuItem(value:'AWAL_AKHIR',child:Text('Dari Awal')),PopupMenuItem(value:'BULAN_INI',child:Text('Bulan Ini'))]),
           ]),
           const SizedBox(height:6),
           TextField(decoration:const InputDecoration(hintText:'Cari supplier/customer/SKU - Auto',prefixIcon:Icon(Icons.search,size:16),border:OutlineInputBorder(),isDense:true,filled:true,fillColor:Colors.white,contentPadding:EdgeInsets.all(8)),onChanged:(v)=> ref.read(monthlyFilterProvider.notifier).state=filter.copyWith(search:v)),
