@@ -26,25 +26,31 @@ class ClosingBookReportPage extends ConsumerWidget {
     final report=ref.watch(closingReportProvider);
     final fmt=NumberFormat.currency(locale:'id_ID',symbol:'Rp ',decimalDigits:0);
     return Scaffold(
-      appBar: AppBar(title: const Text('TUTUP BUKU Real-Time'), backgroundColor: Colors.black87, actions:[IconButton(icon:const Icon(Icons.date_range),onPressed:()async{ final p=await showDateRangePicker(context:context,firstDate:DateTime(2022,1,1),lastDate:DateTime.now(),initialDateRange:range); if(p!=null) ref.read(closingFilterProvider.notifier).state=p; })]),
+      backgroundColor: Colors.white, // PUTIH BOS
+      appBar: AppBar(
+        title: const Text('TUTUP BUKU Real-Time', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+        backgroundColor: Colors.white, // PUTIH
+        foregroundColor: Colors.black, // ICON HITAM
+        elevation: 1,
+        actions:[IconButton(icon:const Icon(Icons.date_range, color: Colors.black), onPressed:()async{ final p=await showDateRangePicker(context:context,firstDate:DateTime(2022,1,1),lastDate:DateTime.now(),initialDateRange:range); if(p!=null) ref.read(closingFilterProvider.notifier).state=p; })]),
       body: report.when(
         data:(d){ 
           final laporan=d['laporan'] as LaporanLabaRugiData;
           final topList=d['top'] as List<TopProductReportData>;
           return ListView(padding:const EdgeInsets.all(12),children:[
-            Card(color:Colors.black,child:ListTile(leading:const Icon(Icons.verified,color:Colors.white),title:Text('Periode: ${DateFormat('dd MMM yyyy').format(range.start)} - ${DateFormat('dd MMM yyyy').format(range.end)}',style:const TextStyle(color:Colors.white,fontSize:12,fontWeight:FontWeight.bold)),subtitle:Text('Trans: ${laporan.totalTransaksiCount} | Laba: ${fmt.format(laporan.labaBersih)}',style:const TextStyle(color:Colors.white70,fontSize:11)))),
-            Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[_row('Omset',fmt.format(laporan.totalOmset),Colors.green,true),_row('HPP',fmt.format(laporan.totalHpp),Colors.orange),_row('Biaya',fmt.format(laporan.totalPengeluaran),Colors.red),const Divider(),_row('Laba Kotor',fmt.format(laporan.labaKotor),Colors.blue,true),_row('LABA BERSIH',fmt.format(laporan.labaBersih),laporan.labaBersih>=0?Colors.green:Colors.red,true)]))),
-            Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[_row('Stock Akhir',fmt.format(d['stockVal']),Colors.blue,true),_row('Piutang',fmt.format(d['piutang']),Colors.orange),_row('Hutang',fmt.format(d['hutang']),Colors.red),const Divider(),_row('MODAL AKHIR',fmt.format(d['modal']),Colors.purple,true)]))),
-            const Text('Top 5 Produk Terlaris (Auto Sync)',style:TextStyle(fontWeight:FontWeight.bold,fontSize:11)),
-            ...topList.map((e)=> Card(child:ListTile(dense:true,title:Text(e.productName,style:const TextStyle(fontSize:11,fontWeight:FontWeight.bold)),subtitle:Text('Qty: ${e.totalQuantity} ${e.unitName} | Omset: ${fmt.format(e.totalOmset)}',style:const TextStyle(fontSize:9)),trailing:Text(fmt.format(e.totalProfit),style:const TextStyle(fontSize:10,fontWeight:FontWeight.bold,color:Colors.green))))),
+            Card(color: Colors.white, elevation: 2, child:ListTile(leading:const Icon(Icons.verified, color:Color(0xFF00A65A)),title:Text('Periode: ${DateFormat('dd MMM yyyy').format(range.start)} - ${DateFormat('dd MMM yyyy').format(range.end)}',style:const TextStyle(color:Colors.black,fontSize:12,fontWeight:FontWeight.bold)),subtitle:Text('Trans: ${laporan.totalTransaksiCount} | Laba: ${fmt.format(laporan.labaBersih)}',style:const TextStyle(color:Colors.black54,fontSize:11)))),
+            Card(color: Colors.white, child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[_row('Omset',fmt.format(laporan.totalOmset),Colors.green,true),_row('HPP',fmt.format(laporan.totalHpp),Colors.orange),_row('Biaya',fmt.format(laporan.totalPengeluaran),Colors.red),const Divider(),_row('Laba Kotor',fmt.format(laporan.labaKotor),Colors.blue,true),_row('LABA BERSIH',fmt.format(laporan.labaBersih),laporan.labaBersih>=0?Colors.green:Colors.red,true)]))),
+            Card(color: Colors.white, child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[_row('Stock Akhir',fmt.format(d['stockVal']),Colors.blue,true),_row('Piutang',fmt.format(d['piutang']),Colors.orange),_row('Hutang',fmt.format(d['hutang']),Colors.red),const Divider(),_row('MODAL AKHIR',fmt.format(d['modal']),Colors.purple,true)]))),
+            const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Top 5 Produk Terlaris (Auto Sync)',style:TextStyle(fontWeight:FontWeight.bold,fontSize:12, color: Colors.black))),
+            ...topList.map((e)=> Card(color: Colors.white, child:ListTile(dense:true,title:Text(e.productName,style:const TextStyle(fontSize:11,fontWeight:FontWeight.bold, color: Colors.black)),subtitle:Text('Qty: ${e.totalQuantity} ${e.unitName} | Omset: ${fmt.format(e.totalOmset)}',style:const TextStyle(fontSize:9, color: Colors.black54)),trailing:Text(fmt.format(e.totalProfit),style:const TextStyle(fontSize:10,fontWeight:FontWeight.bold,color:Colors.green))))),
             const SizedBox(height:12),
-            ElevatedButton.icon(onPressed:(){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Tutup Buku Berhasil'))); },icon:const Icon(Icons.lock),label:const Text('KUNCI TUTUP BUKU'),style:ElevatedButton.styleFrom(backgroundColor:Colors.black,minimumSize:const Size(double.infinity,48))),
+            ElevatedButton.icon(onPressed:(){ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Tutup Buku Berhasil'))); },icon:const Icon(Icons.lock, color: Colors.white),label:const Text('KUNCI TUTUP BUKU', style: TextStyle(color: Colors.white)),style:ElevatedButton.styleFrom(backgroundColor:const Color(0xFF00A65A),minimumSize:const Size(double.infinity,48))),
           ]);
         },
         loading:()=>const Center(child:CircularProgressIndicator()),
-        error:(e,s)=>Center(child:Text('Error $e')),
+        error:(e,s)=>Center(child:Text('Error $e', style: TextStyle(color: Colors.black))),
       ),
     );
   }
-  Widget _row(String l,String v,Color c,[bool b=false])=> Padding(padding:const EdgeInsets.symmetric(vertical:3),child:Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Text(l,style:TextStyle(fontSize:12,fontWeight:b?FontWeight.bold:FontWeight.normal)),Text(v,style:TextStyle(fontSize:12,color:c,fontWeight:FontWeight.bold))]));
+  Widget _row(String l,String v,Color c,[bool b=false])=> Padding(padding:const EdgeInsets.symmetric(vertical:3),child:Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Text(l,style:TextStyle(fontSize:12,fontWeight:b?FontWeight.bold:FontWeight.normal, color: Colors.black)),Text(v,style:TextStyle(fontSize:12,color:c,fontWeight:FontWeight.bold))]));
 }
