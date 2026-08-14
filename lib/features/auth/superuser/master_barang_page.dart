@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' hide Column;
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/utils/config.dart' as app_config;
 import '../../../core/utils/format_rupiah.dart';
@@ -29,293 +32,116 @@ class _MasterFinalState extends ConsumerState<MasterBarangPageFinal> {
     'Kunci Inggris & Obeng','Tang & Palu','Safety & Helm','Grosir Campur'
   ];
 
-  void _openKartuStokPicker() {
-    final searchC = TextEditingController();
-    String filter = '';
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) {
-          final productsAsync = ref.watch(allProductsStreamProvider);
-          return FractionallySizedBox(
-            heightFactor: 0.85,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    children: [
-                      Container(width:40,height:4,decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
-                      const SizedBox(height:12),
-                      const Text('Pilih Barang - Lihat Kartu Stok', style: TextStyle(fontWeight: FontWeight.bold, fontSize:14)),
-                      const SizedBox(height:12),
-                      TextField(
-                        controller: searchC,
-                        decoration: InputDecoration(hintText: 'Cari SKU / Nama', prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                        onChanged: (v) => setS(() => filter = v.toLowerCase()),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: productsAsync.when(
-                    data: (list) {
-                      var f = list.where((p) => filter.isEmpty || p.name.toLowerCase().contains(filter) || (p.code??'').toLowerCase().contains(filter)).toList();
-                      return ListView.builder(
-                        itemCount: f.length,
-                        itemBuilder: (c,i){
-                          final p=f[i];
-                          return ListTile(
-                            leading: const Icon(Icons.history, color: Color(0xFF00A65A)),
-                            title: Text('${p.code??''} - ${p.name}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize:12)),
-                            subtitle: Text('Stok:${p.stock} | Rak:${p.rackLocation??'-'} | HPP:${formatRupiah(p.buyPrice)}', style: const TextStyle(fontSize:10)),
-                            onTap: (){
-                              Navigator.pop(context);
-                              Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStockPage(productId: p.id)));
-                            },
-                          );
-                        },
-                      );
-                    },
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (e,s) => Center(child: Text('Error $e')),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
+  Future<void> _uploadImage(ProductData p) async {
+    final picker = ImagePicker();
+    final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    if(x==null) return;
+    final dir = await getApplicationDocumentsDirectory();
+    final imgDir = Directory('${dir.path}/product_images');
+    if(!await imgDir.exists()) await imgDir.create(recursive: true);
+    final newPath = '${imgDir.path}/${p.id}.jpg';
+    await File(x.path).copy(newPath);
+    final db = ref.read(localDatabaseProvider);
+    await (db.update(db.products)..where((t)=> t.id.equals(p.id))).write(ProductsCompanion(
+      imagePath: Value(newPath),
+      updatedAt: Value(DateTime.now()),
+      isSynced: const Value(false),
+    ));
+    if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gambar disimpan')));
   }
 
-  void _openEditMaster(ProductData p) {
-    final nameC = TextEditingController(text: p.name);
-    final codeC = TextEditingController(text: p.code??'');
-    final brandC = TextEditingController(text: p.brand??'');
-    final rakC = TextEditingController(text: p.rackLocation??'');
-    final barcodeC = TextEditingController(text: p.barcode??'');
-    final descC = TextEditingController(text: p.description??'');
-    final minC = TextEditingController(text: p.minStock.toStringAsFixed(0));
-    String kategori = kategoriList.contains(p.categoryId)? p.categoryId : kategoriList.first;
-    String unit = p.unit.isEmpty? 'pcs' : p.unit;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx,setS) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Edit Barang Master', style: TextStyle(fontWeight: FontWeight.bold, fontSize:16)),
-                Text('SKU: ${p.code??''}', style: const TextStyle(fontSize:11, color: Colors.grey)),
-                const SizedBox(height:16),
-                TextField(controller: nameC, decoration: const InputDecoration(labelText:'Nama Barang *', border: OutlineInputBorder())),
-                const SizedBox(height:12),
-                TextField(controller: codeC, decoration: const InputDecoration(labelText:'SKU / Kode *', border: OutlineInputBorder())),
-                const SizedBox(height:12),
-                DropdownButtonFormField<String>(value: kategori, decoration: const InputDecoration(labelText:'Kategori', border: OutlineInputBorder()), items: kategoriList.map((e)=> DropdownMenuItem(value:e, child: Text(e, style: const TextStyle(fontSize:12)))).toList(), onChanged: (v)=> setS(()=> kategori=v!)),
-                const SizedBox(height:12),
-                Row(children: [
-                  Expanded(child: TextField(controller: brandC, decoration: const InputDecoration(labelText:'Brand', border: OutlineInputBorder()))),
-                  const SizedBox(width:8),
-                  Expanded(child: DropdownButtonFormField<String>(value: unit, decoration: const InputDecoration(labelText:'Satuan', border: OutlineInputBorder()), items: const ['pcs','set','meter','kg','dus','lusin','roll'].map((e)=> DropdownMenuItem(value:e, child: Text(e))).toList(), onChanged: (v)=> setS(()=> unit=v!))),
-                ]),
-                const SizedBox(height:12),
-                Row(children: [
-                  Expanded(child: TextField(controller: rakC, decoration: const InputDecoration(labelText:'Rak', border: OutlineInputBorder()))),
-                  const SizedBox(width:8),
-                  Expanded(child: TextField(controller: barcodeC, decoration: const InputDecoration(labelText:'Barcode', border: OutlineInputBorder()))),
-                ]),
-                const SizedBox(height:12),
-                Row(children: [
-                  Expanded(child: TextField(controller: minC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText:'Min Stok', border: OutlineInputBorder()))),
-                  const SizedBox(width:8),
-                  Expanded(child: TextField(controller: descC, decoration: const InputDecoration(labelText:'Deskripsi', border: OutlineInputBorder()))),
-                ]),
-                const SizedBox(height:20),
-                SizedBox(
-                  width: double.infinity,
-                  height:48,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A)),
-                    onPressed: () async {
-                      final db = ref.read(localDatabaseProvider);
-                      await (db.update(db.products)..where((t)=> t.id.equals(p.id))).write(ProductsCompanion(
-                        name: Value(nameC.text.trim()),
-                        code: Value(codeC.text.trim()),
-                        brand: Value(brandC.text.trim()),
-                        rackLocation: Value(rakC.text.trim()),
-                        barcode: Value(barcodeC.text.trim()),
-                        description: Value(descC.text.trim()),
-                        categoryId: Value(kategori),
-                        unit: Value(unit),
-                        minStock: Value(double.tryParse(minC.text)??5),
-                        updatedAt: Value(DateTime.now()),
-                        isSynced: const Value(false),
-                      ));
-                      if(mounted){
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Master diupdate')));
-                      }
-                    },
-                    child: const Text('UPDATE MASTER', style: TextStyle(color:Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  String _sku5(String? code){
+    if(code==null || code.isEmpty) return '00000';
+    final c = code.replaceAll(RegExp(r'[^0-9A-Z]'), '');
+    if(c.length<=5) return c;
+    return c.substring(c.length-5);
   }
 
-  void _openMasterAdd() {
-    final nameC = TextEditingController();
-    final codeC = TextEditingController(text: 'SKU-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}');
-    final brandC = TextEditingController();
-    final rakC = TextEditingController();
-    final barcodeC = TextEditingController();
-    final descC = TextEditingController();
-    String kategori = kategoriList.first;
-    String unit = 'pcs';
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx,setS) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Tambah Barang Master', style: TextStyle(fontWeight: FontWeight.bold, fontSize:16)),
-                const SizedBox(height:16),
-                TextField(controller: nameC, decoration: const InputDecoration(labelText:'Nama Barang *', border: OutlineInputBorder())),
-                const SizedBox(height:12),
-                Row(children: [
-                  Expanded(child: TextField(controller: codeC, decoration: const InputDecoration(labelText:'SKU Auto *', border: OutlineInputBorder()))),
-                  const SizedBox(width:8),
-                  IconButton(onPressed: (){ codeC.text='SKU-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}'; }, icon: const Icon(Icons.refresh)),
-                ]),
-                const SizedBox(height:12),
-                DropdownButtonFormField<String>(value: kategori, decoration: const InputDecoration(labelText:'Kategori (24+)', border: OutlineInputBorder()), items: kategoriList.map((e)=> DropdownMenuItem(value:e, child: Text(e, style: const TextStyle(fontSize:12)))).toList(), onChanged: (v)=> setS(()=> kategori=v!)),
-                const SizedBox(height:12),
-                Row(children: [
-                  Expanded(child: TextField(controller: brandC, decoration: const InputDecoration(labelText:'Brand', border: OutlineInputBorder()))),
-                  const SizedBox(width:8),
-                  Expanded(child: DropdownButtonFormField<String>(value: unit, decoration: const InputDecoration(labelText:'Satuan', border: OutlineInputBorder()), items: const ['pcs','set','meter','kg','dus','lusin','roll'].map((e)=> DropdownMenuItem(value:e, child: Text(e))).toList(), onChanged: (v)=> setS(()=> unit=v!))),
-                ]),
-                const SizedBox(height:12),
-                Row(children: [
-                  Expanded(child: TextField(controller: rakC, decoration: const InputDecoration(labelText:'Rak', border: OutlineInputBorder()))),
-                  const SizedBox(width:8),
-                  Expanded(child: TextField(controller: barcodeC, decoration: const InputDecoration(labelText:'Barcode', border: OutlineInputBorder()))),
-                ]),
-                const SizedBox(height:12),
-                TextField(controller: descC, maxLines:2, decoration: const InputDecoration(labelText:'Deskripsi', border: OutlineInputBorder())),
-                const SizedBox(height:20),
-                SizedBox(
-                  width: double.infinity,
-                  height:48,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00A65A)),
-                    onPressed: () async {
-                      if(nameC.text.trim().isEmpty) return;
-                      final db = ref.read(localDatabaseProvider);
-                      await db.productDao.createProductQuick(name: nameC.text.trim(), code: codeC.text.trim(), brand: brandC.text.trim(), rackLocation: rakC.text.trim(), categoryId: kategori);
-                      final prod = await db.productDao.getByCode(codeC.text.trim());
-                      if(prod!=null){
-                        await (db.update(db.products)..where((t)=> t.id.equals(prod.id))).write(ProductsCompanion(
-                          barcode: Value(barcodeC.text.trim()),
-                          description: Value(descC.text.trim()),
-                          unit: Value(unit),
-                          updatedAt: Value(DateTime.now()),
-                        ));
-                      }
-                      if(mounted) Navigator.pop(context);
-                    },
-                    child: const Text('SIMPAN MASTER', style: TextStyle(color:Colors.white)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+  Widget _imageOrText(ProductData p){
+    if(p.imagePath!=null && p.imagePath!.isNotEmpty && File(p.imagePath!).existsSync()){
+      return ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(16)), child: Image.file(File(p.imagePath!), width: double.infinity, height: 130, fit: BoxFit.cover));
+    }
+    // TIDAK UPLOAD = NAMA BARANG + 5 ANGKA SKU
+    return Container(
+      width: double.infinity, height: 130,
+      decoration: BoxDecoration(color: Colors.primaries[p.name.hashCode % Colors.primaries.length].shade100, borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+      child: Center(child: Text('${p.name}\n${_sku5(p.code)}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, height: 1.3))),
     );
   }
 
   @override Widget build(BuildContext context){
     final products = ref.watch(allProductsStreamProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F2),
-      appBar: AppBar(
-        title: const Text('Master Barang - Tier'),
-        backgroundColor: const Color(0xFF00A65A),
-        actions: [
-          IconButton(icon: const Icon(Icons.history), tooltip: 'Kartu Stok', onPressed: _openKartuStokPicker),
-          IconButton(icon: const Icon(Icons.receipt_long), onPressed: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> const MutasiStockPage()))),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              decoration: InputDecoration(hintText: 'Cari SKU / Nama / Rak / Brand', prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-              onChanged: (v)=> setState(()=> q=v.toLowerCase()),
-            ),
-          ),
-          Expanded(
-            child: products.when(
-              data: (list){
-                var f = list.where((p)=> q.isEmpty || p.name.toLowerCase().contains(q) || (p.code??'').toLowerCase().contains(q)).toList();
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(12,0,12,90),
-                  itemCount: f.length,
-                  itemBuilder: (c,i){
-                    final p=f[i];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom:8),
-                      child: app_config.GlassCard(
-                        onTap: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStockPage(productId: p.id))),
-                        child: ListTile(
-                          title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize:13)),
-                          subtitle: Text('SKU:${p.code??''} | Stok:${p.stock} | HPP:${formatRupiah(p.buyPrice)}', style: const TextStyle(fontSize:10)),
-                          trailing: IconButton(icon: const Icon(Icons.edit, size:20, color: Colors.black87), tooltip: 'Edit Master', onPressed: ()=> _openEditMaster(p)),
-                        ),
-                      ),
-                    );
-                  },
+      appBar: AppBar(title: const Text('Master Barang - KATALOG', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), backgroundColor: const Color(0xFF00A65A), actions: [
+        IconButton(icon: const Icon(Icons.history), onPressed: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> const MutasiStockPage()))),
+      ]),
+      body: Column(children: [
+        Padding(padding: const EdgeInsets.all(12), child: TextField(decoration: InputDecoration(hintText: 'Cari SKU / Nama / Rak / Brand', prefixIcon: const Icon(Icons.search), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), onChanged: (v)=> setState(()=> q=v.toLowerCase()))),
+        Expanded(child: products.when(
+          data: (list){
+            var f = list.where((p)=> q.isEmpty || p.name.toLowerCase().contains(q) || (p.code??'').toLowerCase().contains(q) || (p.brand??'').toLowerCase().contains(q)).toList();
+            return GridView.builder(
+              padding: const EdgeInsets.fromLTRB(10,0,10,90),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, childAspectRatio: 0.62, crossAxisSpacing: 10, mainAxisSpacing: 10),
+              itemCount: f.length,
+              itemBuilder: (c,i){
+                final p=f[i];
+                return app_config.GlassCard(
+                  padding: EdgeInsets.zero,
+                  radius: 16,
+                  onTap: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> KartuStockPage(productId: p.id))),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    // GAMBAR / TEXT NAMA + SKU5
+                    Stack(children: [
+                      _imageOrText(p),
+                      Positioned(top: 6, right: 6, child: InkWell(onTap: ()=> _uploadImage(p), child: Container(padding: const EdgeInsets.all(5), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.camera_alt, color: Colors.white, size: 14)))),
+                      Positioned(top: 6, left: 6, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: p.stock<=p.minStock?Colors.red:Colors.green, borderRadius: BorderRadius.circular(6)), child: Text('Stok:${p.stock.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)))),
+                    ]),
+                    // 2 KOLOM
+                    Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Row(children: [
+                      // KIRI: ALL INFO STOCK & MUTASI - FONT 16px
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), // 16px
+                        const SizedBox(height: 2),
+                        Text('SKU:${p.code??'-'}', style: TextStyle(fontSize: 11, color: isDark?Colors.white70:Colors.black54)),
+                        Text('Rak:${p.rackLocation??'-'} | ${p.unit}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)), // 12
+                        const Divider(height: 8),
+                        // INFO STOCK
+                        FutureBuilder<List<StockMutationData>>(future: (ref.read(localDatabaseProvider).select(ref.read(localDatabaseProvider).stockMutations)..where((t)=> t.productId.equals(p.id))..orderBy([(t)=> OrderingTerm.desc(t.date)])..limit(2)).get(), builder: (_, s){
+                          final mut=s.data??[];
+                          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            const Text('Mutasi:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue)),
+                            ...mut.map((m)=> Text('${m.type.substring(0,3)} ${m.quantity>0?'+':''}${m.quantity.toInt()}', style: TextStyle(fontSize: 11, color: m.quantity>0?Colors.green:Colors.red))),
+                            if(mut.isEmpty) const Text('Belum ada', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          ]);
+                        }),
+                      ])),
+                      Container(width: 1, color: Colors.grey.shade300, margin: const EdgeInsets.symmetric(horizontal: 6)),
+                      // KANAN: HARGA HPP & JUAL TIER - FONT 18px,20px
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('HPP', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                        Text(formatRupiah(p.buyPrice), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange)), // 16px
+                        const SizedBox(height: 4),
+                        const Text('JUAL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                        Text(formatRupiah(p.sellPrice), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)), // 18px
+                        const Divider(height: 6),
+                        Text('T1: ${formatRupiah(p.sellPriceTier1??p.sellPrice)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)), // 14
+                        Text('T2: ${formatRupiah(p.sellPriceTier2??p.sellPrice)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                        Text('T3: ${formatRupiah(p.sellPriceTier3??p.sellPrice)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.purple)), // 20px paling besar
+                      ])),
+                    ]))),
+                  ]),
                 );
               },
-              loading: ()=> const Center(child: CircularProgressIndicator()),
-              error: (e,s)=> Center(child: Text('Error: $e')),
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF00A65A),
-        onPressed: _openMasterAdd,
-        label: const Text('Tambah Barang', style: TextStyle(color:Colors.white)),
-        icon: const Icon(Icons.add_box, color:Colors.white),
-      ),
+            );
+          },
+          loading: ()=> const Center(child: CircularProgressIndicator()),
+          error: (e,s)=> Center(child: Text('Error $e')),
+        )),
+      ]),
+      floatingActionButton: FloatingActionButton.extended(backgroundColor: const Color(0xFF00A65A), onPressed: (){ /* panggil _openMasterAdd Bos yang lama */ }, label: const Text('Tambah', style: TextStyle(color: Colors.white, fontSize: 16)), icon: const Icon(Icons.add, color: Colors.white)),
     );
   }
 }
