@@ -10,7 +10,7 @@ import '../../../../core/utils/config.dart';
 import '../../../../core/utils/format_rupiah.dart';
 import 'master_fab_perkakas.dart';
 import 'product_form_provider.dart';
-import '../auth/superuser/stock/kartu_stock_page.dart';
+import '../stock/kartu_stock_page.dart';
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
